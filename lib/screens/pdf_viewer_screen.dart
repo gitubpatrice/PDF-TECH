@@ -150,8 +150,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       canPop: !_hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) async {
         if (!didPop) {
+          final nav = Navigator.of(context);
           final canPop = await _onWillPop();
-          if (canPop && mounted) Navigator.pop(context);
+          if (canPop && mounted) { nav.pop(); }
         }
       },
       child: Scaffold(
