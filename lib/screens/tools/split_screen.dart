@@ -25,14 +25,22 @@ class _SplitScreenState extends State<SplitScreen> {
     );
     if (result?.files.single.path == null) return;
     final path = result!.files.single.path!;
-    final total = PdfToolsService().getPageCount(path);
-    setState(() {
-      _filePath = path;
-      _fileName = result.files.single.name;
-      _totalPages = total;
-      _fromPage = 1;
-      _toPage = total;
-    });
+    try {
+      final total = await PdfToolsService().getPageCount(path);
+      if (!mounted) return;
+      setState(() {
+        _filePath = path;
+        _fileName = result.files.single.name;
+        _totalPages = total;
+        _fromPage = 1;
+        _toPage = total;
+      });
+    } on PdfValidationException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    }
   }
 
   Future<void> _split() async {

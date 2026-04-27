@@ -1,13 +1,63 @@
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+/// Thrown when the input file is too big or not a valid PDF.
+class PdfValidationException implements Exception {
+  final String message;
+  const PdfValidationException(this.message);
+  @override
+  String toString() => message;
+}
+
 class PdfToolsService {
+  /// Hard cap on PDF input size (200 MB). Prevents OOM on very large or
+  /// zip-bomb-style files. Adjust if real workflows need more.
+  static const int _maxPdfBytes = 200 * 1024 * 1024;
+
+  /// Reads a PDF file with size validation and magic-bytes sniffing.
+  /// Throws [PdfValidationException] on oversized / non-PDF input.
+  static Future<Uint8List> _safeReadPdf(String path) async {
+    final f = File(path);
+    if (!f.existsSync()) {
+      throw const PdfValidationException('Fichier introuvable');
+    }
+    final length = await f.length();
+    if (length > _maxPdfBytes) {
+      throw PdfValidationException(
+          'PDF trop volumineux (max ${_maxPdfBytes ~/ (1024 * 1024)} Mo)');
+    }
+    if (length < 5) {
+      throw const PdfValidationException('Fichier PDF invalide');
+    }
+    final bytes = await f.readAsBytes();
+    // Magic bytes: PDF files start with "%PDF-".
+    if (bytes[0] != 0x25 || bytes[1] != 0x50 || bytes[2] != 0x44 ||
+        bytes[3] != 0x46 || bytes[4] != 0x2D) {
+      throw const PdfValidationException(
+          'Fichier non PDF (signature absente)');
+    }
+    return bytes;
+  }
+
   Future<String> _savePath(String name) async {
     final dir = await getApplicationDocumentsDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
     return '${dir.path}/${name}_$ts.pdf';
+  }
+
+  /// Generates a cryptographically-strong random owner password (used when
+  /// the user only supplies a user-password). Owner password protects the
+  /// PDF restrictions (printing, modification) against the user-password
+  /// holder being able to remove them.
+  static String _randomOwnerPassword() {
+    const chars =
+        'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#%&*';
+    final rng = Random.secure();
+    return List.generate(32, (_) => chars[rng.nextInt(chars.length)]).join();
   }
 
   // ── Merge ─────────────────────────────────────────────────────────────────
@@ -17,7 +67,7 @@ class PdfToolsService {
     merged.pageSettings.margins.all = 0;
 
     for (final path in inputPaths) {
-      final bytes = await File(path).readAsBytes();
+      final bytes = await _safeReadPdf(path);
       final source = PdfDocument(inputBytes: bytes);
 
       for (int i = 0; i < source.pages.count; i++) {
@@ -38,7 +88,7 @@ class PdfToolsService {
   // ── Split ─────────────────────────────────────────────────────────────────
 
   Future<String> splitPdf(String inputPath, int fromPage, int toPage) async {
-    final bytes = await File(inputPath).readAsBytes();
+    final bytes = await _safeReadPdf(inputPath);
     final source = PdfDocument(inputBytes: bytes);
     final total = source.pages.count;
     final result = PdfDocument();
@@ -64,11 +114,13 @@ class PdfToolsService {
   // ── Protect ───────────────────────────────────────────────────────────────
 
   Future<String> protectPdf(String inputPath, String userPassword) async {
-    final bytes = await File(inputPath).readAsBytes();
+    final bytes = await _safeReadPdf(inputPath);
     final document = PdfDocument(inputBytes: bytes);
 
+    // Owner password = random fort, distinct du user password : empêche le
+    // détenteur du user password de retirer les restrictions PDF.
     document.security.userPassword = userPassword;
-    document.security.ownerPassword = userPassword;
+    document.security.ownerPassword = _randomOwnerPassword();
     document.security.algorithm = PdfEncryptionAlgorithm.aesx256Bit;
 
     final path = await _savePath('protege');
@@ -80,7 +132,7 @@ class PdfToolsService {
   // ── Rotate ────────────────────────────────────────────────────────────────
 
   Future<String> rotatePdf(String inputPath, PdfPageRotateAngle angle) async {
-    final bytes = await File(inputPath).readAsBytes();
+    final bytes = await _safeReadPdf(inputPath);
     final document = PdfDocument(inputBytes: bytes);
 
     for (int i = 0; i < document.pages.count; i++) {
@@ -101,7 +153,7 @@ class PdfToolsService {
     double opacity = 0.25,
     Color color = Colors.grey,
   }) async {
-    final bytes = await File(inputPath).readAsBytes();
+    final bytes = await _safeReadPdf(inputPath);
     final document = PdfDocument(inputBytes: bytes);
 
     final font = PdfStandardFont(PdfFontFamily.helvetica, 52,
@@ -217,7 +269,7 @@ class PdfToolsService {
   // ── Compress ──────────────────────────────────────────────────────────────
 
   Future<String> compressPdf(String inputPath, PdfCompressionLevel level) async {
-    final bytes = await File(inputPath).readAsBytes();
+    final bytes = await _safeReadPdf(inputPath);
     final document = PdfDocument(inputBytes: bytes);
     document.compressionLevel = level;
     final path = await _savePath('compresse');
@@ -229,8 +281,8 @@ class PdfToolsService {
 
   // ── Utils ─────────────────────────────────────────────────────────────────
 
-  int getPageCount(String path) {
-    final bytes = File(path).readAsBytesSync();
+  Future<int> getPageCount(String path) async {
+    final bytes = await _safeReadPdf(path);
     final doc = PdfDocument(inputBytes: bytes);
     final count = doc.pages.count;
     doc.dispose();

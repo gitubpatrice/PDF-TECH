@@ -159,6 +159,9 @@ class _DecryptScreenState extends State<DecryptScreen> {
             TextField(
               controller: _passwordCtrl,
               obscureText: _obscure,
+              enableSuggestions: false,
+              autocorrect: false,
+              keyboardType: TextInputType.visiblePassword,
               decoration: InputDecoration(
                 hintText: 'Entrez le mot de passe du PDF',
                 prefixIcon: const Icon(Icons.key_outlined),

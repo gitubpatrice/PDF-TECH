@@ -67,7 +67,13 @@ class GoogleDriveService {
       bytes.addAll(chunk);
     }
 
-    final name = driveFile.name ?? 'document.pdf';
+    // Sanitize remote name to prevent path traversal (Drive lets users name
+    // files with "/" or "..", which would write outside `localDir`).
+    final raw = driveFile.name ?? 'document.pdf';
+    final safe = raw
+        .replaceAll(RegExp(r'[\\/\x00-\x1f]'), '_')
+        .replaceAll(RegExp(r'^\.+'), '_');
+    final name = safe.isEmpty ? 'document.pdf' : safe;
     final localPath = '$localDir/$name';
     await File(localPath).writeAsBytes(Uint8List.fromList(bytes));
     return localPath;

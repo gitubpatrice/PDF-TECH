@@ -29,10 +29,15 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias     = keyProperties["keyAlias"]    as String
-            keyPassword  = keyProperties["keyPassword"] as String
-            storeFile    = file(keyProperties["storeFile"] as String)
+            keyAlias      = keyProperties["keyAlias"]    as String
+            keyPassword   = keyProperties["keyPassword"] as String
+            storeFile     = file(keyProperties["storeFile"] as String)
             storePassword = keyProperties["storePassword"] as String
+            // APK signing scheme v1 + v2 + v3 : v3 permet la rotation de
+            // clé en cas de compromission (Android 9+).
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -48,6 +53,7 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

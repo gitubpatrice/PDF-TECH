@@ -95,6 +95,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
               TextField(
                 controller: _passwordCtrl,
                 obscureText: _obscure1,
+                enableSuggestions: false,
+                autocorrect: false,
+                keyboardType: TextInputType.visiblePassword,
                 decoration: InputDecoration(
                   labelText: 'Mot de passe',
                   border: const OutlineInputBorder(),
@@ -109,6 +112,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
               TextField(
                 controller: _confirmCtrl,
                 obscureText: _obscure2,
+                enableSuggestions: false,
+                autocorrect: false,
+                keyboardType: TextInputType.visiblePassword,
                 decoration: InputDecoration(
                   labelText: 'Confirmer le mot de passe',
                   border: const OutlineInputBorder(),
