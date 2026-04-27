@@ -25,6 +25,8 @@ import 'tools/stamp_screen.dart';
 import 'tools/header_footer_screen.dart';
 import 'tools/extract_images_screen.dart';
 import 'tools/compare_screen.dart';
+import 'tools/images_to_pdf_screen.dart';
+import 'tools/decrypt_screen.dart';
 import 'cloud/google_drive_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -509,6 +511,20 @@ class _ToolsTab extends StatelessWidget {
         subtitle: 'Deux PDFs côte à côte',
         color: Colors.deepPurple,
         screen: const CompareScreen(),
+      ),
+      (
+        icon: Icons.add_photo_alternate_outlined,
+        label: 'Images → PDF',
+        subtitle: 'JPG/PNG vers un PDF',
+        color: Colors.lightGreen,
+        screen: const ImagesToPdfScreen(),
+      ),
+      (
+        icon: Icons.lock_open_outlined,
+        label: 'Déchiffrer',
+        subtitle: 'Retirer le mot de passe',
+        color: Colors.teal,
+        screen: const DecryptScreen(),
       ),
     ];
 

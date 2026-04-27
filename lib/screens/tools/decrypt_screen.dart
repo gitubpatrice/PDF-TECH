@@ -1,0 +1,199 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+class DecryptScreen extends StatefulWidget {
+  const DecryptScreen({super.key});
+
+  @override
+  State<DecryptScreen> createState() => _DecryptScreenState();
+}
+
+class _DecryptScreenState extends State<DecryptScreen> {
+  String? _path;
+  String? _name;
+  final _passwordCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: false,
+    );
+    if (result == null || result.files.single.path == null) return;
+    setState(() {
+      _path = result.files.single.path;
+      _name = result.files.single.name;
+      _passwordCtrl.clear();
+    });
+  }
+
+  Future<void> _decrypt() async {
+    if (_path == null || _passwordCtrl.text.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _isProcessing = true);
+    try {
+      final bytes = await File(_path!).readAsBytes();
+      final doc = PdfDocument(
+        inputBytes: bytes,
+        password: _passwordCtrl.text,
+      );
+      // Retirer la protection
+      doc.security.userPassword = '';
+      doc.security.ownerPassword = '';
+
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final base = (_name ?? 'document').replaceAll('.pdf', '');
+      final outPath = '${dir.path}/${base}_déchiffré_$ts.pdf';
+      await File(outPath).writeAsBytes(await doc.save());
+      doc.dispose();
+
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      messenger.showSnackBar(SnackBar(
+        content: const Text('PDF déchiffré avec succès'),
+        action: SnackBarAction(
+          label: 'Partager',
+          onPressed: () => Share.shareXFiles([XFile(outPath)]),
+        ),
+      ));
+      setState(() {
+        _path = null;
+        _name = null;
+        _passwordCtrl.clear();
+      });
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Mot de passe incorrect ou PDF non chiffré'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Déchiffrer un PDF')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Illustration + description
+            Center(
+              child: Icon(Icons.lock_open_outlined,
+                  size: 72,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.5)),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                'Retirez le mot de passe d\'un PDF protégé\n(vous devez connaître le mot de passe)',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Fichier
+            Text('Fichier PDF',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _path == null
+                ? SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _pickFile,
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('Choisir un PDF'),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 48)),
+                    ),
+                  )
+                : ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.picture_as_pdf,
+                          color: Colors.red, size: 22),
+                    ),
+                    title: Text(_name!,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13)),
+                    trailing: TextButton(
+                        onPressed: _pickFile,
+                        child: const Text('Changer')),
+                  ),
+            const SizedBox(height: 24),
+
+            // Mot de passe
+            Text('Mot de passe actuel',
+                style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _passwordCtrl,
+              obscureText: _obscure,
+              decoration: InputDecoration(
+                hintText: 'Entrez le mot de passe du PDF',
+                prefixIcon: const Icon(Icons.key_outlined),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // Bouton déchiffrer
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed:
+                    (_path != null && !_isProcessing) ? _decrypt : null,
+                icon: _isProcessing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.lock_open_outlined),
+                label: Text(
+                    _isProcessing ? 'Déchiffrement…' : 'Déchiffrer le PDF'),
+                style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

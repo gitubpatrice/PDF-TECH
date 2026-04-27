@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/share_service.dart';
 
 class PdfViewerScreen extends StatefulWidget {
@@ -23,13 +24,38 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   bool _hasUnsavedChanges = false;
   bool _isSaving = false;
   PdfAnnotationMode _annotationMode = PdfAnnotationMode.none;
+  bool _nightMode = false;
+  int _savedPage = 1;
   final TextEditingController _searchController = TextEditingController();
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
+
+  String get _prefKey => 'last_page_${widget.path.hashCode}';
+  String get _nightKey => 'night_mode_pdf';
 
   @override
   void initState() {
     super.initState();
     _controller = PdfViewerController();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _savedPage = prefs.getInt(_prefKey) ?? 1;
+      _nightMode = prefs.getBool(_nightKey) ?? false;
+    });
+  }
+
+  Future<void> _saveLastPage(int page) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_prefKey, page);
+  }
+
+  Future<void> _toggleNightMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() => _nightMode = !_nightMode);
+    await prefs.setBool(_nightKey, _nightMode);
   }
 
   @override
@@ -144,6 +170,37 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     );
   }
 
+  Widget _buildViewer() {
+    return SfPdfViewer.file(
+      File(widget.path),
+      key: _viewerKey,
+      controller: _controller,
+      enableDoubleTapZooming: true,
+      enableTextSelection: true,
+      canShowScrollHead: true,
+      canShowScrollStatus: true,
+      onDocumentLoaded: (d) {
+        setState(() => _totalPages = d.document.pages.count);
+        if (_savedPage > 1 && _savedPage <= d.document.pages.count) {
+          _controller.jumpToPage(_savedPage);
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Reprise à la page $_savedPage'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ));
+        }
+      },
+      onPageChanged: (d) {
+        setState(() => _currentPage = d.newPageNumber);
+        _saveLastPage(d.newPageNumber);
+      },
+      onAnnotationAdded: (_) => setState(() => _hasUnsavedChanges = true),
+      onAnnotationEdited: (_) => setState(() => _hasUnsavedChanges = true),
+      onAnnotationRemoved: (_) => setState(() => _hasUnsavedChanges = true),
+      onFormFieldValueChanged: (_) => setState(() => _hasUnsavedChanges = true),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -186,6 +243,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             icon: const Icon(Icons.save_outlined),
                             onPressed: _saveAnnotations,
                           ),
+                  IconButton(
+                    tooltip: _nightMode ? 'Mode jour' : 'Mode nuit',
+                    icon: Icon(_nightMode ? Icons.light_mode : Icons.dark_mode),
+                    onPressed: _toggleNightMode,
+                  ),
                   IconButton(
                     tooltip: 'Rechercher',
                     icon: Icon(
@@ -271,27 +333,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             Expanded(
               child: GestureDetector(
                 onTap: _toggleBars,
-                child: SfPdfViewer.file(
-                  File(widget.path),
-                  key: _viewerKey,
-                  controller: _controller,
-                  enableDoubleTapZooming: true,
-                  enableTextSelection: true,
-                  canShowScrollHead: true,
-                  canShowScrollStatus: true,
-                  onDocumentLoaded: (d) =>
-                      setState(() => _totalPages = d.document.pages.count),
-                  onPageChanged: (d) =>
-                      setState(() => _currentPage = d.newPageNumber),
-                  onAnnotationAdded: (_) =>
-                      setState(() => _hasUnsavedChanges = true),
-                  onAnnotationEdited: (_) =>
-                      setState(() => _hasUnsavedChanges = true),
-                  onAnnotationRemoved: (_) =>
-                      setState(() => _hasUnsavedChanges = true),
-                  onFormFieldValueChanged: (_) =>
-                      setState(() => _hasUnsavedChanges = true),
-                ),
+                child: _nightMode
+                    ? ColorFiltered(
+                        colorFilter: const ColorFilter.matrix([
+                          -1, 0, 0, 0, 255,
+                           0,-1, 0, 0, 255,
+                           0, 0,-1, 0, 255,
+                           0, 0, 0, 1,   0,
+                        ]),
+                        child: _buildViewer(),
+                      )
+                    : _buildViewer(),
               ),
             ),
           ],
