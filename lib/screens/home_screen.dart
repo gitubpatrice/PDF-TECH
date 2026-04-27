@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import '../models/recent_file.dart';
@@ -28,6 +29,7 @@ import 'tools/compare_screen.dart';
 import 'tools/images_to_pdf_screen.dart';
 import 'tools/decrypt_screen.dart';
 import 'cloud/google_drive_screen.dart';
+import 'about_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -148,6 +150,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 delegate: _PdfSearchDelegate(_recentFiles, _openPdf),
               ),
             ),
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            tooltip: 'À propos',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const AboutScreen())),
+          ),
           PopupMenuButton<ThemeMode>(
             tooltip: 'Thème',
             icon: Icon(_themeModeIcon(widget.themeMode)),
@@ -223,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // ── Home tab ──────────────────────────────────────────────────────────────────
 
-class _HomeTab extends StatelessWidget {
+class _HomeTab extends StatefulWidget {
   final List<RecentFile> recentFiles;
   final bool isLoading;
   final ValueChanged<String> onOpen;
@@ -243,51 +251,124 @@ class _HomeTab extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (recentFiles.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.picture_as_pdf,
-                size: 96,
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)),
-            const SizedBox(height: 20),
-            Text('Aucun fichier récent',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(
-              'Appuyez sur "Ouvrir un PDF" pour commencer',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
-    }
+  State<_HomeTab> createState() => _HomeTabState();
+}
 
-    final favorites = recentFiles.where((f) => f.isFavorite).toList();
-    final recents   = recentFiles.where((f) => !f.isFavorite).toList();
+class _HomeTabState extends State<_HomeTab> {
+  static final _storageChannel = MethodChannel('com.pdftech.pdf_tech/storage');
+  int _totalBytes = 0;
+  int _freeBytes  = 0;
+
+  static const _quickActions = [
+    (icon: Icons.merge_type,              label: 'Fusionner',     color: Color(0xFF1976D2)),
+    (icon: Icons.call_split,              label: 'Diviser',       color: Color(0xFF43A047)),
+    (icon: Icons.compress,                label: 'Compresser',    color: Color(0xFFFF7043)),
+    (icon: Icons.add_photo_alternate_outlined, label: 'Images→PDF', color: Color(0xFF8E24AA)),
+    (icon: Icons.document_scanner_outlined,    label: 'OCR',       color: Color(0xFFE53935)),
+    (icon: Icons.lock_outline,            label: 'Protéger',      color: Color(0xFF00897B)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStorage();
+  }
+
+  Future<void> _loadStorage() async {
+    try {
+      final res = await _storageChannel.invokeMethod<Map>('getStorageInfo');
+      if (res != null && mounted) {
+        setState(() {
+          _totalBytes = (res['total'] as num).toInt();
+          _freeBytes  = (res['free']  as num).toInt();
+        });
+      }
+    } catch (_) {}
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  void _openQuickAction(BuildContext context, int index) {
+    final screens = [
+      const MergeScreen(),
+      const SplitScreen(),
+      const CompressScreen(),
+      const ImagesToPdfScreen(),
+      const OcrScreen(),
+      const ProtectScreen(),
+    ];
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isLoading) return const Center(child: CircularProgressIndicator());
+
+    final favorites = widget.recentFiles.where((f) => f.isFavorite).toList();
+    final recents   = widget.recentFiles.where((f) => !f.isFavorite).toList();
+    final lastFile  = widget.recentFiles.isNotEmpty ? widget.recentFiles.first : null;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
       children: [
+
+        // ── Stockage ────────────────────────────────────────────────────────
+        if (_totalBytes > 0) ...[
+          _sectionHeader(context, 'Stockage interne', Icons.storage_outlined, Colors.blueGrey),
+          const SizedBox(height: 6),
+          _StorageBar(freeBytes: _freeBytes, totalBytes: _totalBytes, formatBytes: _formatBytes),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Reprendre ───────────────────────────────────────────────────────
+        if (lastFile != null) ...[
+          _sectionHeader(context, 'Reprendre', Icons.play_circle_outline, Colors.blue),
+          const SizedBox(height: 6),
+          _ResumeCard(
+            file: lastFile,
+            formatDate: widget.formatDate,
+            onTap: () => widget.onOpen(lastFile.path),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Actions rapides ─────────────────────────────────────────────────
+        _sectionHeader(context, 'Actions rapides', Icons.bolt_outlined, Colors.deepOrange),
+        const SizedBox(height: 8),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1.1,
+          children: _quickActions.asMap().entries.map((e) => _ActionCard(
+            icon: e.value.icon,
+            label: e.value.label,
+            color: e.value.color,
+            onTap: () => _openQuickAction(context, e.key),
+          )).toList(),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Favoris ─────────────────────────────────────────────────────────
         if (favorites.isNotEmpty) ...[
           _sectionHeader(context, 'Favoris', Icons.star, Colors.amber),
           ...favorites.map((f) => _fileCard(context, f)),
           const SizedBox(height: 8),
         ],
+
+        // ── Récents ─────────────────────────────────────────────────────────
         _sectionHeader(context, 'Récemment ouverts', Icons.history, Colors.grey),
-        if (recents.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(16),
+        if (widget.recentFiles.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text('Aucun fichier récent',
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: Colors.grey.shade500)),
           )
         else
           ...recents.map((f) => _fileCard(context, f)),
@@ -297,73 +378,207 @@ class _HomeTab extends StatelessWidget {
 
   Widget _sectionHeader(BuildContext context, String label, IconData icon, Color color) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+      padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
       child: Row(children: [
         Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
+        const SizedBox(width: 5),
         Text(label,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(color: Colors.grey)),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
       ]),
     );
   }
 
   Widget _fileCard(BuildContext context, RecentFile file) {
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: Stack(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(Icons.picture_as_pdf,
-                  color: Theme.of(context).colorScheme.primary),
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        leading: Stack(children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(10),
             ),
-            if (file.isFavorite)
-              const Positioned(
-                right: 0, top: 0,
-                child: Icon(Icons.star, size: 14, color: Colors.amber),
-              ),
-          ],
-        ),
-        title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('${formatDate(file.lastOpened)} · ${file.formattedSize}'),
+            child: Icon(Icons.picture_as_pdf,
+                color: Theme.of(context).colorScheme.primary, size: 24),
+          ),
+          if (file.isFavorite)
+            const Positioned(right: 0, top: 0,
+                child: Icon(Icons.star, size: 12, color: Colors.amber)),
+        ]),
+        title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13)),
+        subtitle: Text('${widget.formatDate(file.lastOpened)} · ${file.formattedSize}',
+            style: const TextStyle(fontSize: 11)),
         trailing: PopupMenuButton<String>(
           onSelected: (v) {
-            if (v == 'favorite') onToggleFavorite(file);
-            if (v == 'share')    onShare(file);
-            if (v == 'remove')   onRemove(file);
+            if (v == 'favorite') widget.onToggleFavorite(file);
+            if (v == 'share')    widget.onShare(file);
+            if (v == 'remove')   widget.onRemove(file);
           },
           itemBuilder: (_) => [
-            PopupMenuItem(
-                value: 'favorite',
-                child: ListTile(
-                    leading: Icon(
-                        file.isFavorite ? Icons.star_border : Icons.star,
-                        color: Colors.amber),
-                    title: Text(file.isFavorite
-                        ? 'Retirer des favoris'
-                        : 'Ajouter aux favoris'))),
-            const PopupMenuItem(
-                value: 'share',
-                child: ListTile(
-                    leading: Icon(Icons.share), title: Text('Partager'))),
-            const PopupMenuItem(
-                value: 'remove',
-                child: ListTile(
-                    leading: Icon(Icons.delete_outline),
-                    title: Text('Retirer'))),
+            PopupMenuItem(value: 'favorite', child: ListTile(
+                leading: Icon(file.isFavorite ? Icons.star_border : Icons.star, color: Colors.amber),
+                title: Text(file.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'))),
+            const PopupMenuItem(value: 'share', child: ListTile(
+                leading: Icon(Icons.share), title: Text('Partager'))),
+            const PopupMenuItem(value: 'remove', child: ListTile(
+                leading: Icon(Icons.delete_outline), title: Text('Retirer'))),
           ],
         ),
-        onTap: () => onOpen(file.path),
+        onTap: () => widget.onOpen(file.path),
+      ),
+    );
+  }
+}
+
+// ── Widgets helpers ───────────────────────────────────────────────────────────
+
+class _StorageBar extends StatelessWidget {
+  final int freeBytes;
+  final int totalBytes;
+  final String Function(int) formatBytes;
+
+  const _StorageBar({
+    required this.freeBytes,
+    required this.totalBytes,
+    required this.formatBytes,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final usedBytes = totalBytes - freeBytes;
+    final ratio = totalBytes > 0 ? usedBytes / totalBytes : 0.0;
+    final color = ratio > 0.9
+        ? Colors.red
+        : ratio > 0.75
+            ? Colors.orange
+            : Theme.of(context).colorScheme.primary;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(children: [
+          Row(children: [
+            Text(formatBytes(usedBytes),
+                style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 15)),
+            Text(' utilisés sur ${formatBytes(totalBytes)}',
+                style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            const Spacer(),
+            Text('${formatBytes(freeBytes)} libres',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          ]),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio.toDouble(),
+              minHeight: 7,
+              backgroundColor: color.withValues(alpha: 0.15),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _ResumeCard extends StatelessWidget {
+  final RecentFile file;
+  final String Function(DateTime) formatDate;
+  final VoidCallback onTap;
+
+  const _ResumeCard({
+    required this.file,
+    required this.formatDate,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(children: [
+            Container(
+              width: 46, height: 46,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.picture_as_pdf, color: color, size: 26),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(file.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text('${formatDate(file.lastOpened)} · ${file.formattedSize}',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            )),
+            Icon(Icons.play_circle_fill,
+                color: color.withValues(alpha: 0.8), size: 28),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 6),
+              Text(label,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
       ),
     );
   }
