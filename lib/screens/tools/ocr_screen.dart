@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -105,7 +104,7 @@ class _OcrScreenState extends State<OcrScreen> {
 
         if (pageImage?.bytes != null) {
           final pngBytes = await _rawToPng(
-            pageImage!.bytes!,
+            pageImage!.bytes,
             pageImage.width ?? (page.width * 2).toInt(),
             pageImage.height ?? (page.height * 2).toInt(),
           );
@@ -133,11 +132,10 @@ class _OcrScreenState extends State<OcrScreen> {
         _isProcessing = false;
       });
     } catch (e) {
-      if (mounted) {
-        setState(() => _isProcessing = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erreur : $e')));
-      }
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 

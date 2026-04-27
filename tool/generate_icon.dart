@@ -36,6 +36,7 @@ void main() {
   Directory('assets/icon').createSync(recursive: true);
   final bytes = img.encodePng(image);
   File('assets/icon/app_icon.png').writeAsBytesSync(bytes);
+  // ignore: avoid_print
   print('✓ Icône générée : assets/icon/app_icon.png (${(bytes.length / 1024).toStringAsFixed(1)} Ko)');
 }
 

@@ -1,4 +1,4 @@
-name: pdf_studio
+name: pdf_tech
 description: "Application de gestion de PDF - lecture, annotation, création, partage"
 publish_to: 'none'
 version: 1.0.0+1
@@ -40,6 +40,7 @@ dependencies:
   # OCR - rendu de pages PDF en images + reconnaissance de texte
   pdfx: ^2.6.0
   google_mlkit_text_recognition: ^0.13.0
+
 
 dev_dependencies:
   flutter_test:

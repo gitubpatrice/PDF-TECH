@@ -22,13 +22,24 @@ class RecentFilesService {
 
     final name = path.split(RegExp(r'[/\\]')).last;
     final size = file.lengthSync();
+    final existing = current.firstWhere((f) => f.path == path,
+        orElse: () => RecentFile(path: path, name: name, lastOpened: DateTime.now(), sizeBytes: size));
     final updated = [
-      RecentFile(path: path, name: name, lastOpened: DateTime.now(), sizeBytes: size),
+      RecentFile(path: path, name: name, lastOpened: DateTime.now(),
+          sizeBytes: size, isFavorite: existing.isFavorite),
       ...current.where((f) => f.path != path),
     ];
     final trimmed = updated.take(_maxFiles).toList();
     await _save(trimmed);
     return trimmed;
+  }
+
+  Future<List<RecentFile>> toggleFavorite(List<RecentFile> current, String path) async {
+    final updated = current
+        .map((f) => f.path == path ? f.copyWith(isFavorite: !f.isFavorite) : f)
+        .toList();
+    await _save(updated);
+    return updated;
   }
 
   Future<List<RecentFile>> remove(List<RecentFile> current, String path) async {

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/recent_file.dart';
 import '../services/recent_files_service.dart';
 import '../services/share_service.dart';
+import '../services/update_service.dart';
 import 'pdf_viewer_screen.dart';
 import 'tools/merge_screen.dart';
 import 'tools/split_screen.dart';
@@ -15,6 +16,15 @@ import 'tools/compress_screen.dart';
 import 'tools/signature_screen.dart';
 import 'tools/form_fill_screen.dart';
 import 'tools/ocr_screen.dart';
+import 'tools/delete_pages_screen.dart';
+import 'tools/reorder_pages_screen.dart';
+import 'tools/export_images_screen.dart';
+import 'tools/metadata_screen.dart';
+import 'tools/page_numbers_screen.dart';
+import 'tools/stamp_screen.dart';
+import 'tools/header_footer_screen.dart';
+import 'tools/extract_images_screen.dart';
+import 'tools/compare_screen.dart';
 import 'cloud/google_drive_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -42,6 +52,29 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadRecents();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+  }
+
+  Future<void> _checkUpdate() async {
+    final info = await UpdateService().checkForUpdate();
+    if (info == null || !mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Mise à jour v${info.version} disponible'),
+        content: Text(info.body.isNotEmpty
+            ? info.body
+            : 'Une nouvelle version de PDF Tech est disponible.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Plus tard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK')),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadRecents() async {
@@ -84,6 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _recentFiles = updated);
   }
 
+  Future<void> _toggleFavorite(RecentFile file) async {
+    final updated = await _recentFilesService.toggleFavorite(_recentFiles, file.path);
+    if (mounted) setState(() => _recentFiles = updated);
+  }
+
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
@@ -97,7 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Studio'),
+        title: const Text('PDF Tech'),
         actions: [
           if (_navIndex == 0 && _recentFiles.isNotEmpty)
             IconButton(
@@ -146,6 +184,7 @@ class _HomeScreenState extends State<HomeScreen> {
             isLoading: _isLoading,
             onOpen: _openPdf,
             onRemove: _removeRecent,
+            onToggleFavorite: _toggleFavorite,
             onShare: (f) => _shareService.sharePdf(f.path, f.name),
             formatDate: _formatDate,
           ),
@@ -187,6 +226,7 @@ class _HomeTab extends StatelessWidget {
   final bool isLoading;
   final ValueChanged<String> onOpen;
   final ValueChanged<RecentFile> onRemove;
+  final ValueChanged<RecentFile> onToggleFavorite;
   final ValueChanged<RecentFile> onShare;
   final String Function(DateTime) formatDate;
 
@@ -195,6 +235,7 @@ class _HomeTab extends StatelessWidget {
     required this.isLoading,
     required this.onOpen,
     required this.onRemove,
+    required this.onToggleFavorite,
     required this.onShare,
     required this.formatDate,
   });
@@ -228,27 +269,53 @@ class _HomeTab extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
+    final favorites = recentFiles.where((f) => f.isFavorite).toList();
+    final recents   = recentFiles.where((f) => !f.isFavorite).toList();
+
+    return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
-      itemCount: recentFiles.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-            child: Text('Récemment ouverts',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(color: Colors.grey)),
-          );
-        }
-        final file = recentFiles[index - 1];
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            leading: Container(
+      children: [
+        if (favorites.isNotEmpty) ...[
+          _sectionHeader(context, 'Favoris', Icons.star, Colors.amber),
+          ...favorites.map((f) => _fileCard(context, f)),
+          const SizedBox(height: 8),
+        ],
+        _sectionHeader(context, 'Récemment ouverts', Icons.history, Colors.grey),
+        if (recents.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Aucun fichier récent',
+                style: TextStyle(color: Colors.grey)),
+          )
+        else
+          ...recents.map((f) => _fileCard(context, f)),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context, String label, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+      child: Row(children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(label,
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(color: Colors.grey)),
+      ]),
+    );
+  }
+
+  Widget _fileCard(BuildContext context, RecentFile file) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: Stack(
+          children: [
+            Container(
               width: 48,
               height: 48,
               decoration: BoxDecoration(
@@ -258,32 +325,44 @@ class _HomeTab extends StatelessWidget {
               child: Icon(Icons.picture_as_pdf,
                   color: Theme.of(context).colorScheme.primary),
             ),
-            title: Text(file.name,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            subtitle: Text(
-                '${formatDate(file.lastOpened)} · ${file.formattedSize}'),
-            trailing: PopupMenuButton<String>(
-              onSelected: (v) {
-                if (v == 'share') onShare(file);
-                if (v == 'remove') onRemove(file);
-              },
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                    value: 'share',
-                    child: ListTile(
-                        leading: Icon(Icons.share),
-                        title: Text('Partager'))),
-                PopupMenuItem(
-                    value: 'remove',
-                    child: ListTile(
-                        leading: Icon(Icons.delete_outline),
-                        title: Text('Retirer'))),
-              ],
-            ),
-            onTap: () => onOpen(file.path),
-          ),
-        );
-      },
+            if (file.isFavorite)
+              const Positioned(
+                right: 0, top: 0,
+                child: Icon(Icons.star, size: 14, color: Colors.amber),
+              ),
+          ],
+        ),
+        title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text('${formatDate(file.lastOpened)} · ${file.formattedSize}'),
+        trailing: PopupMenuButton<String>(
+          onSelected: (v) {
+            if (v == 'favorite') onToggleFavorite(file);
+            if (v == 'share')    onShare(file);
+            if (v == 'remove')   onRemove(file);
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+                value: 'favorite',
+                child: ListTile(
+                    leading: Icon(
+                        file.isFavorite ? Icons.star_border : Icons.star,
+                        color: Colors.amber),
+                    title: Text(file.isFavorite
+                        ? 'Retirer des favoris'
+                        : 'Ajouter aux favoris'))),
+            const PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                    leading: Icon(Icons.share), title: Text('Partager'))),
+            const PopupMenuItem(
+                value: 'remove',
+                child: ListTile(
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Retirer'))),
+          ],
+        ),
+        onTap: () => onOpen(file.path),
+      ),
     );
   }
 }
@@ -367,6 +446,69 @@ class _ToolsTab extends StatelessWidget {
         subtitle: 'Extraire le texte',
         color: Colors.deepOrange,
         screen: const OcrScreen(),
+      ),
+      (
+        icon: Icons.delete_sweep_outlined,
+        label: 'Supprimer',
+        subtitle: 'Retirer des pages',
+        color: Colors.red,
+        screen: const DeletePagesScreen(),
+      ),
+      (
+        icon: Icons.swap_vert_circle_outlined,
+        label: 'Réorganiser',
+        subtitle: 'Changer l\'ordre des pages',
+        color: Colors.amber,
+        screen: const ReorderPagesScreen(),
+      ),
+      (
+        icon: Icons.image_outlined,
+        label: 'Exporter images',
+        subtitle: 'Pages en PNG / JPEG',
+        color: Colors.lightGreen,
+        screen: const ExportImagesScreen(),
+      ),
+      (
+        icon: Icons.info_outline,
+        label: 'Métadonnées',
+        subtitle: 'Titre, auteur, sujet',
+        color: Colors.blueGrey,
+        screen: const MetadataScreen(),
+      ),
+      (
+        icon: Icons.format_list_numbered,
+        label: 'Numéroter',
+        subtitle: 'Ajouter des numéros',
+        color: Colors.cyan,
+        screen: const PageNumbersScreen(),
+      ),
+      (
+        icon: Icons.approval_outlined,
+        label: 'Tampon',
+        subtitle: 'CONFIDENTIEL, APPROUVÉ…',
+        color: Colors.red,
+        screen: const StampScreen(),
+      ),
+      (
+        icon: Icons.vertical_split_outlined,
+        label: 'En-tête / Pied',
+        subtitle: 'Texte fixe sur les pages',
+        color: Colors.indigo,
+        screen: const HeaderFooterScreen(),
+      ),
+      (
+        icon: Icons.image_search,
+        label: 'Extraire images',
+        subtitle: 'Images intégrées au PDF',
+        color: Colors.teal,
+        screen: const ExtractImagesScreen(),
+      ),
+      (
+        icon: Icons.compare_outlined,
+        label: 'Comparer',
+        subtitle: 'Deux PDFs côte à côte',
+        color: Colors.deepPurple,
+        screen: const CompareScreen(),
       ),
     ];
 

@@ -40,7 +40,7 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
         title: _titleCtrl.text.trim(),
         content: _contentCtrl.text.trim(),
         author: _authorCtrl.text.trim().isEmpty
-            ? 'PDF Studio'
+            ? 'PDF Tech'
             : _authorCtrl.text.trim(),
       );
       if (!mounted) return;

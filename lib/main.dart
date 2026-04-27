@@ -3,6 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 
+const _settingsChannel = MethodChannel('com.pdftech.pdf_tech/settings');
+
+Future<void> _openUnknownSources() async {
+  await _settingsChannel.invokeMethod('openUnknownSources');
+}
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
@@ -10,7 +16,7 @@ void main() {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
-  runApp(const PdfStudioApp());
+  runApp(const PdfTechApp());
 }
 
 ThemeData _githubDarkTheme() {
@@ -165,20 +171,54 @@ ThemeData _githubDarkTheme() {
   );
 }
 
-class PdfStudioApp extends StatefulWidget {
-  const PdfStudioApp({super.key});
+class PdfTechApp extends StatefulWidget {
+  const PdfTechApp({super.key});
 
   @override
-  State<PdfStudioApp> createState() => _PdfStudioAppState();
+  State<PdfTechApp> createState() => _PdfTechAppState();
 }
 
-class _PdfStudioAppState extends State<PdfStudioApp> {
+class _PdfTechAppState extends State<PdfTechApp> {
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
     _loadTheme();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstLaunch());
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shown = prefs.getBool('unknown_sources_shown') ?? false;
+    if (shown || !mounted) return;
+    await prefs.setBool('unknown_sources_shown', true);
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Autoriser l\'installation'),
+        content: const Text(
+          'Pour installer les mises à jour de PDF Tech, '
+          'votre téléphone doit autoriser les sources inconnues.\n\n'
+          'Appuyez sur "Activer" puis activez le bouton dans les réglages qui s\'ouvrent.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Plus tard'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _openUnknownSources();
+            },
+            child: const Text('Activer'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadTheme() async {
@@ -201,7 +241,7 @@ class _PdfStudioAppState extends State<PdfStudioApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PDF Studio',
+      title: 'PDF Tech',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(

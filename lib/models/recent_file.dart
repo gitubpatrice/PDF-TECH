@@ -5,19 +5,30 @@ class RecentFile {
   final String name;
   final DateTime lastOpened;
   final int sizeBytes;
+  final bool isFavorite;
 
   const RecentFile({
     required this.path,
     required this.name,
     required this.lastOpened,
     required this.sizeBytes,
+    this.isFavorite = false,
   });
+
+  RecentFile copyWith({bool? isFavorite}) => RecentFile(
+        path: path,
+        name: name,
+        lastOpened: lastOpened,
+        sizeBytes: sizeBytes,
+        isFavorite: isFavorite ?? this.isFavorite,
+      );
 
   Map<String, dynamic> toJson() => {
         'path': path,
         'name': name,
         'lastOpened': lastOpened.toIso8601String(),
         'sizeBytes': sizeBytes,
+        'isFavorite': isFavorite,
       };
 
   factory RecentFile.fromJson(Map<String, dynamic> json) => RecentFile(
@@ -25,6 +36,7 @@ class RecentFile {
         name: json['name'] as String,
         lastOpened: DateTime.parse(json['lastOpened'] as String),
         sizeBytes: json['sizeBytes'] as int,
+        isFavorite: json['isFavorite'] as bool? ?? false,
       );
 
   String toJsonString() => jsonEncode(toJson());

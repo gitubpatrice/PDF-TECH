@@ -145,7 +145,7 @@ class PdfToolsService {
   Future<String> createPdf({
     required String title,
     required String content,
-    String author = 'PDF Studio',
+    String author = 'PDF Tech',
   }) async {
     final document = PdfDocument();
     document.documentInformation.title = title;
@@ -205,7 +205,7 @@ class PdfToolsService {
       final w = page.getClientSize().width;
       final h = page.getClientSize().height;
       page.graphics.drawString(
-        'Page ${i + 1} / $total  ·  PDF Studio',
+        'Page ${i + 1} / $total  ·  PDF Tech',
         font,
         brush: brush,
         bounds: Rect.fromLTWH(0, h - 14, w, 14),
