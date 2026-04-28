@@ -272,7 +272,7 @@ class _FileHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          const Icon(Icons.picture_as_pdf, color: Colors.blue),
+          const Icon(Icons.picture_as_pdf, color: Colors.red),
           const SizedBox(width: 10),
           Expanded(
             child: Text(name,

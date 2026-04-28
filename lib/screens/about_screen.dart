@@ -9,7 +9,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  static const _version = '1.4.2';
+  static const _version = '1.4.3';
   static const _author  = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
@@ -125,10 +125,10 @@ class _AboutScreenState extends State<AboutScreen> {
             Container(
               width: 80, height: 80,
               decoration: BoxDecoration(
-                color: cs.primaryContainer,
+                color: const Color(0xFFC62828).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(Icons.picture_as_pdf, size: 44, color: cs.primary),
+              child: const Icon(Icons.picture_as_pdf, size: 44, color: Color(0xFFC62828)),
             ),
             const SizedBox(height: 14),
             Text('PDF Tech',

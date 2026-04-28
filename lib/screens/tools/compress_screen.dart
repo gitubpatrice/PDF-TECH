@@ -85,9 +85,9 @@ class _CompressScreenState extends State<CompressScreen> {
             // ── File picker card ───────────────────────────────────────────
             Card(
               child: ListTile(
-                leading: Icon(
+                leading: const Icon(
                   Icons.picture_as_pdf,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Color(0xFFC62828),
                   size: 32,
                 ),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),

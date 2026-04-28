@@ -82,8 +82,8 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
           children: [
             Card(
               child: ListTile(
-                leading: Icon(Icons.picture_as_pdf,
-                    color: Theme.of(context).colorScheme.primary, size: 32),
+                leading: const Icon(Icons.picture_as_pdf,
+                    color: Color(0xFFC62828), size: 32),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),
                 trailing:
                     TextButton(onPressed: _pickFile, child: const Text('Choisir')),

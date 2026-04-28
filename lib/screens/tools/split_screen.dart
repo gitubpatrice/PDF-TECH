@@ -200,8 +200,8 @@ class _FilePickerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: Icon(Icons.picture_as_pdf,
-            color: Theme.of(context).colorScheme.primary, size: 32),
+        leading: const Icon(Icons.picture_as_pdf,
+            color: Color(0xFFC62828), size: 32),
         title: Text(fileName ?? 'Aucun fichier sélectionné'),
         subtitle: subtitle != null ? Text(subtitle!) : null,
         trailing: TextButton(onPressed: onPick, child: const Text('Choisir')),

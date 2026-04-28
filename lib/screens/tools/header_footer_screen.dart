@@ -272,7 +272,7 @@ class _FileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.picture_as_pdf, color: Colors.blue),
+        const Icon(Icons.picture_as_pdf, color: Colors.red),
         const SizedBox(width: 10),
         Expanded(
             child: Text(name,

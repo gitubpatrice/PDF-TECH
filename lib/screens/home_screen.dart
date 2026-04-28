@@ -662,11 +662,11 @@ class _HomeTabState extends State<_HomeTab> {
           Container(
             width: 44, height: 44,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              color: const Color(0xFFC62828).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.picture_as_pdf,
-                color: Theme.of(context).colorScheme.primary, size: 24),
+            child: const Icon(Icons.picture_as_pdf,
+                color: Color(0xFFC62828), size: 24),
           ),
           if (file.isFavorite)
             const Positioned(right: 0, top: 0,
@@ -763,7 +763,7 @@ class _ResumeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+    const color = Color(0xFFC62828); // Material Red 700 — identité PDF
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -1137,7 +1137,7 @@ class _PdfSearchDelegate extends SearchDelegate<void> {
     return ListView.builder(
       itemCount: results.length,
       itemBuilder: (_, i) => ListTile(
-        leading: const Icon(Icons.picture_as_pdf),
+        leading: const Icon(Icons.picture_as_pdf, color: Color(0xFFC62828)),
         title: Text(results[i].name),
         onTap: () {
           close(context, null);
@@ -1170,7 +1170,6 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     final filtered = _search.isEmpty
         ? widget.files
         : widget.files
@@ -1230,11 +1229,11 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: cs.primaryContainer,
+                              color: const Color(0xFFC62828).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(Icons.picture_as_pdf,
-                                color: cs.primary, size: 22),
+                            child: const Icon(Icons.picture_as_pdf,
+                                color: Color(0xFFC62828), size: 22),
                           ),
                           title: Text(name,
                               maxLines: 1,

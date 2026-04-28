@@ -203,7 +203,7 @@ class _PdfTechAppState extends State<PdfTechApp> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.picture_as_pdf, size: 36),
+        icon: const Icon(Icons.picture_as_pdf, size: 36, color: Color(0xFFC62828)),
         title: const Text('Bienvenue dans PDF Tech'),
         content: const Text(
           'Pour parcourir vos PDFs (Téléchargements, Documents, WhatsApp, '

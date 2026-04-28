@@ -193,7 +193,7 @@ class _CompareScreenState extends State<CompareScreen> {
                       style: TextStyle(color: Colors.blue)),
                 ])
               : Row(children: [
-                  const Icon(Icons.picture_as_pdf, color: Colors.blue),
+                  const Icon(Icons.picture_as_pdf, color: Colors.red),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
