@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/recent_file.dart';
 import '../services/recent_files_service.dart';
 import '../services/share_service.dart';
@@ -367,9 +368,55 @@ class _HomeTabState extends State<_HomeTab> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
   }
 
+  /// Demande MANAGE_EXTERNAL_STORAGE avec un dialog explicatif si manquant.
+  /// Sur refus, propose d'ouvrir Réglages. Retourne true si autorisé.
+  Future<bool> _ensureStorageAccess() async {
+    if (await Permission.manageExternalStorage.isGranted) return true;
+    if (!mounted) return false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.folder_outlined, size: 36),
+        title: const Text('Accès aux fichiers requis'),
+        content: const Text(
+          'PDF Tech a besoin d\'accéder à tous les fichiers de votre '
+          'téléphone pour parcourir Téléchargements, Documents, WhatsApp '
+          'et trouver vos PDFs.\n\nAucun fichier n\'est transmis ailleurs.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Autoriser')),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+
+    final status = await Permission.manageExternalStorage.request();
+    if (status.isGranted) return true;
+
+    if (!mounted) return false;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Permission refusée — activez "Tous les fichiers" dans Réglages'),
+      duration: const Duration(seconds: 5),
+      action: SnackBarAction(
+        label: 'Réglages',
+        onPressed: () => openAppSettings(),
+      ),
+    ));
+    return false;
+  }
+
   /// Ouvre un PdfFolderScreen filtré sur le path donné. Si le dossier n'existe
   /// pas (ex: WhatsApp jamais utilisé), affiche un message au lieu de planter.
-  void _browseFolder(String path, String label) {
+  Future<void> _browseFolder(String path, String label) async {
+    if (!await _ensureStorageAccess()) return;
+    if (!mounted) return;
     final dir = Directory(path);
     if (!dir.existsSync()) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -390,6 +437,8 @@ class _HomeTabState extends State<_HomeTab> {
   /// Utile pour le premier lancement quand l'utilisateur ne sait pas où
   /// sont ses fichiers. Affiche un dialog de progression.
   Future<void> _scanAllPdfs() async {
+    if (!await _ensureStorageAccess()) return;
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final found = <File>[];
