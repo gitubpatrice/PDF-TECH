@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 
@@ -190,19 +191,55 @@ class _PdfTechAppState extends State<PdfTechApp> {
 
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
-    final shown = prefs.getBool('unknown_sources_shown') ?? false;
+    final shown = prefs.getBool('first_launch_done') ?? false;
     if (shown || !mounted) return;
-    await prefs.setBool('unknown_sources_shown', true);
+    // Flag écrit AVANT pour ne jamais redemander, même si l'utilisateur
+    // tue l'app pendant un dialog.
+    await prefs.setBool('first_launch_done', true);
     if (!mounted) return;
+
+    // Étape 1 : welcome + accès aux fichiers
+    final wantStorage = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.picture_as_pdf, size: 36),
+        title: const Text('Bienvenue dans PDF Tech'),
+        content: const Text(
+          'Pour parcourir vos PDFs (Téléchargements, Documents, WhatsApp, '
+          'recherche globale), PDF Tech a besoin d\'accéder aux fichiers '
+          'de votre téléphone.\n\n'
+          'Aucun fichier n\'est transmis ailleurs.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Plus tard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Autoriser')),
+        ],
+      ),
+    );
+    if (wantStorage == true) {
+      await Permission.manageExternalStorage.request();
+    }
+
+    if (!mounted) return;
+
+    // Étape 2 : sources inconnues (pour les mises à jour APK)
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
-        title: const Text('Autoriser l\'installation'),
+        icon: const Icon(Icons.system_update, size: 36),
+        title: const Text('Autoriser les mises à jour'),
         content: const Text(
-          'Pour installer les mises à jour de PDF Tech, '
+          'Pour installer les futures mises à jour de PDF Tech, '
           'votre téléphone doit autoriser les sources inconnues.\n\n'
-          'Appuyez sur "Activer" puis activez le bouton dans les réglages qui s\'ouvrent.',
+          'Appuyez sur "Activer" puis cochez le bouton dans les réglages qui s\'ouvrent.',
+          style: TextStyle(fontSize: 13),
         ),
         actions: [
           TextButton(
