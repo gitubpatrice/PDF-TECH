@@ -7,11 +7,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Credentials keystore : variables d'environnement (CI / poste sécurisé)
+// avec fallback sur android/key.properties (gitignoré).
 val keyPropertiesFile = rootProject.file("key.properties")
 val keyProperties = Properties()
 if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
+fun keyProp(envName: String, propName: String): String? =
+    System.getenv(envName) ?: keyProperties[propName] as String?
 
 android {
     namespace = "com.pdftech.pdf_tech"
@@ -29,15 +33,19 @@ android {
 
     signingConfigs {
         create("release") {
-            keyAlias      = keyProperties["keyAlias"]    as String
-            keyPassword   = keyProperties["keyPassword"] as String
-            storeFile     = file(keyProperties["storeFile"] as String)
-            storePassword = keyProperties["storePassword"] as String
-            // APK signing scheme v1 + v2 + v3 : v3 permet la rotation de
-            // clé en cas de compromission (Android 9+).
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
+            val alias  = keyProp("PDFTECH_KEY_ALIAS",     "keyAlias")
+            val kPass  = keyProp("PDFTECH_KEY_PASSWORD",  "keyPassword")
+            val sFile  = keyProp("PDFTECH_STORE_FILE",    "storeFile")
+            val sPass  = keyProp("PDFTECH_STORE_PASSWORD","storePassword")
+            if (alias != null && kPass != null && sFile != null && sPass != null) {
+                keyAlias      = alias
+                keyPassword   = kPass
+                storeFile     = file(sFile)
+                storePassword = sPass
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
         }
     }
 
@@ -51,7 +59,13 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Fallback debug si pas de credentials release dispo (CI sans secrets)
+            signingConfig = if (keyPropertiesFile.exists() ||
+                System.getenv("PDFTECH_STORE_PASSWORD") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

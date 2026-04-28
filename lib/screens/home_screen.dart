@@ -64,20 +64,63 @@ class _HomeScreenState extends State<HomeScreen> {
     if (info == null || !mounted) return;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Mise à jour v${info.version} disponible'),
-        content: Text(info.body.isNotEmpty
-            ? info.body
-            : 'Une nouvelle version de PDF Tech est disponible.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Plus tard')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK')),
-        ],
-      ),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          title: Text('Mise à jour v${info.version} disponible'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(info.body.isNotEmpty
+                    ? info.body
+                    : 'Une nouvelle version de PDF Tech est disponible.'),
+                if (info.expectedSha256 != null) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: cs.outline),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.verified_outlined,
+                              size: 14, color: cs.primary),
+                          const SizedBox(width: 6),
+                          const Text('SHA-256 attendu (APK arm64-v8a)',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                        ]),
+                        const SizedBox(height: 6),
+                        SelectableText(
+                          info.expectedSha256!,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 10,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Plus tard')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK')),
+          ],
+        );
+      },
     );
   }
 
