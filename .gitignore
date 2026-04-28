@@ -47,3 +47,10 @@ app.*.map.json
 # Clé de signature — NE JAMAIS committer
 /android/key.properties
 /android/app/keystore.jks
+
+# Keystore & keys (étendu : tous les variants)
+**/*.jks
+**/*.jks.*
+**/*.keystore
+**/*.keystore.*
+**/key.properties
