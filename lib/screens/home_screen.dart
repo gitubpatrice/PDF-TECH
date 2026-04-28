@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -30,6 +31,7 @@ import 'tools/images_to_pdf_screen.dart';
 import 'tools/decrypt_screen.dart';
 import 'cloud/google_drive_screen.dart';
 import 'about_screen.dart';
+import 'pdf_folder_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -236,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
             recentFiles: _recentFiles,
             isLoading: _isLoading,
             onOpen: _openPdf,
+            onPickFile: _pickAndOpen,
             onRemove: _removeRecent,
             onToggleFavorite: _toggleFavorite,
             onShare: (f) => _shareService.sharePdf(f.path, f.name),
@@ -278,6 +281,7 @@ class _HomeTab extends StatefulWidget {
   final List<RecentFile> recentFiles;
   final bool isLoading;
   final ValueChanged<String> onOpen;
+  final VoidCallback onPickFile;
   final ValueChanged<RecentFile> onRemove;
   final ValueChanged<RecentFile> onToggleFavorite;
   final ValueChanged<RecentFile> onShare;
@@ -287,6 +291,7 @@ class _HomeTab extends StatefulWidget {
     required this.recentFiles,
     required this.isLoading,
     required this.onOpen,
+    required this.onPickFile,
     required this.onRemove,
     required this.onToggleFavorite,
     required this.onShare,
@@ -301,6 +306,21 @@ class _HomeTabState extends State<_HomeTab> {
   static final _storageChannel = MethodChannel('com.pdftech.pdf_tech/storage');
   int _totalBytes = 0;
   int _freeBytes  = 0;
+
+  /// Raccourcis vers les dossiers les plus susceptibles de contenir des PDFs.
+  /// Chaque tuile ouvre un PdfFolderScreen filtré .pdf — l'utilisateur n'a
+  /// pas à fouiller dans le SAF système.
+  static const _browseFolders = [
+    (icon: Icons.download_outlined,    label: 'Téléchargements',
+        path: '/storage/emulated/0/Download',                color: Color(0xFF43A047)),
+    (icon: Icons.description_outlined, label: 'Documents',
+        path: '/storage/emulated/0/Documents',               color: Color(0xFF1976D2)),
+    (icon: Icons.chat_outlined,        label: 'WhatsApp',
+        path: '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
+        color: Color(0xFF25D366)),
+    (icon: Icons.folder_special_outlined, label: 'PDF Tech',
+        path: '/storage/emulated/0/Documents/PDF Tech',     color: Color(0xFFFF7043)),
+  ];
 
   static const _quickActions = [
     (icon: Icons.merge_type,              label: 'Fusionner',     color: Color(0xFF1976D2)),
@@ -347,6 +367,91 @@ class _HomeTabState extends State<_HomeTab> {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
   }
 
+  /// Ouvre un PdfFolderScreen filtré sur le path donné. Si le dossier n'existe
+  /// pas (ex: WhatsApp jamais utilisé), affiche un message au lieu de planter.
+  void _browseFolder(String path, String label) {
+    final dir = Directory(path);
+    if (!dir.existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Dossier "$label" introuvable sur ce téléphone'),
+      ));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PdfFolderScreen(
+        path: path,
+        title: label,
+        onPick: widget.onOpen,
+      ),
+    ));
+  }
+
+  /// Scan récursif de tout /sdcard pour trouver tous les PDFs du tél.
+  /// Utile pour le premier lancement quand l'utilisateur ne sait pas où
+  /// sont ses fichiers. Affiche un dialog de progression.
+  Future<void> _scanAllPdfs() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final found = <File>[];
+    int scanned = 0;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(children: [
+          CircularProgressIndicator(),
+          SizedBox(width: 16),
+          Expanded(child: Text('Recherche des PDFs sur votre téléphone…')),
+        ]),
+      ),
+    );
+
+    try {
+      await _walk(Directory('/storage/emulated/0'), found, () => scanned++);
+    } catch (_) {/* perm denied — on continue avec ce qu'on a */}
+
+    if (!mounted) return;
+    navigator.pop(); // ferme le dialog progress
+
+    if (found.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Aucun PDF trouvé sur ce téléphone'),
+      ));
+      return;
+    }
+    found.sort(
+        (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+
+    // Affichage : on réutilise PdfFolderScreen avec un dossier virtuel "/" et
+    // une liste pré-construite. Plus simple : on crée une nouvelle route
+    // dédiée. Ici on push direct un Scaffold avec ListView.
+    navigator.push(MaterialPageRoute(
+      builder: (_) => _AllPdfsScreen(
+        files: found,
+        onPick: widget.onOpen,
+      ),
+    ));
+  }
+
+  /// Walk récursif limité aux sous-dossiers utilisateur, ignore caches/Android.
+  Future<void> _walk(
+      Directory dir, List<File> out, void Function() onTick) async {
+    final skip = {'Android', '.thumbnails', '.cache'};
+    try {
+      await for (final e in dir.list(recursive: false, followLinks: false)) {
+        onTick();
+        if (e is File) {
+          if (e.path.toLowerCase().endsWith('.pdf')) out.add(e);
+        } else if (e is Directory) {
+          final name = e.path.split('/').last;
+          if (skip.contains(name) || name.startsWith('.')) continue;
+          await _walk(e, out, onTick);
+        }
+      }
+    } catch (_) {/* dossier inaccessible */}
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.isLoading) return const Center(child: CircularProgressIndicator());
@@ -379,6 +484,40 @@ class _HomeTabState extends State<_HomeTab> {
           const SizedBox(height: 16),
         ],
 
+        // ── Parcourir ───────────────────────────────────────────────────────
+        // Toujours visible — accès direct aux dossiers les plus probables.
+        _sectionHeader(context, 'Parcourir', Icons.folder_open_outlined, Colors.teal),
+        const SizedBox(height: 8),
+        GridView.count(
+          crossAxisCount: 3,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1.1,
+          children: [
+            ..._browseFolders.map((f) => _ActionCard(
+                  icon: f.icon,
+                  label: f.label,
+                  color: f.color,
+                  onTap: () => _browseFolder(f.path, f.label),
+                )),
+            _ActionCard(
+              icon: Icons.search,
+              label: 'Trouver mes PDFs',
+              color: const Color(0xFFAB47BC),
+              onTap: _scanAllPdfs,
+            ),
+            _ActionCard(
+              icon: Icons.folder_outlined,
+              label: 'Choisir…',
+              color: const Color(0xFF607D8B),
+              onTap: () => widget.onPickFile(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+
         // ── Actions rapides ─────────────────────────────────────────────────
         _sectionHeader(context, 'Actions rapides', Icons.bolt_outlined, Colors.deepOrange),
         const SizedBox(height: 8),
@@ -409,9 +548,41 @@ class _HomeTabState extends State<_HomeTab> {
         _sectionHeader(context, 'Récemment ouverts', Icons.history, Colors.grey),
         if (widget.recentFiles.isEmpty)
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Aucun fichier récent',
-                style: TextStyle(color: Colors.grey.shade500)),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Icon(Icons.menu_book_outlined,
+                        size: 56,
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: 0.7)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Aucun PDF ouvert pour l\'instant',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Utilisez les raccourcis ci-dessus pour parcourir\n'
+                      'vos dossiers ou rechercher tous vos PDFs.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: widget.onPickFile,
+                      icon: const Icon(Icons.folder_open, size: 18),
+                      label: const Text('Choisir un PDF'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           )
         else
           ...recents.map((f) => _fileCard(context, f)),
@@ -923,6 +1094,119 @@ class _PdfSearchDelegate extends SearchDelegate<void> {
           close(context, null);
           onOpen(results[i].path);
         },
+      ),
+    );
+  }
+}
+
+/// Affiche les résultats du scan global "Trouver tous mes PDFs". Liste plate
+/// avec recherche, triée par date modifiée DESC. Tap pour ouvrir.
+class _AllPdfsScreen extends StatefulWidget {
+  final List<File> files;
+  final void Function(String path) onPick;
+  const _AllPdfsScreen({required this.files, required this.onPick});
+
+  @override
+  State<_AllPdfsScreen> createState() => _AllPdfsScreenState();
+}
+
+class _AllPdfsScreenState extends State<_AllPdfsScreen> {
+  String _search = '';
+
+  String _formatSize(int b) {
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
+    return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final filtered = _search.isEmpty
+        ? widget.files
+        : widget.files
+            .where((f) => f.path
+                .split('/')
+                .last
+                .toLowerCase()
+                .contains(_search.toLowerCase()))
+            .toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tous mes PDFs', style: TextStyle(fontSize: 16)),
+            Text('${widget.files.length} trouvés sur le téléphone',
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Rechercher…',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              onChanged: (v) => setState(() => _search = v),
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? const Center(
+                    child: Text('Aucun PDF correspondant',
+                        style: TextStyle(color: Colors.grey)))
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final f = filtered[i];
+                      final stat = f.statSync();
+                      final name = f.path.split('/').last;
+                      final dirName =
+                          f.parent.path.split('/').last;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 3),
+                        child: ListTile(
+                          dense: true,
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: cs.primaryContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.picture_as_pdf,
+                                color: cs.primary, size: 22),
+                          ),
+                          title: Text(name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(
+                            '$dirName · ${_formatSize(stat.size)}',
+                            style: const TextStyle(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            widget.onPick(f.path);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

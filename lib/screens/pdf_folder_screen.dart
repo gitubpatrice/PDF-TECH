@@ -1,0 +1,220 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+
+/// Liste tous les PDFs d'un dossier (et un niveau de sous-dossiers max)
+/// pour que l'utilisateur puisse en choisir un rapidement, sans passer
+/// par le file picker système.
+class PdfFolderScreen extends StatefulWidget {
+  final String path;
+  final String title;
+  final void Function(String path) onPick;
+
+  const PdfFolderScreen({
+    super.key,
+    required this.path,
+    required this.title,
+    required this.onPick,
+  });
+
+  @override
+  State<PdfFolderScreen> createState() => _PdfFolderScreenState();
+}
+
+class _PdfFolderScreenState extends State<PdfFolderScreen> {
+  List<File> _pdfs = [];
+  bool _loading = true;
+  String? _error;
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _scan();
+  }
+
+  Future<void> _scan() async {
+    try {
+      final dir = Directory(widget.path);
+      if (!dir.existsSync()) {
+        setState(() {
+          _error = 'Dossier introuvable';
+          _loading = false;
+        });
+        return;
+      }
+      final found = <File>[];
+      // 1 niveau de profondeur (dossier + sous-dossiers immédiats)
+      await for (final e in dir.list(recursive: false, followLinks: false)) {
+        if (e is File && e.path.toLowerCase().endsWith('.pdf')) {
+          found.add(e);
+        } else if (e is Directory) {
+          try {
+            await for (final sub in e.list(recursive: false, followLinks: false)) {
+              if (sub is File && sub.path.toLowerCase().endsWith('.pdf')) {
+                found.add(sub);
+              }
+            }
+          } catch (_) {/* dossier inaccessible : on ignore */}
+        }
+      }
+      // Tri : plus récents d'abord
+      found.sort((a, b) =>
+          b.statSync().modified.compareTo(a.statSync().modified));
+      if (!mounted) return;
+      setState(() {
+        _pdfs = found;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Impossible de scanner le dossier';
+        _loading = false;
+      });
+    }
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _formatDate(DateTime d) {
+    final now = DateTime.now();
+    final diff = now.difference(d);
+    if (diff.inDays == 0) return 'Aujourd\'hui';
+    if (diff.inDays == 1) return 'Hier';
+    if (diff.inDays < 7) return 'Il y a ${diff.inDays}j';
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _search.isEmpty
+        ? _pdfs
+        : _pdfs.where((f) =>
+            f.path.split('/').last.toLowerCase().contains(_search.toLowerCase())
+          ).toList();
+
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.title, style: const TextStyle(fontSize: 16)),
+            if (!_loading)
+              Text('${_pdfs.length} PDF${_pdfs.length > 1 ? 's' : ''}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Actualiser',
+            onPressed: () {
+              setState(() => _loading = true);
+              _scan();
+            },
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(child: Text(_error!,
+                  style: const TextStyle(color: Colors.grey)))
+              : Column(
+                  children: [
+                    if (_pdfs.length > 5)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Rechercher…',
+                            prefixIcon: const Icon(Icons.search, size: 18),
+                            isDense: true,
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8)),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 8),
+                          ),
+                          onChanged: (v) => setState(() => _search = v),
+                        ),
+                      ),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.folder_off_outlined,
+                                        size: 64, color: cs.onSurfaceVariant),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      _search.isEmpty
+                                          ? 'Aucun PDF dans ce dossier'
+                                          : 'Aucun PDF correspondant',
+                                      style: TextStyle(
+                                          color: cs.onSurfaceVariant,
+                                          fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (_, i) {
+                                final f = filtered[i];
+                                final stat = f.statSync();
+                                final name = f.path.split('/').last;
+                                final parent = f.parent.path
+                                    .replaceAll(widget.path, '')
+                                    .replaceFirst(RegExp(r'^/'), '');
+                                return Card(
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 3),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: cs.primaryContainer,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(Icons.picture_as_pdf,
+                                          color: cs.primary, size: 22),
+                                    ),
+                                    title: Text(name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 13)),
+                                    subtitle: Text(
+                                      [
+                                        if (parent.isNotEmpty) parent,
+                                        _formatSize(stat.size),
+                                        _formatDate(stat.modified),
+                                      ].join(' · '),
+                                      style: const TextStyle(fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    onTap: () {
+                                      Navigator.of(context).pop();
+                                      widget.onPick(f.path);
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+    );
+  }
+}
