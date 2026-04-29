@@ -3,12 +3,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/pdf_picker_screen.dart';
 
 class OcrScreen extends StatefulWidget {
   const OcrScreen({super.key});
@@ -28,15 +28,12 @@ class _OcrScreenState extends State<OcrScreen> {
   String _mode = ''; // 'text' ou 'ocr'
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.single.path == null) return;
+    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    if (!mounted) return;
+    if (path == null) return;
     setState(() {
-      _path = result.files.single.path!;
-      _name = result.files.single.name;
+      _path = path;
+      _name = path.split(RegExp(r'[/\\]')).last;
       _extractedText = '';
       _isDone = false;
       _mode = '';

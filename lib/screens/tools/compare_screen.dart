@@ -3,9 +3,9 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../../widgets/pdf_picker_screen.dart';
 
 class CompareScreen extends StatefulWidget {
   const CompareScreen({super.key});
@@ -32,27 +32,27 @@ class _CompareScreenState extends State<CompareScreen> {
   int get _maxPages => _pagesA > _pagesB ? _pagesA : _pagesB;
 
   Future<void> _pickFile(bool isA) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: isA ? 'Premier PDF' : 'Second PDF',
     );
-    if (result == null || result.files.single.path == null) return;
-    final path = result.files.single.path!;
+    if (!mounted) return;
+    if (path == null) return;
     final bytes = await File(path).readAsBytes();
     final doc = PdfDocument(inputBytes: bytes);
     final count = doc.pages.count;
     doc.dispose();
 
+    final name = path.split(RegExp(r'[/\\]')).last;
     setState(() {
       if (isA) {
         _pathA = path;
-        _nameA = result.files.single.name;
+        _nameA = name;
         _pagesA = count;
         _thumbsA.clear();
       } else {
         _pathB = path;
-        _nameB = result.files.single.name;
+        _nameB = name;
         _pagesB = count;
         _thumbsB.clear();
       }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -28,22 +29,24 @@ class PdfAnnotateScreen extends StatefulWidget {
   State<PdfAnnotateScreen> createState() => _PdfAnnotateScreenState();
 }
 
-enum _Tool { none, text, highlight, draw, erase }
+enum _Tool { none, text, highlight, draw, image, erase }
 
 /// Une annotation stockée par page (key = pageIndex 0-based).
 class _Anno {
   final _Tool tool;
-  /// Pour text/highlight : rect normalisé. Pour draw : utilisé comme bbox.
+  /// Rect normalisé [0..1] dans le repère du widget (≈ page courante).
   final Rect rect;
-  final String? text;       // pour _Tool.text
-  final List<Offset>? path; // pour _Tool.draw, en coords normalisées
+  final String? text;             // pour _Tool.text
+  final List<Offset>? path;       // pour _Tool.draw, en coords normalisées
+  final Uint8List? imageBytes;    // pour _Tool.image, PNG/JPG bytes
   final Color color;
-  final double fontSize;    // taille en pt PDF (pour text)
+  final double fontSize;          // taille en pt PDF (pour text)
   _Anno({
     required this.tool,
     required this.rect,
     this.text,
     this.path,
+    this.imageBytes,
     required this.color,
     this.fontSize = 12,
   });
@@ -109,6 +112,36 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
       text: text,
       color: _color,
       fontSize: _fontSize,
+    ));
+  }
+
+  /// Choisit une image (signature scannée, tampon, photo) et la pose au
+  /// centre de la page courante, à 30% de la largeur. L'utilisateur peut
+  /// ensuite la déplacer/redimensionner par drag (à implémenter en V2).
+  Future<void> _addImage() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await FilePicker.platform.pickFiles(type: FileType.image);
+    if (res == null || res.files.single.path == null) return;
+    final bytes = await File(res.files.single.path!).readAsBytes();
+    if (bytes.isEmpty) return;
+    // Validation : on tente de décoder via PdfBitmap pour détecter les
+    // images non supportées (HEIC sans codec, fichiers corrompus, etc.)
+    // avant d'ajouter l'annotation. Évite un échec silencieux à l'export.
+    try {
+      PdfBitmap(bytes);
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Image illisible (formats supportés : JPG, PNG)'),
+      ));
+      return;
+    }
+    // Position par défaut : centre de la page, 30% largeur, ratio préservé
+    // approximatif (le rect est ré-ajusté visuellement au paint via fitBox).
+    _addAnno(_Anno(
+      tool: _Tool.image,
+      rect: const Rect.fromLTWH(0.35, 0.40, 0.30, 0.20),
+      imageBytes: bytes,
+      color: Colors.transparent, // non utilisé pour image
     ));
   }
 
@@ -258,6 +291,21 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
         }
         page.graphics.drawPath(pdfPath, pen: pen);
         break;
+      case _Tool.image:
+        if (a.imageBytes == null) return;
+        try {
+          final bitmap = PdfBitmap(a.imageBytes!);
+          page.graphics.drawImage(
+            bitmap,
+            Rect.fromLTWH(
+              a.rect.left * size.width,
+              a.rect.top * size.height,
+              a.rect.width * size.width,
+              a.rect.height * size.height,
+            ),
+          );
+        } catch (_) {/* image illisible — skip */}
+        break;
       case _Tool.erase:
       case _Tool.none:
         break;
@@ -397,6 +445,20 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
                 size: Size.infinite,
               ),
             ),
+          // Aperçu des images (overlay). CustomPainter ne peut pas dessiner
+          // des bytes sans décodage async — on délègue à Image.memory dans
+          // la Stack. IgnorePointer pour ne pas bloquer le PDF interactif.
+          ..._pageAnnos.where((a) => a.tool == _Tool.image && a.imageBytes != null).map((a) {
+            return Positioned(
+              left:   a.rect.left   * constraints.maxWidth,
+              top:    a.rect.top    * constraints.maxHeight,
+              width:  a.rect.width  * constraints.maxWidth,
+              height: a.rect.height * constraints.maxHeight,
+              child: IgnorePointer(
+                child: Image.memory(a.imageBytes!, fit: BoxFit.contain),
+              ),
+            );
+          }),
         ]);
       }),
       bottomNavigationBar: _buildToolbar(),
@@ -419,6 +481,18 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
           _toolBtn(Icons.text_fields, 'Texte', _Tool.text),
           _toolBtn(Icons.highlight, 'Surligner', _Tool.highlight),
           _toolBtn(Icons.draw, 'Dessiner', _Tool.draw),
+          // Image : ouvre le picker directement (action one-shot, pas un mode)
+          InkWell(
+            onTap: _addImage,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              child: Column(mainAxisSize: MainAxisSize.min, children: const [
+                Icon(Icons.image_outlined, size: 22),
+                Text('Image', style: TextStyle(fontSize: 10)),
+              ]),
+            ),
+          ),
           _toolBtn(Icons.auto_fix_off, 'Effacer', _Tool.erase),
           PopupMenuButton<Color>(
             tooltip: 'Couleur',

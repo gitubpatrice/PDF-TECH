@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../models/recent_file.dart';
@@ -135,13 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _pickAndOpen() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.single.path == null) return;
-    await _openPdf(result.files.single.path!);
+    final path = await PdfPickerScreen.pickOne(context, title: 'Ouvrir un PDF');
+    if (path == null) return;
+    await _openPdf(path);
   }
 
   Future<void> _openPdf(String path) async {

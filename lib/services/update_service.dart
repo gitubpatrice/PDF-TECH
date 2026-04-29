@@ -4,7 +4,7 @@ import 'dart:convert';
 class UpdateService {
   static const _owner   = 'gitubpatrice';
   static const _repo    = 'PDF-TECH';
-  static const _current = '1.6.2';
+  static const _current = '1.7.0';
 
   Future<UpdateInfo?> checkForUpdate() async {
     try {

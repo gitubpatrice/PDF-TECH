@@ -3,11 +3,11 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/pdf_picker_screen.dart';
 
 class ExportImagesScreen extends StatefulWidget {
   const ExportImagesScreen({super.key});
@@ -28,20 +28,16 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
   bool _isDone = false;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.single.path == null) return;
-    final path = result.files.single.path!;
+    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    if (!mounted) return;
+    if (path == null) return;
     final bytes = await File(path).readAsBytes();
     final doc = PdfDocument(inputBytes: bytes);
     final count = doc.pages.count;
     doc.dispose();
     setState(() {
       _path = path;
-      _name = result.files.single.name;
+      _name = path.split(RegExp(r'[/\\]')).last;
       _totalPages = count;
       _outputPaths = [];
       _isDone = false;

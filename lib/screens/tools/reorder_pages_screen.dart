@@ -3,11 +3,11 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../widgets/result_sheet.dart';
+import '../../widgets/pdf_picker_screen.dart';
 
 class ReorderPagesScreen extends StatefulWidget {
   const ReorderPagesScreen({super.key});
@@ -27,13 +27,9 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   final Map<int, _Thumb> _thumbs = {};
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.single.path == null) return;
-    final path = result.files.single.path!;
+    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    if (!mounted) return;
+    if (path == null) return;
     final bytes = await File(path).readAsBytes();
     final doc = PdfDocument(inputBytes: bytes);
     final count = doc.pages.count;
@@ -41,7 +37,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
 
     setState(() {
       _path = path;
-      _name = result.files.single.name;
+      _name = path.split(RegExp(r'[/\\]')).last;
       _order = List.generate(count, (i) => i);
       _thumbs.clear();
       _isLoadingThumbs = true;
