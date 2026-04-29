@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
 class RotateScreen extends StatefulWidget {
@@ -25,18 +25,15 @@ class _RotateScreenState extends State<RotateScreen> {
   ];
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result?.files.single.path == null) return;
-    final path = result!.files.single.path!;
+    final path = await PdfPickerScreen.pickOne(context,
+        title: 'Choisir le PDF à pivoter');
+    if (path == null) return;
     try {
       final total = await PdfToolsService().getPageCount(path);
       if (!mounted) return;
       setState(() {
         _filePath = path;
-        _fileName = result.files.single.name;
+        _fileName = path.split(RegExp(r'[/\\]')).last;
         _totalPages = total;
       });
     } on PdfValidationException catch (e) {

@@ -33,6 +33,8 @@ import 'tools/decrypt_screen.dart';
 import 'cloud/google_drive_screen.dart';
 import 'about_screen.dart';
 import 'pdf_folder_screen.dart';
+import '../widgets/pdf_picker_screen.dart';
+import 'tools/pdf_annotate_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -324,6 +326,8 @@ class _HomeTabState extends State<_HomeTab> {
   ];
 
   static const _quickActions = [
+    (icon: Icons.menu_book_outlined,      label: 'Lire un PDF',   color: Color(0xFF1565C0)),
+    (icon: Icons.edit_note,               label: 'Modifier',      color: Color(0xFF6A1B9A)),
     (icon: Icons.merge_type,              label: 'Fusionner',     color: Color(0xFF1976D2)),
     (icon: Icons.call_split,              label: 'Diviser',       color: Color(0xFF43A047)),
     (icon: Icons.compress,                label: 'Compresser',    color: Color(0xFFFF7043)),
@@ -336,6 +340,18 @@ class _HomeTabState extends State<_HomeTab> {
   void initState() {
     super.initState();
     _loadStorage();
+    _ensurePdfTechFolder();
+  }
+
+  /// Crée /storage/emulated/0/Documents/PDF Tech/ silencieusement au boot
+  /// pour qu'il existe quand l'utilisateur clique sur la tuile correspondante.
+  /// Si la perm MANAGE_EXTERNAL_STORAGE n'est pas accordée, l'erreur est
+  /// silencieuse — la création sera retentée au prochain clic sur la tuile.
+  Future<void> _ensurePdfTechFolder() async {
+    try {
+      final dir = Directory('/storage/emulated/0/Documents/PDF Tech');
+      if (!await dir.exists()) await dir.create(recursive: true);
+    } catch (_) {}
   }
 
   Future<void> _loadStorage() async {
@@ -357,6 +373,10 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   void _openQuickAction(BuildContext context, int index) {
+    // Les 2 premiers indices sont des actions spéciales (Lire / Modifier),
+    // les suivants pointent vers les outils existants.
+    if (index == 0) { _readLastOrPick(context); return; }
+    if (index == 1) { _editPdf(context); return; }
     final screens = [
       const MergeScreen(),
       const SplitScreen(),
@@ -365,7 +385,30 @@ class _HomeTabState extends State<_HomeTab> {
       const OcrScreen(),
       const ProtectScreen(),
     ];
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index]));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index - 2]));
+  }
+
+  /// "Lire un PDF" : ouvre le dernier PDF lu si dispo (et fichier existe
+  /// toujours), sinon ouvre le PdfPickerScreen pour choisir.
+  Future<void> _readLastOrPick(BuildContext context) async {
+    final last = widget.recentFiles.isNotEmpty
+        ? widget.recentFiles.first
+        : null;
+    if (last != null && File(last.path).existsSync()) {
+      widget.onOpen(last.path);
+      return;
+    }
+    final picked = await PdfPickerScreen.pickOne(context, title: 'Lire un PDF');
+    if (picked != null) widget.onOpen(picked);
+  }
+
+  /// "Modifier un PDF" : ouvre l'éditeur d'annotations.
+  Future<void> _editPdf(BuildContext context) async {
+    final picked = await PdfPickerScreen.pickOne(context,
+        title: 'PDF à modifier');
+    if (picked == null || !context.mounted) return;
+    Navigator.push(context, MaterialPageRoute(
+        builder: (_) => PdfAnnotateScreen(path: picked)));
   }
 
   /// Demande MANAGE_EXTERNAL_STORAGE avec un dialog explicatif si manquant.
@@ -413,17 +456,34 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   /// Ouvre un PdfFolderScreen filtré sur le path donné. Si le dossier n'existe
-  /// pas (ex: WhatsApp jamais utilisé), affiche un message au lieu de planter.
+  /// pas, deux cas :
+  /// - "PDF Tech" (notre dossier app) : on le crée automatiquement, c'est
+  ///   l'emplacement où l'app sauvegarde les PDFs générés.
+  /// - Autre dossier (ex: WhatsApp jamais utilisé) : message clair, pas de
+  ///   création silencieuse pour ne pas créer des dossiers étrangers.
   Future<void> _browseFolder(String path, String label) async {
     if (!await _ensureStorageAccess()) return;
     if (!mounted) return;
     final dir = Directory(path);
     if (!dir.existsSync()) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Dossier "$label" introuvable sur ce téléphone'),
-      ));
-      return;
+      if (label == 'PDF Tech') {
+        try {
+          await dir.create(recursive: true);
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Impossible de créer le dossier PDF Tech : $e'),
+          ));
+          return;
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Dossier "$label" introuvable sur ce téléphone'),
+        ));
+        return;
+      }
     }
+    if (!mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PdfFolderScreen(
         path: path,

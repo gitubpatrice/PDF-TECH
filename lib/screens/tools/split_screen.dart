@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
 class SplitScreen extends StatefulWidget {
@@ -19,18 +19,15 @@ class _SplitScreenState extends State<SplitScreen> {
   bool _processing = false;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result?.files.single.path == null) return;
-    final path = result!.files.single.path!;
+    final path = await PdfPickerScreen.pickOne(context,
+        title: 'Choisir le PDF à diviser');
+    if (path == null) return;
     try {
       final total = await PdfToolsService().getPageCount(path);
       if (!mounted) return;
       setState(() {
         _filePath = path;
-        _fileName = result.files.single.name;
+        _fileName = path.split(RegExp(r'[/\\]')).last;
         _totalPages = total;
         _fromPage = 1;
         _toPage = total;

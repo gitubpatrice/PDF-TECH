@@ -1,0 +1,540 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart' as pv;
+import '../../widgets/result_sheet.dart';
+
+/// Éditeur d'annotations PDF : pose des éléments par-dessus le PDF original
+/// puis "aplatit" tout dans un nouveau PDF (les annotations deviennent
+/// permanentes — l'éditeur n'altère pas le contenu textuel original).
+///
+/// Outils disponibles :
+/// - **Texte** : tap → dialog → place du texte stylé
+/// - **Surligner** : drag → rect jaune semi-transparent
+/// - **Dessiner** : trait libre (signature, gribouillage)
+/// - **Effacer** : tap sur une annotation → suppression
+///
+/// Toutes les annotations sont stockées en **coordonnées normalisées (0..1)**
+/// par page, indépendantes du zoom et de la résolution écran. À la sauvegarde
+/// on les convertit en points PDF (page.getClientSize()).
+class PdfAnnotateScreen extends StatefulWidget {
+  final String path;
+  const PdfAnnotateScreen({super.key, required this.path});
+
+  @override
+  State<PdfAnnotateScreen> createState() => _PdfAnnotateScreenState();
+}
+
+enum _Tool { none, text, highlight, draw, erase }
+
+/// Une annotation stockée par page (key = pageIndex 0-based).
+class _Anno {
+  final _Tool tool;
+  /// Pour text/highlight : rect normalisé. Pour draw : utilisé comme bbox.
+  final Rect rect;
+  final String? text;       // pour _Tool.text
+  final List<Offset>? path; // pour _Tool.draw, en coords normalisées
+  final Color color;
+  final double fontSize;    // taille en pt PDF (pour text)
+  _Anno({
+    required this.tool,
+    required this.rect,
+    this.text,
+    this.path,
+    required this.color,
+    this.fontSize = 12,
+  });
+}
+
+class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
+  final _ctrl = pv.PdfViewerController();
+  final Map<int, List<_Anno>> _annos = {};
+  int _currentPage = 1;
+  int _totalPages = 0;
+  _Tool _tool = _Tool.none;
+  Color _color = Colors.red;
+  final double _fontSize = 14;
+  bool _saving = false;
+
+  // Pour le tracking d'un trait/rect en cours
+  List<Offset>? _drawing;
+  Offset? _rectStart;
+  Offset? _rectCurrent;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  List<_Anno> get _pageAnnos => _annos[_currentPage - 1] ?? [];
+
+  void _addAnno(_Anno a) {
+    setState(() {
+      _annos.putIfAbsent(_currentPage - 1, () => []).add(a);
+    });
+  }
+
+  Future<void> _addText(Offset pos, Size size) async {
+    final ctrl = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Texte à insérer'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+              hintText: 'Saisissez le texte', border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler')),
+          FilledButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              child: const Text('Ajouter')),
+        ],
+      ),
+    );
+    if (text == null || text.isEmpty) return;
+    // Position normalisée
+    final dx = (pos.dx / size.width).clamp(0.0, 0.95);
+    final dy = (pos.dy / size.height).clamp(0.0, 0.95);
+    _addAnno(_Anno(
+      tool: _Tool.text,
+      rect: Rect.fromLTWH(dx, dy, 0.5, 0.05),
+      text: text,
+      color: _color,
+      fontSize: _fontSize,
+    ));
+  }
+
+  void _eraseAt(Offset pos, Size size) {
+    final dx = pos.dx / size.width;
+    final dy = pos.dy / size.height;
+    final list = _annos[_currentPage - 1];
+    if (list == null) return;
+    setState(() {
+      list.removeWhere((a) {
+        if (a.tool == _Tool.draw && a.path != null) {
+          // distance min au tracé
+          for (final p in a.path!) {
+            if ((p.dx - dx).abs() < 0.04 && (p.dy - dy).abs() < 0.04) return true;
+          }
+          return false;
+        }
+        return dx >= a.rect.left && dx <= a.rect.right &&
+               dy >= a.rect.top  && dy <= a.rect.bottom;
+      });
+    });
+  }
+
+  Future<void> _save() async {
+    if (_annos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucune annotation à sauvegarder')));
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final out = await _flatten();
+      if (!mounted) return;
+      setState(() => _saving = false);
+      await showResultSheet(context,
+          outputPath: out, operationLabel: 'PDF annoté avec succès');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e')));
+    }
+  }
+
+  /// Aplatit toutes les annotations dans un nouveau PDF.
+  Future<String> _flatten() async {
+    final bytes = await File(widget.path).readAsBytes();
+    final doc = PdfDocument(inputBytes: bytes);
+    try {
+      for (final entry in _annos.entries) {
+        final pageIndex = entry.key;
+        if (pageIndex < 0 || pageIndex >= doc.pages.count) continue;
+        final page = doc.pages[pageIndex];
+        final size = page.getClientSize();
+        for (final a in entry.value) {
+          _drawAnnotation(page, a, size);
+        }
+      }
+      final outBytes = await doc.save();
+      final dir = await getApplicationDocumentsDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final out = File('${dir.path}/${_baseName(widget.path)}_annote_$ts.pdf');
+      await out.writeAsBytes(outBytes);
+      return out.path;
+    } finally {
+      doc.dispose();
+    }
+  }
+
+  String _baseName(String p) {
+    final n = p.split(RegExp(r'[/\\]')).last;
+    return n.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
+  }
+
+  void _drawAnnotation(PdfPage page, _Anno a, Size size) {
+    final pdfColor = PdfColor(a.color.r.toInt(), a.color.g.toInt(),
+        a.color.b.toInt());
+    switch (a.tool) {
+      case _Tool.text:
+        if (a.text == null) return;
+        page.graphics.drawString(
+          a.text!,
+          PdfStandardFont(PdfFontFamily.helvetica, a.fontSize),
+          brush: PdfSolidBrush(pdfColor),
+          bounds: Rect.fromLTWH(
+            a.rect.left * size.width,
+            a.rect.top * size.height,
+            a.rect.width * size.width,
+            a.rect.height * size.height,
+          ),
+        );
+        break;
+      case _Tool.highlight:
+        // Surligné : rect jaune semi-transparent par-dessus
+        final hl = PdfColor(a.color.r.toInt(), a.color.g.toInt(),
+            a.color.b.toInt(), 100); // alpha 100/255
+        page.graphics.drawRectangle(
+          brush: PdfSolidBrush(hl),
+          bounds: Rect.fromLTWH(
+            a.rect.left * size.width,
+            a.rect.top * size.height,
+            a.rect.width * size.width,
+            a.rect.height * size.height,
+          ),
+        );
+        break;
+      case _Tool.draw:
+        if (a.path == null || a.path!.length < 2) return;
+        final pen = PdfPen(pdfColor, width: 2);
+        final pdfPath = PdfPath();
+        for (var i = 0; i < a.path!.length; i++) {
+          final p = a.path![i];
+          final x = p.dx * size.width;
+          final y = p.dy * size.height;
+          if (i == 0) {
+            pdfPath.startFigure();
+            pdfPath.addLine(Offset(x, y), Offset(x, y));
+          } else {
+            pdfPath.addLine(
+                Offset(a.path![i - 1].dx * size.width,
+                       a.path![i - 1].dy * size.height),
+                Offset(x, y));
+          }
+        }
+        page.graphics.drawPath(pdfPath, pen: pen);
+        break;
+      case _Tool.erase:
+      case _Tool.none:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Annoter le PDF'),
+        actions: [
+          if (_totalPages > 0)
+            Center(child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Text('$_currentPage / $_totalPages',
+                  style: const TextStyle(fontSize: 13)),
+            )),
+          IconButton(
+            tooltip: 'Annuler la dernière annotation',
+            icon: const Icon(Icons.undo),
+            onPressed: _pageAnnos.isEmpty ? null : () => setState(() {
+              _annos[_currentPage - 1]?.removeLast();
+            }),
+          ),
+          IconButton(
+            tooltip: 'Enregistrer',
+            icon: _saving
+                ? const SizedBox(width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save_outlined),
+            onPressed: _saving ? null : _save,
+          ),
+        ],
+      ),
+      body: LayoutBuilder(builder: (context, constraints) {
+        return Stack(children: [
+          // PDF en arrière-plan
+          pv.SfPdfViewer.file(
+            File(widget.path),
+            controller: _ctrl,
+            onDocumentLoaded: (d) =>
+                setState(() => _totalPages = d.document.pages.count),
+            onPageChanged: (d) =>
+                setState(() => _currentPage = d.newPageNumber),
+          ),
+          // Couche d'annotations (au-dessus, captures les touches selon outil)
+          if (_tool != _Tool.none)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (d) {
+                  final size = Size(constraints.maxWidth, constraints.maxHeight);
+                  if (_tool == _Tool.text) {
+                    _addText(d.localPosition, size);
+                  } else if (_tool == _Tool.erase) {
+                    _eraseAt(d.localPosition, size);
+                  }
+                },
+                onPanStart: (d) {
+                  if (_tool == _Tool.draw) {
+                    setState(() => _drawing = [_normalize(d.localPosition, constraints.biggest)]);
+                  } else if (_tool == _Tool.highlight) {
+                    setState(() {
+                      _rectStart = d.localPosition;
+                      _rectCurrent = d.localPosition;
+                    });
+                  }
+                },
+                onPanUpdate: (d) {
+                  if (_tool == _Tool.draw && _drawing != null) {
+                    setState(() => _drawing!.add(
+                        _normalize(d.localPosition, constraints.biggest)));
+                  } else if (_tool == _Tool.highlight) {
+                    setState(() => _rectCurrent = d.localPosition);
+                  }
+                },
+                onPanEnd: (_) {
+                  final size = constraints.biggest;
+                  if (_tool == _Tool.draw && _drawing != null && _drawing!.length >= 2) {
+                    // bbox
+                    double minX = 1, minY = 1, maxX = 0, maxY = 0;
+                    for (final p in _drawing!) {
+                      if (p.dx < minX) minX = p.dx;
+                      if (p.dy < minY) minY = p.dy;
+                      if (p.dx > maxX) maxX = p.dx;
+                      if (p.dy > maxY) maxY = p.dy;
+                    }
+                    _addAnno(_Anno(
+                      tool: _Tool.draw,
+                      rect: Rect.fromLTRB(minX, minY, maxX, maxY),
+                      path: List.from(_drawing!),
+                      color: _color,
+                    ));
+                  }
+                  if (_tool == _Tool.highlight && _rectStart != null && _rectCurrent != null) {
+                    final s = _normalize(_rectStart!, size);
+                    final e = _normalize(_rectCurrent!, size);
+                    final r = Rect.fromLTRB(
+                      s.dx < e.dx ? s.dx : e.dx,
+                      s.dy < e.dy ? s.dy : e.dy,
+                      s.dx > e.dx ? s.dx : e.dx,
+                      s.dy > e.dy ? s.dy : e.dy,
+                    );
+                    if (r.width > 0.005 && r.height > 0.005) {
+                      _addAnno(_Anno(
+                        tool: _Tool.highlight,
+                        rect: r,
+                        color: Colors.yellow,
+                      ));
+                    }
+                  }
+                  setState(() {
+                    _drawing = null;
+                    _rectStart = null;
+                    _rectCurrent = null;
+                  });
+                },
+                child: CustomPaint(
+                  painter: _AnnoPainter(
+                    annos: _pageAnnos,
+                    drawingPath: _drawing,
+                    rectStart: _rectStart,
+                    rectCurrent: _rectCurrent,
+                    drawingColor: _color,
+                  ),
+                  size: Size.infinite,
+                ),
+              ),
+            )
+          else
+            // Quand aucun outil n'est actif : affiche les annotations en
+            // overlay, sans capturer les touches (le PDF reste interactif).
+            IgnorePointer(
+              child: CustomPaint(
+                painter: _AnnoPainter(annos: _pageAnnos, drawingColor: _color),
+                size: Size.infinite,
+              ),
+            ),
+        ]);
+      }),
+      bottomNavigationBar: _buildToolbar(),
+    );
+  }
+
+  Offset _normalize(Offset p, Size size) =>
+      Offset(p.dx / size.width, p.dy / size.height);
+
+  Widget _buildToolbar() {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(top: BorderSide(
+              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3))),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _toolBtn(Icons.text_fields, 'Texte', _Tool.text),
+          _toolBtn(Icons.highlight, 'Surligner', _Tool.highlight),
+          _toolBtn(Icons.draw, 'Dessiner', _Tool.draw),
+          _toolBtn(Icons.auto_fix_off, 'Effacer', _Tool.erase),
+          PopupMenuButton<Color>(
+            tooltip: 'Couleur',
+            icon: Icon(Icons.palette, color: _color),
+            onSelected: (c) => setState(() => _color = c),
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: Colors.red, child: Text('Rouge')),
+              PopupMenuItem(value: Colors.black, child: Text('Noir')),
+              PopupMenuItem(value: Colors.blue, child: Text('Bleu')),
+              PopupMenuItem(value: Colors.green, child: Text('Vert')),
+              PopupMenuItem(value: Colors.yellow, child: Text('Jaune')),
+            ],
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _toolBtn(IconData icon, String label, _Tool t) {
+    final selected = _tool == t;
+    return InkWell(
+      onTap: () => setState(() => _tool = selected ? _Tool.none : t),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
+              : null,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 22,
+              color: selected ? Theme.of(context).colorScheme.primary : null),
+          Text(label, style: const TextStyle(fontSize: 10)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Painter qui restitue les annotations stockées (en coords normalisées) à
+/// l'échelle du widget courant + les éléments en cours de dessin/sélection.
+class _AnnoPainter extends CustomPainter {
+  final List<_Anno> annos;
+  final List<Offset>? drawingPath;
+  final Offset? rectStart;
+  final Offset? rectCurrent;
+  final Color drawingColor;
+  _AnnoPainter({
+    required this.annos,
+    this.drawingPath,
+    this.rectStart,
+    this.rectCurrent,
+    required this.drawingColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final a in annos) {
+      final paint = Paint()
+        ..color = a.color
+        ..isAntiAlias = true
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2;
+      switch (a.tool) {
+        case _Tool.text:
+          final tp = TextPainter(
+            text: TextSpan(text: a.text ?? '',
+                style: TextStyle(color: a.color, fontSize: a.fontSize)),
+            textDirection: ui.TextDirection.ltr,
+          )..layout(maxWidth: a.rect.width * size.width);
+          tp.paint(canvas, Offset(a.rect.left * size.width,
+              a.rect.top * size.height));
+          break;
+        case _Tool.highlight:
+          paint.color = a.color.withValues(alpha: 0.35);
+          paint.style = PaintingStyle.fill;
+          canvas.drawRect(Rect.fromLTWH(
+            a.rect.left * size.width,
+            a.rect.top * size.height,
+            a.rect.width * size.width,
+            a.rect.height * size.height,
+          ), paint);
+          break;
+        case _Tool.draw:
+          if (a.path == null || a.path!.length < 2) break;
+          paint.style = PaintingStyle.stroke;
+          final p = Path()
+            ..moveTo(a.path!.first.dx * size.width,
+                     a.path!.first.dy * size.height);
+          for (var i = 1; i < a.path!.length; i++) {
+            p.lineTo(a.path![i].dx * size.width,
+                     a.path![i].dy * size.height);
+          }
+          canvas.drawPath(p, paint);
+          break;
+        default:
+          break;
+      }
+    }
+
+    // Trait en cours
+    if (drawingPath != null && drawingPath!.length >= 2) {
+      final paint = Paint()
+        ..color = drawingColor
+        ..isAntiAlias = true
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+      final p = Path()
+        ..moveTo(drawingPath!.first.dx * size.width,
+                 drawingPath!.first.dy * size.height);
+      for (var i = 1; i < drawingPath!.length; i++) {
+        p.lineTo(drawingPath![i].dx * size.width,
+                 drawingPath![i].dy * size.height);
+      }
+      canvas.drawPath(p, paint);
+    }
+
+    // Rect surlignage en cours
+    if (rectStart != null && rectCurrent != null) {
+      final paint = Paint()
+        ..color = Colors.yellow.withValues(alpha: 0.35)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(
+          Rect.fromPoints(rectStart!, rectCurrent!), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnnoPainter old) =>
+      old.annos != annos
+      || old.drawingPath != drawingPath
+      || old.rectStart != rectStart
+      || old.rectCurrent != rectCurrent;
+}
+
+/// Helper pour afficher un Uint8List en image (utilisé par le picker image
+/// si on étend l'éditeur). Réservé pour future extension.
+@visibleForTesting
+class ImageAnnoSentinel { final Uint8List bytes; ImageAnnoSentinel(this.bytes); }

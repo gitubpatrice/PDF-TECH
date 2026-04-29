@@ -1,9 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../widgets/pdf_picker_screen.dart';
 
 class DecryptScreen extends StatefulWidget {
   const DecryptScreen({super.key});
@@ -26,15 +26,12 @@ class _DecryptScreenState extends State<DecryptScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: false,
-    );
-    if (result == null || result.files.single.path == null) return;
+    final path = await PdfPickerScreen.pickOne(context,
+        title: 'Choisir le PDF à déchiffrer');
+    if (path == null) return;
     setState(() {
-      _path = result.files.single.path;
-      _name = result.files.single.name;
+      _path = path;
+      _name = path.split(RegExp(r'[/\\]')).last;
       _passwordCtrl.clear();
     });
   }

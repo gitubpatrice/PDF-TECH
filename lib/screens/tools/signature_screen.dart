@@ -1,12 +1,12 @@
 import 'dart:ui' as ui;
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import 'dart:io';
 
+import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
 class SignatureScreen extends StatefulWidget {
@@ -25,14 +25,12 @@ class _SignatureScreenState extends State<SignatureScreen> {
   bool _processing = false;
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result?.files.single.path == null) return;
+    final path = await PdfPickerScreen.pickOne(context,
+        title: 'Choisir le PDF à signer');
+    if (path == null) return;
     setState(() {
-      _filePath = result!.files.single.path;
-      _fileName = result.files.single.name;
+      _filePath = path;
+      _fileName = path.split(RegExp(r'[/\\]')).last;
     });
   }
 

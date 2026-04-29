@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
 class ProtectScreen extends StatefulWidget {
@@ -27,14 +27,12 @@ class _ProtectScreenState extends State<ProtectScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result?.files.single.path == null) return;
+    final path = await PdfPickerScreen.pickOne(context,
+        title: 'Choisir le PDF à protéger');
+    if (path == null) return;
     setState(() {
-      _filePath = result!.files.single.path;
-      _fileName = result.files.single.name;
+      _filePath = path;
+      _fileName = path.split(RegExp(r'[/\\]')).last;
     });
   }
 

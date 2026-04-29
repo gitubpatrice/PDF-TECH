@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
 class MergeScreen extends StatefulWidget {
@@ -16,17 +16,17 @@ class _MergeScreenState extends State<MergeScreen> {
   bool _processing = false;
 
   Future<void> _addFiles() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: true,
+    final picked = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(builder: (_) => const PdfPickerScreen(
+        title: 'Ajouter des PDFs',
+        multi: true,
+      )),
     );
-    if (result == null) return;
+    if (picked == null || picked.isEmpty) return;
     setState(() {
-      for (final f in result.files) {
-        if (f.path != null && !_files.contains(f.path)) {
-          _files.add(f.path!);
-        }
+      for (final p in picked) {
+        if (!_files.contains(p)) _files.add(p);
       }
     });
   }
