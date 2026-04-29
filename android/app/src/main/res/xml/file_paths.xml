@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths : surface MINIMALE et CIBLÉE pour partage cloud.
+     Toutes les expositions sont restreintes à des sous-dossiers spécifiques
+     pour limiter la surface en cas de fuite d'URI :
+     - external-files-path/output : /Android/data/<pkg>/files/output (fallback)
+     - cache-path/share : sous-dossier de cache dédié au partage
+     - external-path Documents/PDF Tech : sortie utilisateur principale
+     PAS de root-path, pas de path="." sur files-path (privé app). -->
+<paths>
+    <external-files-path name="output_files" path="output/" />
+    <cache-path name="share_cache" path="share/" />
+    <external-path name="pdftech_documents" path="Documents/PDF Tech/" />
+</paths>

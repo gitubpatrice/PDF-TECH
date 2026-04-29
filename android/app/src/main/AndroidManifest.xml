@@ -50,9 +50,25 @@
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
             android:value="ocr" />
+
+        <!-- FileProvider : permet de partager les PDFs générés vers d'autres apps
+             (kDrive, Google Drive, Proton Drive…) via content:// URI sécurisé -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
     <queries>
+        <!-- Cloud apps : envoi direct via setPackage -->
+        <package android:name="com.infomaniak.drive" />
+        <package android:name="me.proton.android.drive" />
+        <package android:name="com.google.android.apps.docs" />
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>

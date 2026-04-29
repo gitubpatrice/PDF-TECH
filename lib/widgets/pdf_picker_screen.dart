@@ -82,8 +82,12 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   Future<void> _load() async {
     final r = await _recentService.load();
     if (!mounted) return;
-    // Filtre : ne garde que les fichiers qui existent encore
-    final existing = r.where((f) => File(f.path).existsSync()).toList();
+    // Filtre async : ne garde que les fichiers qui existent encore.
+    // existsSync sur N fichiers stockage lent jankerait l'UI au build du tab.
+    final checks = await Future.wait(
+        r.map((f) async => (await File(f.path).exists()) ? f : null));
+    final existing = checks.whereType<RecentFile>().toList();
+    if (!mounted) return;
     setState(() { _recents = existing; _loading = false; });
   }
 
@@ -129,6 +133,16 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       final path = res.files.isEmpty ? null : res.files.first.path;
       if (path != null) Navigator.pop(context, path);
     }
+  }
+
+  /// Ouvre le sélecteur de dossier système Android (SAF). L'utilisateur peut
+  /// naviguer dans n'importe quel dossier de son téléphone et le picker
+  /// retourne le path. On l'ouvre ensuite dans PdfFolderScreen filtré .pdf.
+  Future<void> _browseAnyFolder() async {
+    final dir = await FilePicker.platform.getDirectoryPath();
+    if (dir == null || !mounted) return;
+    final label = dir.split(RegExp(r'[/\\]')).last;
+    await _browseFolder(dir, label.isEmpty ? 'Dossier' : label);
   }
 
   Future<void> _browseFolder(String path, String label) async {
@@ -277,6 +291,20 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
           )).toList(),
         ),
         const SizedBox(height: 16),
+        // Choisir un dossier dans tout le téléphone
+        Card(
+          child: ListTile(
+            leading: Icon(Icons.folder_outlined,
+                color: Theme.of(context).colorScheme.primary),
+            title: const Text('Parcourir un autre dossier',
+                style: TextStyle(fontSize: 13)),
+            subtitle: const Text(
+                'Choisir n\'importe quel dossier du téléphone',
+                style: TextStyle(fontSize: 11)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _browseAnyFolder,
+          ),
+        ),
         // Bouton picker système
         Card(
           child: ListTile(

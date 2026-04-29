@@ -168,14 +168,37 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
         }
       }
       final outBytes = await doc.save();
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final out = File('${dir.path}/${_baseName(widget.path)}_annote_$ts.pdf');
-      await out.writeAsBytes(outBytes);
+      final out = await _saveToVisibleDocuments(outBytes);
       return out.path;
     } finally {
       doc.dispose();
     }
+  }
+
+  /// Sauve dans /Documents/PDF Tech/ (visible) avec fallback app-privé.
+  Future<File> _saveToVisibleDocuments(List<int> bytes) async {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final filename = '${_baseName(widget.path)}_annote_$ts.pdf';
+    try {
+      final visible = Directory('/storage/emulated/0/Documents/PDF Tech');
+      if (!await visible.exists()) await visible.create(recursive: true);
+      final out = File('${visible.path}/$filename');
+      await out.writeAsBytes(bytes);
+      return out;
+    } catch (_) {/* fallback */}
+    // Fallback : /Android/data/<pkg>/files/output/ (FileProvider-shareable)
+    final extDir = await getExternalStorageDirectory();
+    if (extDir != null) {
+      final outDir = Directory('${extDir.path}/output');
+      if (!await outDir.exists()) await outDir.create(recursive: true);
+      final out = File('${outDir.path}/$filename');
+      await out.writeAsBytes(bytes);
+      return out;
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    final out = File('${docs.path}/$filename');
+    await out.writeAsBytes(bytes);
+    return out;
   }
 
   String _baseName(String p) {

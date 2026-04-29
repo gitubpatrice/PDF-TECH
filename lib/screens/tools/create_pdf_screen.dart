@@ -24,6 +24,13 @@ class CreatePdfScreen extends StatefulWidget {
   State<CreatePdfScreen> createState() => _CreatePdfScreenState();
 }
 
+// Constantes centralisées pour faciliter la maintenance et l'i18n future.
+const _kMaxTitleLen = 80;        // NAME_MAX-safe (ext4 = 255)
+const _kCodeWrapChars = 70;       // approx 70 chars/ligne en monospace 12pt sur A4
+const _kPdfMargin = 40.0;         // marge externe en points PDF
+const _kFontHelvetica = PdfFontFamily.helvetica;
+const _kFontMonospace = PdfFontFamily.courier;
+
 enum _BlockType { title, subtitle, paragraph, bullet, code, image, link }
 
 class _Block {
@@ -181,27 +188,30 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
       var page = doc.pages.add();
       page.graphics.drawString(
         _titleCtrl.text.trim(),
-        PdfStandardFont(PdfFontFamily.helvetica, 22, style: PdfFontStyle.bold),
-        bounds: Rect.fromLTWH(40, 40, page.getClientSize().width - 80, 40),
+        PdfStandardFont(_kFontHelvetica, 22, style: PdfFontStyle.bold),
+        bounds: Rect.fromLTWH(
+            _kPdfMargin, _kPdfMargin,
+            page.getClientSize().width - _kPdfMargin * 2,
+            _kPdfMargin),
       );
-      double cursorY = 90;
+      double cursorY = _kPdfMargin * 2 + 10;
 
       for (final b in _blocks) {
         if (b.type == _BlockType.image && b.imagePath != null) {
           try {
             final bytes = await File(b.imagePath!).readAsBytes();
             final bitmap = PdfBitmap(bytes);
-            final maxW = page.getClientSize().width - 80;
+            final maxW = page.getClientSize().width - _kPdfMargin * 2;
             final scale = bitmap.width > maxW ? maxW / bitmap.width : 1.0;
             final dw = bitmap.width * scale;
             final dh = bitmap.height * scale;
             // Saut de page si pas la place
-            if (cursorY + dh > page.getClientSize().height - 40) {
+            if (cursorY + dh > page.getClientSize().height - _kPdfMargin) {
               page = doc.pages.add();
-              cursorY = 40;
+              cursorY = _kPdfMargin;
             }
             page.graphics.drawImage(
-                bitmap, Rect.fromLTWH(40, cursorY, dw, dh));
+                bitmap, Rect.fromLTWH(_kPdfMargin, cursorY, dw, dh));
             cursorY += dh + 12;
           } catch (_) {/* image illisible — skip */}
           continue;
@@ -220,8 +230,8 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
         if (b.strike)    styles.add(PdfFontStyle.strikethrough);
         // Code → monospace
         final family = b.type == _BlockType.code
-            ? PdfFontFamily.courier
-            : PdfFontFamily.helvetica;
+            ? _kFontMonospace
+            : _kFontHelvetica;
         final font = PdfStandardFont(family, b.fontSize,
             multiStyle: styles.isEmpty ? null : styles);
 
@@ -240,17 +250,17 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
           final lines = text.split('\n');
           var totalLines = 0;
           for (final l in lines) {
-            totalLines += 1 + (l.length / 70).floor();
+            totalLines += 1 + (l.length / _kCodeWrapChars).floor();
           }
           final estHeight = (b.fontSize * 1.4 * totalLines) + 10;
-          if (cursorY + estHeight > page.getClientSize().height - 40) {
+          if (cursorY + estHeight > page.getClientSize().height - _kPdfMargin) {
             page = doc.pages.add();
-            cursorY = 40;
+            cursorY = _kPdfMargin;
           }
           page.graphics.drawRectangle(
             brush: PdfSolidBrush(PdfColor(245, 245, 245)),
-            bounds: Rect.fromLTWH(40, cursorY,
-                page.getClientSize().width - 80, estHeight),
+            bounds: Rect.fromLTWH(_kPdfMargin, cursorY,
+                page.getClientSize().width - _kPdfMargin * 2, estHeight),
           );
         }
 
@@ -261,9 +271,9 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
         final result = element.draw(
           page: page,
           bounds: Rect.fromLTWH(
-              40, cursorY,
-              page.getClientSize().width - 80,
-              page.getClientSize().height - cursorY - 40),
+              _kPdfMargin, cursorY,
+              page.getClientSize().width - _kPdfMargin * 2,
+              page.getClientSize().height - cursorY - _kPdfMargin),
           format: layout,
         );
         if (result != null) {
@@ -275,14 +285,46 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
       }
 
       final outBytes = await doc.save();
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final out = File('${dir.path}/${_titleCtrl.text.trim().replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_')}_$ts.pdf');
-      await out.writeAsBytes(outBytes);
+      // Sortie persistante visible utilisateur : /storage/emulated/0/Documents/PDF Tech/
+      // Fallback sur le dossier app-privé si la perm n'est pas accordée.
+      final out = await _saveToVisibleDocuments(outBytes);
       return out.path;
     } finally {
       doc.dispose();
     }
+  }
+
+  /// Sauvegarde les bytes PDF dans /Documents/PDF Tech/ (visible utilisateur).
+  /// Si l'écriture échoue (perm refusée), fallback dans le dossier app-privé.
+  Future<File> _saveToVisibleDocuments(List<int> bytes) async {
+    final base = _titleCtrl.text.trim()
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final filename = '${base}_$ts.pdf';
+    // 1. Tentative dans /Documents/PDF Tech/ (visible explorateur)
+    try {
+      final visible = Directory('/storage/emulated/0/Documents/PDF Tech');
+      if (!await visible.exists()) await visible.create(recursive: true);
+      final out = File('${visible.path}/$filename');
+      await out.writeAsBytes(bytes);
+      return out;
+    } catch (_) {/* perm refusée — fallback */}
+    // 2. Fallback : /Android/data/<pkg>/files/output/ (couvert par FileProvider
+    // pour partage cloud, et toujours visible via /Android/data/...).
+    final extDir = await getExternalStorageDirectory();
+    if (extDir != null) {
+      final outDir = Directory('${extDir.path}/output');
+      if (!await outDir.exists()) await outDir.create(recursive: true);
+      final out = File('${outDir.path}/$filename');
+      await out.writeAsBytes(bytes);
+      return out;
+    }
+    // 3. Dernier recours : app-private internal (non partageable mais visible
+    // dans l'app pour ouverture immédiate)
+    final docs = await getApplicationDocumentsDirectory();
+    final out = File('${docs.path}/$filename');
+    await out.writeAsBytes(bytes);
+    return out;
   }
 
   @override
@@ -307,7 +349,7 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
           child: Column(children: [
             TextField(
               controller: _titleCtrl,
-              maxLength: 80,
+              maxLength: _kMaxTitleLen,
               decoration: const InputDecoration(
                   labelText: 'Titre du document', border: OutlineInputBorder(),
                   isDense: true,
@@ -397,9 +439,6 @@ class _BlockCardState extends State<_BlockCard> {
   void initState() {
     super.initState();
     _ctrl = TextEditingController(text: widget.block.text);
-    _ctrl.addListener(() {
-      widget.block.text = _ctrl.text;
-    });
   }
 
   @override
@@ -468,6 +507,7 @@ class _BlockCardState extends State<_BlockCard> {
               controller: _ctrl,
               maxLines: null,
               keyboardType: TextInputType.multiline,
+              onChanged: (v) => widget.block.text = v,
               style: TextStyle(
                 fontSize: b.fontSize,
                 color: b.color,
