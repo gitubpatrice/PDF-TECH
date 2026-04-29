@@ -1,7 +1,7 @@
 name: pdf_tech
 description: "Application de gestion de PDF - lecture, annotation, création, partage"
 publish_to: 'none'
-version: 1.6.1+11
+version: 1.6.2+12
 
 environment:
   sdk: ^3.11.5
@@ -18,7 +18,7 @@ dependencies:
   # Gestion des fichiers
   file_picker: ^8.1.2
   path_provider: ^2.1.4
-  permission_handler: ^11.3.1
+  permission_handler: ^12.0.1
 
   # Partage et email
   share_plus: ^10.0.3
@@ -39,7 +39,7 @@ dependencies:
 
   # OCR - rendu de pages PDF en images + reconnaissance de texte
   pdfx: ^2.6.0
-  google_mlkit_text_recognition: ^0.13.0
+  google_mlkit_text_recognition: ^0.15.1
 
   # Liens externes (mailto / https) + rendu Markdown pour les pages légales
   url_launcher: ^6.3.1
