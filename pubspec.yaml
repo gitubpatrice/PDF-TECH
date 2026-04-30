@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
+  # Code partagé Files Tech (RecentFiles, UpdateService, CloudShareRow, etc.)
+  files_tech_core:
+    path: ../files_tech_core
+
   # PDF - visualisation et manipulation
   syncfusion_flutter_pdfviewer: ^27.1.48
   syncfusion_flutter_pdf: ^27.1.48

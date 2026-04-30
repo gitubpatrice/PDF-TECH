@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../models/recent_file.dart';
-import '../services/recent_files_service.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import '../screens/pdf_folder_screen.dart';
 
 /// Picker PDF custom avec deux onglets :

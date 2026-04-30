@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
-import '../models/recent_file.dart';
-import '../services/recent_files_service.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import '../services/share_service.dart';
-import '../services/update_service.dart';
+import '../services/app_update.dart';
 import 'pdf_viewer_screen.dart';
 import 'tools/merge_screen.dart';
 import 'tools/split_screen.dart';
@@ -64,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkUpdate() async {
-    final info = await UpdateService().checkForUpdate();
+    final info = await appUpdateService.checkForUpdate();
     if (info == null || !mounted) return;
     showDialog(
       context: context,

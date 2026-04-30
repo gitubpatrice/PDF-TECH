@@ -4,7 +4,7 @@ import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
 
 import '../../services/google_drive_service.dart';
-import '../../services/recent_files_service.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import '../pdf_viewer_screen.dart';
 
 class GoogleDriveScreen extends StatefulWidget {
