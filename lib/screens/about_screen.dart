@@ -10,7 +10,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  static const _version = '1.7.2';
+  static const _version = '1.8.0';
   static const _author  = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
@@ -40,7 +40,7 @@ class _AboutScreenState extends State<AboutScreen> {
 
   Future<void> _checkUpdate() async {
     setState(() => _checkingUpdate = true);
-    final info = await UpdateService().checkForUpdate();
+    final info = await UpdateService().checkForUpdate(force: true);
     if (!mounted) return;
     setState(() => _checkingUpdate = false);
     if (info == null) {

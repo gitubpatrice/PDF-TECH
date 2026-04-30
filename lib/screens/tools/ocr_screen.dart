@@ -87,41 +87,53 @@ class _OcrScreenState extends State<OcrScreen> {
       final pdfDoc = await pdfx.PdfDocument.openFile(_path!);
       final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
       final ocrBuffer = StringBuffer();
-      final tmpDir = await getTemporaryDirectory();
+      final tmpRoot = await getTemporaryDirectory();
+      // Sous-dossier dédié à cette session OCR. Purgé en finally même si
+      // exception ou kill — évite que des PNG en clair (= contenu PDF
+      // reconstituable) restent dans le cache app après échec.
+      final ocrTmp = Directory('${tmpRoot.path}/ocr_session_${DateTime.now().millisecondsSinceEpoch}');
+      await ocrTmp.create();
 
-      for (int i = 1; i <= pdfDoc.pagesCount; i++) {
-        final page = await pdfDoc.getPage(i);
-        final pageImage = await page.render(
-          width: page.width * 2,
-          height: page.height * 2,
-          format: pdfx.PdfPageImageFormat.png,
-          backgroundColor: '#ffffff',
-        );
-        await page.close();
-
-        if (pageImage?.bytes != null) {
-          final pngBytes = await _rawToPng(
-            pageImage!.bytes,
-            pageImage.width ?? (page.width * 2).toInt(),
-            pageImage.height ?? (page.height * 2).toInt(),
+      try {
+        for (int i = 1; i <= pdfDoc.pagesCount; i++) {
+          final page = await pdfDoc.getPage(i);
+          final pageImage = await page.render(
+            width: page.width * 2,
+            height: page.height * 2,
+            format: pdfx.PdfPageImageFormat.png,
+            backgroundColor: '#ffffff',
           );
-          final tmpFile = File('${tmpDir.path}/ocr_p$i.png');
-          await tmpFile.writeAsBytes(pngBytes);
+          await page.close();
 
-          final inputImage = InputImage.fromFile(tmpFile);
-          final result = await recognizer.processImage(inputImage);
-          if (result.text.isNotEmpty) {
-            ocrBuffer.writeln('── Page $i ──');
-            ocrBuffer.writeln(result.text);
+          if (pageImage?.bytes != null) {
+            final pngBytes = await _rawToPng(
+              pageImage!.bytes,
+              pageImage.width ?? (page.width * 2).toInt(),
+              pageImage.height ?? (page.height * 2).toInt(),
+            );
+            final tmpFile = File('${ocrTmp.path}/ocr_p$i.png');
+            await tmpFile.writeAsBytes(pngBytes);
+
+            final inputImage = InputImage.fromFile(tmpFile);
+            final result = await recognizer.processImage(inputImage);
+            if (result.text.isNotEmpty) {
+              ocrBuffer.writeln('── Page $i ──');
+              ocrBuffer.writeln(result.text);
+            }
+            try { await tmpFile.delete(); } catch (_) {}
           }
-          await tmpFile.delete();
+
+          setState(() => _processedPages = i);
         }
 
-        setState(() => _processedPages = i);
+        await pdfDoc.close();
+        recognizer.close();
+      } finally {
+        // Purge garantie même en cas d'exception au milieu de la boucle.
+        try {
+          if (await ocrTmp.exists()) await ocrTmp.delete(recursive: true);
+        } catch (_) {}
       }
-
-      await pdfDoc.close();
-      recognizer.close();
 
       setState(() {
         _extractedText = ocrBuffer.toString().trim();

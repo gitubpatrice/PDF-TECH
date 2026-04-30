@@ -1,12 +1,24 @@
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 class UpdateService {
   static const _owner   = 'gitubpatrice';
   static const _repo    = 'PDF-TECH';
-  static const _current = '1.7.2';
+  static const _current = '1.8.0';
 
-  Future<UpdateInfo?> checkForUpdate() async {
+  /// Cache du dernier check pour éviter de spammer GitHub à chaque cold start
+  /// (limite anonyme : 60 req/h). Forcer via [force] pour bypasser.
+  static const _kLastCheckMs = 'update_last_check_ms';
+  static const _cacheValidityMs = 12 * 60 * 60 * 1000; // 12 h
+
+  Future<UpdateInfo?> checkForUpdate({bool force = false}) async {
+    if (!force) {
+      final prefs = await SharedPreferences.getInstance();
+      final last = prefs.getInt(_kLastCheckMs) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - last < _cacheValidityMs) return null;
+    }
     try {
       final uri = Uri.parse(
           'https://api.github.com/repos/$_owner/$_repo/releases/latest');
@@ -15,6 +27,10 @@ class UpdateService {
       }).timeout(const Duration(seconds: 8));
 
       if (response.statusCode != 200) return null;
+      // Marque le check effectué (évite re-check pendant 12h, même si pas de
+      // mise à jour disponible).
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_kLastCheckMs, DateTime.now().millisecondsSinceEpoch);
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final tag = (data['tag_name'] as String).replaceFirst('v', '');
       if (!_isNewer(tag, _current)) return null;

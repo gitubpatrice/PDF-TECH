@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/pdf_tools_service.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
 class DecryptScreen extends StatefulWidget {
@@ -39,23 +37,38 @@ class _DecryptScreenState extends State<DecryptScreen> {
   Future<void> _decrypt() async {
     if (_path == null || _passwordCtrl.text.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
+
+    // Avertissement explicite : le fichier de sortie sera EN CLAIR et persistant
+    // sur le téléphone — l'utilisateur doit en être conscient.
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.warning_amber_rounded,
+            color: Colors.amber, size: 36),
+        title: const Text('Le PDF déchiffré sera en clair'),
+        content: const Text(
+          'Le fichier de sortie ne sera plus protégé par mot de passe. '
+          'Il sera enregistré dans le stockage de l\'app et restera accessible '
+          'jusqu\'à ce que vous le supprimiez.\n\n'
+          'Pensez à le supprimer après usage si le contenu est sensible.',
+          style: TextStyle(fontSize: 12),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('J\'ai compris')),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+
     setState(() => _isProcessing = true);
     try {
-      final bytes = await File(_path!).readAsBytes();
-      final doc = PdfDocument(
-        inputBytes: bytes,
-        password: _passwordCtrl.text,
-      );
-      // Retirer la protection
-      doc.security.userPassword = '';
-      doc.security.ownerPassword = '';
-
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final base = (_name ?? 'document').replaceAll('.pdf', '');
-      final outPath = '${dir.path}/${base}_déchiffré_$ts.pdf';
-      await File(outPath).writeAsBytes(await doc.save());
-      doc.dispose();
+      final outPath = await PdfToolsService()
+          .decryptPdf(_path!, _passwordCtrl.text);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -71,7 +84,11 @@ class _DecryptScreenState extends State<DecryptScreen> {
         _name = null;
         _passwordCtrl.clear();
       });
-    } on Exception {
+    } on PdfValidationException catch (e) {
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
       messenger.showSnackBar(
