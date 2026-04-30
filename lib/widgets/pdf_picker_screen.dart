@@ -328,11 +328,13 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   }
 
   Widget _buildBrowse() {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+    return SafeArea(
+      top: false,
+      child: ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
           child: Text(
             'Raccourcis',
             style: TextStyle(
@@ -358,9 +360,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
         ),
 
         if (_allFolders.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
             child: Text(
               'Tous les dossiers',
               style: TextStyle(
@@ -405,9 +407,10 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
           ),
         ],
 
-        // "Parcourir un autre dossier" en bas avec marge réduite — toujours
-        // visible sans avoir à scroller à fond (padding bottom du ListView = 8)
-        const SizedBox(height: 8),
+        // "Parcourir un autre dossier" en bas avec marge réduite + SafeArea
+        // au niveau du ListView pour ne pas être masqué par la barre de
+        // navigation système (geste / 3 boutons).
+        const SizedBox(height: 6),
         Card(
           margin: EdgeInsets.zero,
           child: ListTile(
@@ -424,7 +427,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
           ),
         ),
       ],
-    );
+    ));
   }
 }
 
