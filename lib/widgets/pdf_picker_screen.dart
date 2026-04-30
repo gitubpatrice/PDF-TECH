@@ -6,18 +6,17 @@ import '../services/recent_files_service.dart';
 import '../screens/pdf_folder_screen.dart';
 
 /// Picker PDF custom avec deux onglets :
-/// - **Récents** : liste des PDFs récemment ouverts (depuis RecentFilesService)
-/// - **Parcourir** : grille d'icônes vers Téléchargements / Documents /
-///   PDF Tech / WhatsApp + bouton "Choisir avec le picker système"
+/// - **Récents** : liste des PDFs récemment ouverts
+/// - **Parcourir** : bouton "Parcourir un autre dossier" en tête, grille de
+///   raccourcis colorés (Téléchargements, Documents, PDF Tech, WhatsApp),
+///   puis grille dynamique de **tous les dossiers** du stockage interne avec
+///   couleurs/icônes auto.
 ///
-/// Bien plus utile pour l'utilisateur que le SAF Android brut, qui montre
-/// "Récents" du système (pas spécifique aux PDFs) et oblige à fouiller.
-///
-/// Mode multi-sélection optionnel pour les outils Fusionner / Images→PDF.
+/// Mode multi-sélection optionnel pour Fusionner / Images→PDF.
 ///
 /// Retourne via Navigator.pop :
-/// - `String` (un path) si mode mono,
-/// - `List<String>` (paths) si mode multi.
+/// - `String` (path) si mode mono
+/// - `List<String>` (paths) si mode multi
 class PdfPickerScreen extends StatefulWidget {
   final String title;
   final bool multi;
@@ -30,15 +29,12 @@ class PdfPickerScreen extends StatefulWidget {
   @override
   State<PdfPickerScreen> createState() => _PdfPickerScreenState();
 
-  /// Helper : ouvre le picker en mode mono et retourne le path (ou null).
-  /// À utiliser dans les outils qui prennent UN seul PDF.
   static Future<String?> pickOne(BuildContext context, {String? title}) {
     return Navigator.push<String>(context, MaterialPageRoute(
       builder: (_) => PdfPickerScreen(title: title ?? 'Choisir un PDF', multi: false),
     ));
   }
 
-  /// Helper : mode multi, retourne la liste des paths (ou null).
   static Future<List<String>?> pickMany(BuildContext context, {String? title}) {
     return Navigator.push<List<String>>(context, MaterialPageRoute(
       builder: (_) => PdfPickerScreen(title: title ?? 'Choisir des PDFs', multi: true),
@@ -46,24 +42,54 @@ class PdfPickerScreen extends StatefulWidget {
   }
 }
 
+class _Shortcut {
+  final IconData icon;
+  final String label;
+  final String path;
+  final Color color;
+  const _Shortcut({
+    required this.icon,
+    required this.label,
+    required this.path,
+    required this.color,
+  });
+}
+
 class _PdfPickerScreenState extends State<PdfPickerScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   final _recentService = RecentFilesService();
   List<RecentFile> _recents = [];
+  List<Directory> _allFolders = [];
   bool _loading = true;
   final List<String> _selected = [];
 
-  static const _folders = [
-    (icon: Icons.download_outlined,    label: 'Téléchargements',
-        path: '/storage/emulated/0/Download',                color: Color(0xFF43A047)),
-    (icon: Icons.description_outlined, label: 'Documents',
-        path: '/storage/emulated/0/Documents',               color: Color(0xFF1976D2)),
-    (icon: Icons.folder_special_outlined, label: 'PDF Tech',
-        path: '/storage/emulated/0/Documents/PDF Tech',     color: Color(0xFFFF7043)),
-    (icon: Icons.chat_outlined,        label: 'WhatsApp',
-        path: '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
-        color: Color(0xFF25D366)),
+  /// Raccourcis curés : dossiers les plus susceptibles de contenir des PDFs.
+  static const _shortcuts = [
+    _Shortcut(
+      icon: Icons.download_outlined,
+      label: 'Téléchargements',
+      path: '/storage/emulated/0/Download',
+      color: Color(0xFF43A047),
+    ),
+    _Shortcut(
+      icon: Icons.description_outlined,
+      label: 'Documents',
+      path: '/storage/emulated/0/Documents',
+      color: Color(0xFF1976D2),
+    ),
+    _Shortcut(
+      icon: Icons.folder_special_outlined,
+      label: 'PDF Tech',
+      path: '/storage/emulated/0/Documents/PDF Tech',
+      color: Color(0xFFFF7043),
+    ),
+    _Shortcut(
+      icon: Icons.chat_outlined,
+      label: 'WhatsApp',
+      path: '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
+      color: Color(0xFF25D366),
+    ),
   ];
 
   @override
@@ -71,6 +97,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
     _load();
+    _loadAllFolders();
   }
 
   @override
@@ -82,13 +109,93 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   Future<void> _load() async {
     final r = await _recentService.load();
     if (!mounted) return;
-    // Filtre async : ne garde que les fichiers qui existent encore.
-    // existsSync sur N fichiers stockage lent jankerait l'UI au build du tab.
+    // Filtre cohérent avec RFT picker : on ne garde que les fichiers qui
+    // existent ET dont l'extension est .pdf (un picker PDF doit lister des
+    // PDFs même si RecentFilesService stockait par accident d'autres types).
     final checks = await Future.wait(
         r.map((f) async => (await File(f.path).exists()) ? f : null));
-    final existing = checks.whereType<RecentFile>().toList();
+    final existing = checks
+        .whereType<RecentFile>()
+        .where((f) => f.name.toLowerCase().endsWith('.pdf'))
+        .toList();
     if (!mounted) return;
     setState(() { _recents = existing; _loading = false; });
+  }
+
+  /// Liste tous les dossiers de premier niveau du stockage interne, exclus :
+  /// dossiers déjà raccourcis (anti-doublon), Android/ (data app), cachés.
+  Future<void> _loadAllFolders() async {
+    try {
+      final root = Directory('/storage/emulated/0');
+      if (!await root.exists()) return;
+      final shortcutPaths = _shortcuts.map((s) => s.path).toSet();
+      final entries = await root.list(followLinks: false).toList();
+      final folders = entries
+          .whereType<Directory>()
+          .where((d) {
+            final name = d.path.split(RegExp(r'[/\\]')).last;
+            if (name.startsWith('.')) return false;
+            if (name == 'Android') return false;
+            if (shortcutPaths.contains(d.path)) return false;
+            return true;
+          })
+          .toList()
+        ..sort((a, b) => a.path.split(RegExp(r'[/\\]')).last.toLowerCase()
+            .compareTo(b.path.split(RegExp(r'[/\\]')).last.toLowerCase()));
+      if (!mounted) return;
+      setState(() => _allFolders = folders);
+    } catch (_) {/* perm refusée — silent */}
+  }
+
+  /// Icône smart selon le nom : reconnaît les patterns fréquents.
+  IconData _smartIconFor(String name) {
+    final n = name.toLowerCase();
+    if (RegExp(r'photo|image|picture|dcim|camera').hasMatch(n)) {
+      return Icons.photo_camera_outlined;
+    }
+    if (RegExp(r'vid[ée]o|movie|film|cin[ée]ma').hasMatch(n)) {
+      return Icons.videocam_outlined;
+    }
+    if (RegExp(r'music|audio|sound|son|chanson|podcast').hasMatch(n)) {
+      return Icons.music_note_outlined;
+    }
+    if (RegExp(r'doc|text|note|word|excel|pdf').hasMatch(n)) {
+      return Icons.description_outlined;
+    }
+    if (RegExp(r'download|t[ée]l[ée]chargement').hasMatch(n)) {
+      return Icons.download_outlined;
+    }
+    if (RegExp(r'backup|sauvegarde|archive').hasMatch(n)) {
+      return Icons.backup_outlined;
+    }
+    if (RegExp(r'screenshot|capture').hasMatch(n)) {
+      return Icons.screenshot_outlined;
+    }
+    if (RegExp(r'book|livre|epub|read|lecture').hasMatch(n)) {
+      return Icons.menu_book_outlined;
+    }
+    if (RegExp(r'whatsapp|telegram|signal|messenger|chat').hasMatch(n)) {
+      return Icons.chat_outlined;
+    }
+    if (RegExp(r'zip|tar|rar|7z').hasMatch(n)) {
+      return Icons.folder_zip_outlined;
+    }
+    return Icons.folder_outlined;
+  }
+
+  /// Couleur déterministe via hash du nom — palette 12 couleurs Material 600.
+  static const _autoPalette = <Color>[
+    Color(0xFF1976D2), Color(0xFF43A047), Color(0xFFE53935), Color(0xFFFF7043),
+    Color(0xFF8E24AA), Color(0xFFE91E63), Color(0xFF00897B), Color(0xFF3949AB),
+    Color(0xFF6D4C41), Color(0xFF455A64), Color(0xFF7CB342), Color(0xFF039BE5),
+  ];
+
+  Color _autoColorFor(String name) {
+    var hash = 0;
+    for (final c in name.codeUnits) {
+      hash = (hash * 31 + c) & 0x7FFFFFFF;
+    }
+    return _autoPalette[hash % _autoPalette.length];
   }
 
   void _pick(String path) {
@@ -103,41 +210,10 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
 
   void _toggleSelect(String path) {
     setState(() {
-      if (_selected.contains(path)) {
-        _selected.remove(path);
-      } else {
-        _selected.add(path);
-      }
+      _selected.contains(path) ? _selected.remove(path) : _selected.add(path);
     });
   }
 
-  Future<void> _pickWithSystem() async {
-    final res = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      allowMultiple: widget.multi,
-    );
-    if (res == null) return;
-    if (!mounted) return;
-    if (widget.multi) {
-      setState(() {
-        for (final f in res.files) {
-          if (f.path != null && !_selected.contains(f.path)) {
-            _selected.add(f.path!);
-          }
-        }
-      });
-    } else {
-      // res.files.single peut lever StateError si la liste est vide ; firstOrNull
-      // est plus défensif sans changer le comportement nominal.
-      final path = res.files.isEmpty ? null : res.files.first.path;
-      if (path != null) Navigator.pop(context, path);
-    }
-  }
-
-  /// Ouvre le sélecteur de dossier système Android (SAF). L'utilisateur peut
-  /// naviguer dans n'importe quel dossier de son téléphone et le picker
-  /// retourne le path. On l'ouvre ensuite dans PdfFolderScreen filtré .pdf.
   Future<void> _browseAnyFolder() async {
     final dir = await FilePicker.platform.getDirectoryPath();
     if (dir == null || !mounted) return;
@@ -219,7 +295,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               const Text(
-                'Ouvrez un PDF depuis l\'onglet Parcourir pour le voir apparaître ici.',
+                'Ouvrez un PDF depuis l\'onglet Parcourir pour le voir ici.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
@@ -253,74 +329,70 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
 
   Widget _buildBrowse() {
     return ListView(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       children: [
-        // Grille d'icônes accès direct
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+          child: Text(
+            'Raccourcis',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.grey.shade700,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+        // Grille raccourcis curés (Téléchargements, Documents, PDF Tech, WhatsApp)
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 2.5,
-          children: _folders.map((f) => Card(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => _browseFolder(f.path, f.label),
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(children: [
-                  Container(
-                    width: 40, height: 40,
-                    decoration: BoxDecoration(
-                      color: f.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(f.icon, color: f.color, size: 22),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(f.label,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 13),
-                        overflow: TextOverflow.ellipsis),
-                  ),
-                ]),
-              ),
-            ),
+          crossAxisSpacing: 6,
+          mainAxisSpacing: 6,
+          childAspectRatio: 2.7,
+          children: _shortcuts.map((s) => _ShortcutCard(
+            icon: s.icon, label: s.label, color: s.color,
+            onTap: () => _browseFolder(s.path, s.label),
           )).toList(),
         ),
-        const SizedBox(height: 16),
-        // Choisir un dossier dans tout le téléphone
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.folder_outlined,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Parcourir un autre dossier',
-                style: TextStyle(fontSize: 13)),
-            subtitle: const Text(
-                'Choisir n\'importe quel dossier du téléphone',
-                style: TextStyle(fontSize: 11)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _browseAnyFolder,
+
+        if (_allFolders.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+            child: Text(
+              'Tous les dossiers',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey.shade700,
+                letterSpacing: 0.3,
+              ),
+            ),
           ),
-        ),
-        // Bouton picker système
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.folder_open,
-                color: Theme.of(context).colorScheme.primary),
-            title: const Text('Choisir avec le picker système',
-                style: TextStyle(fontSize: 13)),
-            subtitle: const Text(
-                'Sélecteur Android (Drive, Téléchargements…)',
-                style: TextStyle(fontSize: 11)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _pickWithSystem,
+          // Grille dynamique de tous les dossiers du stockage interne
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
+            childAspectRatio: 2.7,
+            children: _allFolders.map((d) {
+              final name = d.path.split(RegExp(r'[/\\]')).last;
+              return _ShortcutCard(
+                icon: _smartIconFor(name),
+                label: name,
+                color: _autoColorFor(name),
+                onTap: () => _browseFolder(d.path, name),
+              );
+            }).toList(),
           ),
-        ),
+        ],
+
         if (widget.multi && _selected.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Card(
             color: Theme.of(context).colorScheme.primaryContainer
                 .withValues(alpha: 0.30),
@@ -332,7 +404,70 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
             ),
           ),
         ],
+
+        // "Parcourir un autre dossier" en bas avec marge réduite — toujours
+        // visible sans avoir à scroller à fond (padding bottom du ListView = 8)
+        const SizedBox(height: 8),
+        Card(
+          margin: EdgeInsets.zero,
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.folder_open,
+                color: Theme.of(context).colorScheme.primary),
+            title: const Text('Parcourir un autre dossier',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+                'Sélecteur (sous-dossiers, SD, etc.)',
+                style: TextStyle(fontSize: 11)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _browseAnyFolder,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _ShortcutCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _ShortcutCard({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(label,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 13),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

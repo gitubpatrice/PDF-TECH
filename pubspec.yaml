@@ -1,7 +1,7 @@
 name: pdf_tech
 description: "Application de gestion de PDF - lecture, annotation, création, partage"
 publish_to: 'none'
-version: 1.7.0+13
+version: 1.7.1+14
 
 environment:
   sdk: ^3.11.5
