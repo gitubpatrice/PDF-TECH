@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -57,15 +56,12 @@ class GoogleDriveService {
   /// Downloads a Drive file to [localDir] and returns the local path.
   Future<String> downloadFile(drive.File driveFile, String localDir) async {
     final api = await _getApi();
-    final media = await api.files.get(
-      driveFile.id!,
-      downloadOptions: drive.DownloadOptions.fullMedia,
-    ) as drive.Media;
-
-    final bytes = <int>[];
-    await for (final chunk in media.stream) {
-      bytes.addAll(chunk);
-    }
+    final media =
+        await api.files.get(
+              driveFile.id!,
+              downloadOptions: drive.DownloadOptions.fullMedia,
+            )
+            as drive.Media;
 
     // Sanitize remote name to prevent path traversal (Drive lets users name
     // files with "/" or "..", which would write outside `localDir`).
@@ -75,7 +71,15 @@ class GoogleDriveService {
         .replaceAll(RegExp(r'^\.+'), '_');
     final name = safe.isEmpty ? 'document.pdf' : safe;
     final localPath = '$localDir/$name';
-    await File(localPath).writeAsBytes(Uint8List.fromList(bytes));
+
+    // Stream chunks directement vers le fichier — évite d'accumuler tout le
+    // PDF en RAM (un fichier Drive de 500 Mo provoquait OOM auparavant).
+    final sink = File(localPath).openWrite();
+    try {
+      await media.stream.pipe(sink);
+    } finally {
+      await sink.close();
+    }
     return localPath;
   }
 }

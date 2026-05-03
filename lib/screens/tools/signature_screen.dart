@@ -1,3 +1,5 @@
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -6,6 +8,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import 'dart:io';
 
+import '../../services/pdf_tools_service.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -25,9 +28,12 @@ class _SignatureScreenState extends State<SignatureScreen> {
   bool _processing = false;
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à signer');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à signer',
+    );
     if (path == null) return;
+    if (!mounted) return;
     setState(() {
       _filePath = path;
       _fileName = path.split(RegExp(r'[/\\]')).last;
@@ -40,60 +46,75 @@ class _SignatureScreenState extends State<SignatureScreen> {
     try {
       // Export signature image from pad
       final image = await _signatureKey.currentState!.toImage(pixelRatio: 3.0);
-      final byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception('Impossible d\'exporter la signature');
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null)
+        throw Exception('Impossible d\'exporter la signature');
       final pngBytes = byteData.buffer.asUint8List();
 
-      // Load PDF
-      final bytes = await File(_filePath!).readAsBytes();
-      final document = PdfDocument(inputBytes: bytes);
-      final lastPage = document.pages[document.pages.count - 1];
-      final size = lastPage.getClientSize();
-
-      // Determine X position
-      const double sigWidth = 180;
-      const double sigHeight = 90;
-      double x;
-      switch (_position) {
-        case 'gauche':
-          x = 20;
-          break;
-        case 'droite':
-          x = size.width - 200;
-          break;
-        case 'centre':
-        default:
-          x = (size.width - sigWidth) / 2;
-          break;
-      }
-      final double y = size.height - 120;
-
-      // Draw signature bitmap onto last page
-      final bitmap = PdfBitmap(pngBytes);
-      lastPage.graphics.drawImage(
-        bitmap,
-        Rect.fromLTWH(x, y, sigWidth, sigHeight),
+      // Load PDF (size + magic bytes validés)
+      final bytes = await PdfToolsService.safeReadPdf(_filePath!);
+      final position = _position;
+      final out = await Isolate.run(
+        () => _signatureIsolate(bytes, pngBytes, position),
       );
 
       // Save to new file
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final outputPath = '${dir.path}/signature_$ts.pdf';
-      final savedBytes = await document.save();
-      await File(outputPath).writeAsBytes(savedBytes);
-      document.dispose();
+      await File(outputPath).writeAsBytes(out);
 
       if (!mounted) return;
-      await showResultSheet(context,
-          outputPath: outputPath, operationLabel: 'Signature insérée');
+      await showResultSheet(
+        context,
+        outputPath: outputPath,
+        operationLabel: 'Signature insérée',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
+  }
+
+  static Uint8List _signatureIsolate(
+    Uint8List bytes,
+    Uint8List pngBytes,
+    String position,
+  ) {
+    final document = PdfDocument(inputBytes: bytes);
+    final lastPage = document.pages[document.pages.count - 1];
+    final size = lastPage.getClientSize();
+
+    const double sigWidth = 180;
+    const double sigHeight = 90;
+    double x;
+    switch (position) {
+      case 'gauche':
+        x = 20;
+        break;
+      case 'droite':
+        x = size.width - 200;
+        break;
+      case 'centre':
+      default:
+        x = (size.width - sigWidth) / 2;
+        break;
+    }
+    final double y = size.height - 120;
+
+    final bitmap = PdfBitmap(pngBytes);
+    lastPage.graphics.drawImage(
+      bitmap,
+      Rect.fromLTWH(x, y, sigWidth, sigHeight),
+    );
+
+    final saved = document.saveSync();
+    document.dispose();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
   }
 
   @override
@@ -110,11 +131,16 @@ class _SignatureScreenState extends State<SignatureScreen> {
             // ── File picker card ───────────────────────────────────────────
             Card(
               child: ListTile(
-                leading: const Icon(Icons.picture_as_pdf,
-                    color: Color(0xFFC62828), size: 32),
+                leading: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFC62828),
+                  size: 32,
+                ),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                trailing:
-                    TextButton(onPressed: _pickFile, child: const Text('Choisir')),
+                trailing: TextButton(
+                  onPressed: _pickFile,
+                  child: const Text('Choisir'),
+                ),
                 onTap: _pickFile,
               ),
             ),
@@ -124,17 +150,17 @@ class _SignatureScreenState extends State<SignatureScreen> {
             // ── Signature pad ──────────────────────────────────────────────
             Text(
               'Dessinez votre signature',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Container(
               height: 200,
               decoration: BoxDecoration(
                 border: Border.all(
-                    color: colorScheme.outline.withValues(alpha: 0.5)),
+                  color: colorScheme.outline.withValues(alpha: 0.5),
+                ),
                 borderRadius: BorderRadius.circular(8),
                 color: Colors.white,
               ),
@@ -168,10 +194,9 @@ class _SignatureScreenState extends State<SignatureScreen> {
             // ── Position selector ──────────────────────────────────────────
             Text(
               'Position sur la page',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Center(
@@ -211,14 +236,17 @@ class _SignatureScreenState extends State<SignatureScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.draw),
-                label: Text(_processing
-                    ? 'Insertion en cours…'
-                    : 'Insérer la signature'),
-                onPressed:
-                    (_processing || _filePath == null) ? null : _insertSignature,
+                label: Text(
+                  _processing ? 'Insertion en cours…' : 'Insérer la signature',
+                ),
+                onPressed: (_processing || _filePath == null)
+                    ? null
+                    : _insertSignature,
               ),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom),

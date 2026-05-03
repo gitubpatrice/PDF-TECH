@@ -76,9 +76,11 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(info.body.isNotEmpty
-                    ? info.body
-                    : 'Une nouvelle version de PDF Tech est disponible.'),
+                Text(
+                  info.body.isNotEmpty
+                      ? info.body
+                      : 'Une nouvelle version de PDF Tech est disponible.',
+                ),
                 if (info.expectedSha256 != null) ...[
                   const SizedBox(height: 14),
                   Container(
@@ -91,13 +93,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Icon(Icons.verified_outlined,
-                              size: 14, color: cs.primary),
-                          const SizedBox(width: 6),
-                          const Text('SHA-256 attendu (APK arm64-v8a)',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                        ]),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.verified_outlined,
+                              size: 14,
+                              color: cs.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'SHA-256 attendu (APK arm64-v8a)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         SelectableText(
                           info.expectedSha256!,
@@ -116,11 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Plus tard')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Plus tard'),
+            ),
             FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
           ],
         );
       },
@@ -129,7 +143,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadRecents() async {
     final files = await _recentFilesService.load();
-    if (mounted) setState(() { _recentFiles = files; _isLoading = false; });
+    if (mounted)
+      setState(() {
+        _recentFiles = files;
+        _isLoading = false;
+      });
   }
 
   Future<void> _pickAndOpen() async {
@@ -146,15 +164,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final name = path.split(RegExp(r'[/\\]')).last;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PdfViewerScreen(path: path, title: name)),
+      MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(path: path, title: name),
+      ),
     );
   }
 
   IconData _themeModeIcon(ThemeMode mode) {
     switch (mode) {
-      case ThemeMode.light:  return Icons.light_mode;
-      case ThemeMode.dark:   return Icons.dark_mode;
-      case ThemeMode.system: return Icons.brightness_auto;
+      case ThemeMode.light:
+        return Icons.light_mode;
+      case ThemeMode.dark:
+        return Icons.dark_mode;
+      case ThemeMode.system:
+        return Icons.brightness_auto;
     }
   }
 
@@ -164,7 +187,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _toggleFavorite(RecentFile file) async {
-    final updated = await _recentFilesService.toggleFavorite(_recentFiles, file.path);
+    final updated = await _recentFilesService.toggleFavorite(
+      _recentFiles,
+      file.path,
+    );
     if (mounted) setState(() => _recentFiles = updated);
   }
 
@@ -195,8 +221,10 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.info_outline),
             tooltip: 'À propos',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AboutScreen())),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AboutScreen()),
+            ),
           ),
           PopupMenuButton<ThemeMode>(
             tooltip: 'Thème',
@@ -250,17 +278,20 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: (i) => setState(() => _navIndex = i),
         destinations: const [
           NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Accueil'),
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Accueil',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.build_outlined),
-              selectedIcon: Icon(Icons.build),
-              label: 'Outils'),
+            icon: Icon(Icons.build_outlined),
+            selectedIcon: Icon(Icons.build),
+            label: 'Outils',
+          ),
           NavigationDestination(
-              icon: Icon(Icons.cloud_outlined),
-              selectedIcon: Icon(Icons.cloud),
-              label: 'Cloud'),
+            icon: Icon(Icons.cloud_outlined),
+            selectedIcon: Icon(Icons.cloud),
+            label: 'Cloud',
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -302,32 +333,60 @@ class _HomeTab extends StatefulWidget {
 class _HomeTabState extends State<_HomeTab> {
   static final _storageChannel = MethodChannel('com.pdftech.pdf_tech/storage');
   int _totalBytes = 0;
-  int _freeBytes  = 0;
+  int _freeBytes = 0;
 
   /// Raccourcis vers les dossiers les plus susceptibles de contenir des PDFs.
   /// Chaque tuile ouvre un PdfFolderScreen filtré .pdf — l'utilisateur n'a
   /// pas à fouiller dans le SAF système.
   static const _browseFolders = [
-    (icon: Icons.download_outlined,    label: 'Téléchargements',
-        path: '/storage/emulated/0/Download',                color: Color(0xFF43A047)),
-    (icon: Icons.description_outlined, label: 'Documents',
-        path: '/storage/emulated/0/Documents',               color: Color(0xFF1976D2)),
-    (icon: Icons.chat_outlined,        label: 'WhatsApp',
-        path: '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
-        color: Color(0xFF25D366)),
-    (icon: Icons.folder_special_outlined, label: 'PDF Tech',
-        path: '/storage/emulated/0/Documents/PDF Tech',     color: Color(0xFFFF7043)),
+    (
+      icon: Icons.download_outlined,
+      label: 'Téléchargements',
+      path: '/storage/emulated/0/Download',
+      color: Color(0xFF43A047),
+    ),
+    (
+      icon: Icons.description_outlined,
+      label: 'Documents',
+      path: '/storage/emulated/0/Documents',
+      color: Color(0xFF1976D2),
+    ),
+    (
+      icon: Icons.chat_outlined,
+      label: 'WhatsApp',
+      path:
+          '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
+      color: Color(0xFF25D366),
+    ),
+    (
+      icon: Icons.folder_special_outlined,
+      label: 'PDF Tech',
+      path: '/storage/emulated/0/Documents/PDF Tech',
+      color: Color(0xFFFF7043),
+    ),
   ];
 
   static const _quickActions = [
-    (icon: Icons.menu_book_outlined,      label: 'Lire un PDF',   color: Color(0xFF1565C0)),
-    (icon: Icons.edit_note,               label: 'Modifier',      color: Color(0xFF6A1B9A)),
-    (icon: Icons.merge_type,              label: 'Fusionner',     color: Color(0xFF1976D2)),
-    (icon: Icons.call_split,              label: 'Diviser',       color: Color(0xFF43A047)),
-    (icon: Icons.compress,                label: 'Compresser',    color: Color(0xFFFF7043)),
-    (icon: Icons.add_photo_alternate_outlined, label: 'Images→PDF', color: Color(0xFF8E24AA)),
-    (icon: Icons.document_scanner_outlined,    label: 'OCR',       color: Color(0xFFE53935)),
-    (icon: Icons.lock_outline,            label: 'Protéger',      color: Color(0xFF00897B)),
+    (
+      icon: Icons.menu_book_outlined,
+      label: 'Lire un PDF',
+      color: Color(0xFF1565C0),
+    ),
+    (icon: Icons.edit_note, label: 'Modifier', color: Color(0xFF6A1B9A)),
+    (icon: Icons.merge_type, label: 'Fusionner', color: Color(0xFF1976D2)),
+    (icon: Icons.call_split, label: 'Diviser', color: Color(0xFF43A047)),
+    (icon: Icons.compress, label: 'Compresser', color: Color(0xFFFF7043)),
+    (
+      icon: Icons.add_photo_alternate_outlined,
+      label: 'Images→PDF',
+      color: Color(0xFF8E24AA),
+    ),
+    (
+      icon: Icons.document_scanner_outlined,
+      label: 'OCR',
+      color: Color(0xFFE53935),
+    ),
+    (icon: Icons.lock_outline, label: 'Protéger', color: Color(0xFF00897B)),
   ];
 
   @override
@@ -354,7 +413,7 @@ class _HomeTabState extends State<_HomeTab> {
       if (res != null && mounted) {
         setState(() {
           _totalBytes = (res['total'] as num).toInt();
-          _freeBytes  = (res['free']  as num).toInt();
+          _freeBytes = (res['free'] as num).toInt();
         });
       }
     } catch (_) {}
@@ -365,8 +424,14 @@ class _HomeTabState extends State<_HomeTab> {
   void _openQuickAction(BuildContext context, int index) {
     // Les 2 premiers indices sont des actions spéciales (Lire / Modifier),
     // les suivants pointent vers les outils existants.
-    if (index == 0) { _readLastOrPick(context); return; }
-    if (index == 1) { _editPdf(context); return; }
+    if (index == 0) {
+      _readLastOrPick(context);
+      return;
+    }
+    if (index == 1) {
+      _editPdf(context);
+      return;
+    }
     final screens = [
       const MergeScreen(),
       const SplitScreen(),
@@ -375,7 +440,10 @@ class _HomeTabState extends State<_HomeTab> {
       const OcrScreen(),
       const ProtectScreen(),
     ];
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screens[index - 2]));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => screens[index - 2]),
+    );
   }
 
   /// "Lire un PDF" : ouvre le dernier PDF lu si dispo (et fichier existe
@@ -394,11 +462,15 @@ class _HomeTabState extends State<_HomeTab> {
 
   /// "Modifier un PDF" : ouvre l'éditeur d'annotations.
   Future<void> _editPdf(BuildContext context) async {
-    final picked = await PdfPickerScreen.pickOne(context,
-        title: 'PDF à modifier');
+    final picked = await PdfPickerScreen.pickOne(
+      context,
+      title: 'PDF à modifier',
+    );
     if (picked == null || !context.mounted) return;
-    Navigator.push(context, MaterialPageRoute(
-        builder: (_) => PdfAnnotateScreen(path: picked)));
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PdfAnnotateScreen(path: picked)),
+    );
   }
 
   /// Demande MANAGE_EXTERNAL_STORAGE avec un dialog explicatif si manquant.
@@ -420,11 +492,13 @@ class _HomeTabState extends State<_HomeTab> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Autoriser')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Autoriser'),
+          ),
         ],
       ),
     );
@@ -434,14 +508,18 @@ class _HomeTabState extends State<_HomeTab> {
     if (status.isGranted) return true;
 
     if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: const Text('Permission refusée — activez "Tous les fichiers" dans Réglages'),
-      duration: const Duration(seconds: 5),
-      action: SnackBarAction(
-        label: 'Réglages',
-        onPressed: () => openAppSettings(),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Permission refusée — activez "Tous les fichiers" dans Réglages',
+        ),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Réglages',
+          onPressed: () => openAppSettings(),
+        ),
       ),
-    ));
+    );
     return false;
   }
 
@@ -461,26 +539,29 @@ class _HomeTabState extends State<_HomeTab> {
           await dir.create(recursive: true);
         } catch (e) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Impossible de créer le dossier PDF Tech : $e'),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Impossible de créer le dossier PDF Tech : $e'),
+            ),
+          );
           return;
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Dossier "$label" introuvable sur ce téléphone'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Dossier "$label" introuvable sur ce téléphone'),
+          ),
+        );
         return;
       }
     }
     if (!mounted) return;
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => PdfFolderScreen(
-        path: path,
-        title: label,
-        onPick: widget.onOpen,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            PdfFolderScreen(path: path, title: label, onPick: widget.onOpen),
       ),
-    ));
+    );
   }
 
   /// Scan récursif de tout /sdcard pour trouver tous les PDFs du tél.
@@ -498,44 +579,59 @@ class _HomeTabState extends State<_HomeTab> {
       context: context,
       barrierDismissible: false,
       builder: (_) => const AlertDialog(
-        content: Row(children: [
-          CircularProgressIndicator(),
-          SizedBox(width: 16),
-          Expanded(child: Text('Recherche des PDFs sur votre téléphone…')),
-        ]),
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('Recherche des PDFs sur votre téléphone…')),
+          ],
+        ),
       ),
     );
 
     try {
       await _walk(Directory('/storage/emulated/0'), found, () => scanned++);
-    } catch (_) {/* perm denied — on continue avec ce qu'on a */}
+    } catch (_) {
+      /* perm denied — on continue avec ce qu'on a */
+    }
 
     if (!mounted) return;
     navigator.pop(); // ferme le dialog progress
 
     if (found.isEmpty) {
-      messenger.showSnackBar(const SnackBar(
-        content: Text('Aucun PDF trouvé sur ce téléphone'),
-      ));
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Aucun PDF trouvé sur ce téléphone')),
+      );
       return;
     }
-    found.sort(
-        (a, b) => b.statSync().modified.compareTo(a.statSync().modified));
+    // Pré-calcule les FileStat une seule fois — sinon `sort()` appelle
+    // `statSync()` deux fois par comparaison (O(n log n) IO sur main isolate).
+    final withStat = <(File, FileStat)>[
+      for (final f in found) (f, f.statSync()),
+    ]..sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
+    final foundSorted = withStat.map((e) => e.$1).toList(growable: false);
+    final statsByPath = {for (final entry in withStat) entry.$1.path: entry.$2};
 
     // Affichage : on réutilise PdfFolderScreen avec un dossier virtuel "/" et
     // une liste pré-construite. Plus simple : on crée une nouvelle route
     // dédiée. Ici on push direct un Scaffold avec ListView.
-    navigator.push(MaterialPageRoute(
-      builder: (_) => _AllPdfsScreen(
-        files: found,
-        onPick: widget.onOpen,
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => _AllPdfsScreen(
+          files: foundSorted,
+          statsByPath: statsByPath,
+          onPick: widget.onOpen,
+        ),
       ),
-    ));
+    );
   }
 
   /// Walk récursif limité aux sous-dossiers utilisateur, ignore caches/Android.
   Future<void> _walk(
-      Directory dir, List<File> out, void Function() onTick) async {
+    Directory dir,
+    List<File> out,
+    void Function() onTick,
+  ) async {
     final skip = {'Android', '.thumbnails', '.cache'};
     try {
       await for (final e in dir.list(recursive: false, followLinks: false)) {
@@ -548,32 +644,50 @@ class _HomeTabState extends State<_HomeTab> {
           await _walk(e, out, onTick);
         }
       }
-    } catch (_) {/* dossier inaccessible */}
+    } catch (_) {
+      /* dossier inaccessible */
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading) return const Center(child: CircularProgressIndicator());
+    if (widget.isLoading)
+      return const Center(child: CircularProgressIndicator());
 
     final favorites = widget.recentFiles.where((f) => f.isFavorite).toList();
-    final recents   = widget.recentFiles.where((f) => !f.isFavorite).toList();
-    final lastFile  = widget.recentFiles.isNotEmpty ? widget.recentFiles.first : null;
+    final recents = widget.recentFiles.where((f) => !f.isFavorite).toList();
+    final lastFile = widget.recentFiles.isNotEmpty
+        ? widget.recentFiles.first
+        : null;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 100),
       children: [
-
         // ── Stockage ────────────────────────────────────────────────────────
         if (_totalBytes > 0) ...[
-          _sectionHeader(context, 'Stockage interne', Icons.storage_outlined, Colors.blueGrey),
+          _sectionHeader(
+            context,
+            'Stockage interne',
+            Icons.storage_outlined,
+            Colors.blueGrey,
+          ),
           const SizedBox(height: 6),
-          _StorageBar(freeBytes: _freeBytes, totalBytes: _totalBytes, formatBytes: _formatBytes),
+          _StorageBar(
+            freeBytes: _freeBytes,
+            totalBytes: _totalBytes,
+            formatBytes: _formatBytes,
+          ),
           const SizedBox(height: 16),
         ],
 
         // ── Reprendre ───────────────────────────────────────────────────────
         if (lastFile != null) ...[
-          _sectionHeader(context, 'Reprendre', Icons.play_circle_outline, Colors.blue),
+          _sectionHeader(
+            context,
+            'Reprendre',
+            Icons.play_circle_outline,
+            Colors.blue,
+          ),
           const SizedBox(height: 6),
           _ResumeCard(
             file: lastFile,
@@ -585,7 +699,12 @@ class _HomeTabState extends State<_HomeTab> {
 
         // ── Parcourir ───────────────────────────────────────────────────────
         // Toujours visible — accès direct aux dossiers les plus probables.
-        _sectionHeader(context, 'Parcourir', Icons.folder_open_outlined, Colors.teal),
+        _sectionHeader(
+          context,
+          'Parcourir',
+          Icons.folder_open_outlined,
+          Colors.teal,
+        ),
         const SizedBox(height: 8),
         GridView.count(
           crossAxisCount: 3,
@@ -595,12 +714,14 @@ class _HomeTabState extends State<_HomeTab> {
           mainAxisSpacing: 8,
           childAspectRatio: 1.1,
           children: [
-            ..._browseFolders.map((f) => _ActionCard(
-                  icon: f.icon,
-                  label: f.label,
-                  color: f.color,
-                  onTap: () => _browseFolder(f.path, f.label),
-                )),
+            ..._browseFolders.map(
+              (f) => _ActionCard(
+                icon: f.icon,
+                label: f.label,
+                color: f.color,
+                onTap: () => _browseFolder(f.path, f.label),
+              ),
+            ),
             _ActionCard(
               icon: Icons.search,
               label: 'Trouver mes PDFs',
@@ -618,7 +739,12 @@ class _HomeTabState extends State<_HomeTab> {
         const SizedBox(height: 16),
 
         // ── Actions rapides ─────────────────────────────────────────────────
-        _sectionHeader(context, 'Actions rapides', Icons.bolt_outlined, Colors.deepOrange),
+        _sectionHeader(
+          context,
+          'Actions rapides',
+          Icons.bolt_outlined,
+          Colors.deepOrange,
+        ),
         const SizedBox(height: 8),
         GridView.count(
           crossAxisCount: 3,
@@ -627,12 +753,18 @@ class _HomeTabState extends State<_HomeTab> {
           crossAxisSpacing: 8,
           mainAxisSpacing: 8,
           childAspectRatio: 1.1,
-          children: _quickActions.asMap().entries.map((e) => _ActionCard(
-            icon: e.value.icon,
-            label: e.value.label,
-            color: e.value.color,
-            onTap: () => _openQuickAction(context, e.key),
-          )).toList(),
+          children: _quickActions
+              .asMap()
+              .entries
+              .map(
+                (e) => _ActionCard(
+                  icon: e.value.icon,
+                  label: e.value.label,
+                  color: e.value.color,
+                  onTap: () => _openQuickAction(context, e.key),
+                ),
+              )
+              .toList(),
         ),
         const SizedBox(height: 16),
 
@@ -644,7 +776,12 @@ class _HomeTabState extends State<_HomeTab> {
         ],
 
         // ── Récents ─────────────────────────────────────────────────────────
-        _sectionHeader(context, 'Récemment ouverts', Icons.history, Colors.grey),
+        _sectionHeader(
+          context,
+          'Récemment ouverts',
+          Icons.history,
+          Colors.grey,
+        ),
         if (widget.recentFiles.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
@@ -653,15 +790,20 @@ class _HomeTabState extends State<_HomeTab> {
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(Icons.menu_book_outlined,
-                        size: 56,
-                        color: Theme.of(context).colorScheme.primary
-                            .withValues(alpha: 0.7)),
+                    Icon(
+                      Icons.menu_book_outlined,
+                      size: 56,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.7),
+                    ),
                     const SizedBox(height: 12),
                     const Text(
                       'Aucun PDF ouvert pour l\'instant',
                       style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -669,8 +811,9 @@ class _HomeTabState extends State<_HomeTab> {
                       'vos dossiers ou rechercher tous vos PDFs.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     FilledButton.icon(
@@ -689,16 +832,27 @@ class _HomeTabState extends State<_HomeTab> {
     );
   }
 
-  Widget _sectionHeader(BuildContext context, String label, IconData icon, Color color) {
+  Widget _sectionHeader(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 4, 2, 0),
-      child: Row(children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 5),
-        Text(label,
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
-      ]),
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -708,38 +862,74 @@ class _HomeTabState extends State<_HomeTab> {
       child: ListTile(
         dense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-        leading: Stack(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: const Color(0xFFC62828).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+        leading: Stack(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFFC62828).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.picture_as_pdf,
+                color: Color(0xFFC62828),
+                size: 24,
+              ),
             ),
-            child: const Icon(Icons.picture_as_pdf,
-                color: Color(0xFFC62828), size: 24),
-          ),
-          if (file.isFavorite)
-            const Positioned(right: 0, top: 0,
-                child: Icon(Icons.star, size: 12, color: Colors.amber)),
-        ]),
-        title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13)),
-        subtitle: Text('${widget.formatDate(file.lastOpened)} · ${file.formattedSize}',
-            style: const TextStyle(fontSize: 11)),
+            if (file.isFavorite)
+              const Positioned(
+                right: 0,
+                top: 0,
+                child: Icon(Icons.star, size: 12, color: Colors.amber),
+              ),
+          ],
+        ),
+        title: Text(
+          file.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13),
+        ),
+        subtitle: Text(
+          '${widget.formatDate(file.lastOpened)} · ${file.formattedSize}',
+          style: const TextStyle(fontSize: 11),
+        ),
         trailing: PopupMenuButton<String>(
           onSelected: (v) {
             if (v == 'favorite') widget.onToggleFavorite(file);
-            if (v == 'share')    widget.onShare(file);
-            if (v == 'remove')   widget.onRemove(file);
+            if (v == 'share') widget.onShare(file);
+            if (v == 'remove') widget.onRemove(file);
           },
           itemBuilder: (_) => [
-            PopupMenuItem(value: 'favorite', child: ListTile(
-                leading: Icon(file.isFavorite ? Icons.star_border : Icons.star, color: Colors.amber),
-                title: Text(file.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'))),
-            const PopupMenuItem(value: 'share', child: ListTile(
-                leading: Icon(Icons.share), title: Text('Partager'))),
-            const PopupMenuItem(value: 'remove', child: ListTile(
-                leading: Icon(Icons.delete_outline), title: Text('Retirer'))),
+            PopupMenuItem(
+              value: 'favorite',
+              child: ListTile(
+                leading: Icon(
+                  file.isFavorite ? Icons.star_border : Icons.star,
+                  color: Colors.amber,
+                ),
+                title: Text(
+                  file.isFavorite
+                      ? 'Retirer des favoris'
+                      : 'Ajouter aux favoris',
+                ),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'share',
+              child: ListTile(
+                leading: Icon(Icons.share),
+                title: Text('Partager'),
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'remove',
+              child: ListTile(
+                leading: Icon(Icons.delete_outline),
+                title: Text('Retirer'),
+              ),
+            ),
           ],
         ),
         onTap: () => widget.onOpen(file.path),
@@ -768,33 +958,47 @@ class _StorageBar extends StatelessWidget {
     final color = ratio > 0.9
         ? Colors.red
         : ratio > 0.75
-            ? Colors.orange
-            : Theme.of(context).colorScheme.primary;
+        ? Colors.orange
+        : Theme.of(context).colorScheme.primary;
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Column(children: [
-          Row(children: [
-            Text(formatBytes(usedBytes),
-                style: TextStyle(fontWeight: FontWeight.w700, color: color, fontSize: 15)),
-            Text(' utilisés sur ${formatBytes(totalBytes)}',
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            const Spacer(),
-            Text('${formatBytes(freeBytes)} libres',
-                style: const TextStyle(fontSize: 12, color: Colors.grey)),
-          ]),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: ratio.toDouble(),
-              minHeight: 7,
-              backgroundColor: color.withValues(alpha: 0.15),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text(
+                  formatBytes(usedBytes),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  ' utilisés sur ${formatBytes(totalBytes)}',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const Spacer(),
+                Text(
+                  '${formatBytes(freeBytes)} libres',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
             ),
-          ),
-        ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ratio.toDouble(),
+                minHeight: 7,
+                backgroundColor: color.withValues(alpha: 0.15),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -820,31 +1024,46 @@ class _ResumeCard extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(children: [
-            Container(
-              width: 46, height: 46,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.picture_as_pdf, color: color, size: 26),
               ),
-              child: Icon(Icons.picture_as_pdf, color: color, size: 26),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(file.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 2),
-                Text('${formatDate(file.lastOpened)} · ${file.formattedSize}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
-              ],
-            )),
-            Icon(Icons.play_circle_fill,
-                color: color.withValues(alpha: 0.8), size: 28),
-          ]),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      file.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${formatDate(file.lastOpened)} · ${file.formattedSize}',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.play_circle_fill,
+                color: color.withValues(alpha: 0.8),
+                size: 28,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -876,7 +1095,8 @@ class _ActionCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                width: 40, height: 40,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -884,11 +1104,16 @@ class _ActionCard extends StatelessWidget {
                 child: Icon(icon, color: color, size: 22),
               ),
               const SizedBox(height: 6),
-              Text(label,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -1081,12 +1306,16 @@ class _ToolsTab extends StatelessWidget {
                 children: [
                   Icon(tool.icon, size: 36, color: tool.color),
                   const SizedBox(height: 8),
-                  Text(tool.label,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    tool.label,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 2),
-                  Text(tool.subtitle,
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
-                      textAlign: TextAlign.center),
+                  Text(
+                    tool.subtitle,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             ),
@@ -1107,22 +1336,28 @@ class _CloudTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Stockage cloud',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
+        Text(
+          'Stockage cloud',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 4),
-        Text('Connectez vos comptes pour accéder à vos PDFs depuis le cloud.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: Colors.grey)),
+        Text(
+          'Connectez vos comptes pour accéder à vos PDFs depuis le cloud.',
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+        ),
         const SizedBox(height: 16),
         Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
-            leading: const Icon(Icons.add_to_drive, color: Colors.blue, size: 32),
+            leading: const Icon(
+              Icons.add_to_drive,
+              color: Colors.blue,
+              size: 32,
+            ),
             title: const Text('Google Drive'),
             subtitle: const Text('Upload, téléchargement, partage'),
             trailing: FilledButton.tonal(
@@ -1137,7 +1372,11 @@ class _CloudTab extends StatelessWidget {
         Card(
           margin: const EdgeInsets.only(bottom: 10),
           child: ListTile(
-            leading: const Icon(Icons.cloud_queue, color: Color(0xFF0061FE), size: 32),
+            leading: const Icon(
+              Icons.cloud_queue,
+              color: Color(0xFF0061FE),
+              size: 32,
+            ),
             title: const Text('Dropbox'),
             subtitle: const Text('Bientôt disponible'),
             trailing: FilledButton.tonal(
@@ -1161,12 +1400,14 @@ class _PdfSearchDelegate extends SearchDelegate<void> {
 
   @override
   List<Widget> buildActions(BuildContext context) => [
-        IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
-      ];
+    IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+  ];
 
   @override
-  Widget buildLeading(BuildContext context) =>
-      IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => close(context, null));
+  Widget buildLeading(BuildContext context) => IconButton(
+    icon: const Icon(Icons.arrow_back),
+    onPressed: () => close(context, null),
+  );
 
   @override
   Widget buildResults(BuildContext context) => _buildList(context);
@@ -1178,8 +1419,8 @@ class _PdfSearchDelegate extends SearchDelegate<void> {
     final results = query.isEmpty
         ? files
         : files
-            .where((f) => f.name.toLowerCase().contains(query.toLowerCase()))
-            .toList();
+              .where((f) => f.name.toLowerCase().contains(query.toLowerCase()))
+              .toList();
 
     if (results.isEmpty) {
       return const Center(child: Text('Aucun résultat'));
@@ -1202,8 +1443,13 @@ class _PdfSearchDelegate extends SearchDelegate<void> {
 /// avec recherche, triée par date modifiée DESC. Tap pour ouvrir.
 class _AllPdfsScreen extends StatefulWidget {
   final List<File> files;
+  final Map<String, FileStat> statsByPath;
   final void Function(String path) onPick;
-  const _AllPdfsScreen({required this.files, required this.onPick});
+  const _AllPdfsScreen({
+    required this.files,
+    required this.statsByPath,
+    required this.onPick,
+  });
 
   @override
   State<_AllPdfsScreen> createState() => _AllPdfsScreenState();
@@ -1223,12 +1469,14 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
     final filtered = _search.isEmpty
         ? widget.files
         : widget.files
-            .where((f) => f.path
-                .split('/')
-                .last
-                .toLowerCase()
-                .contains(_search.toLowerCase()))
-            .toList();
+              .where(
+                (f) => f.path
+                    .split('/')
+                    .last
+                    .toLowerCase()
+                    .contains(_search.toLowerCase()),
+              )
+              .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -1236,8 +1484,10 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Tous mes PDFs', style: TextStyle(fontSize: 16)),
-            Text('${widget.files.length} trouvés sur le téléphone',
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(
+              '${widget.files.length} trouvés sur le téléphone',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
           ],
         ),
       ),
@@ -1251,7 +1501,8 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
                 prefixIcon: const Icon(Icons.search, size: 18),
                 isDense: true,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
               ),
               onChanged: (v) => setState(() => _search = v),
@@ -1260,35 +1511,48 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
           Expanded(
             child: filtered.isEmpty
                 ? const Center(
-                    child: Text('Aucun PDF correspondant',
-                        style: TextStyle(color: Colors.grey)))
+                    child: Text(
+                      'Aucun PDF correspondant',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  )
                 : ListView.builder(
                     itemCount: filtered.length,
                     itemBuilder: (_, i) {
                       final f = filtered[i];
-                      final stat = f.statSync();
+                      // FileStat pré-calculé lors du scan : pas d'IO sync
+                      // dans itemBuilder pendant le scroll.
+                      final stat = widget.statsByPath[f.path] ?? f.statSync();
                       final name = f.path.split('/').last;
-                      final dirName =
-                          f.parent.path.split('/').last;
+                      final dirName = f.parent.path.split('/').last;
                       return Card(
                         margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 3),
+                          horizontal: 12,
+                          vertical: 3,
+                        ),
                         child: ListTile(
                           dense: true,
                           leading: Container(
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFC62828).withValues(alpha: 0.12),
+                              color: const Color(
+                                0xFFC62828,
+                              ).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Icon(Icons.picture_as_pdf,
-                                color: Color(0xFFC62828), size: 22),
+                            child: const Icon(
+                              Icons.picture_as_pdf,
+                              color: Color(0xFFC62828),
+                              size: 22,
+                            ),
                           ),
-                          title: Text(name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13)),
+                          title: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
                           subtitle: Text(
                             '$dirName · ${_formatSize(stat.size)}',
                             style: const TextStyle(fontSize: 11),

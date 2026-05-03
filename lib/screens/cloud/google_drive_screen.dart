@@ -71,8 +71,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _checkingAuth = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur de connexion : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur de connexion : $e')));
     }
   }
 
@@ -92,8 +93,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       if (mounted) setState(() => _files = files);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur chargement : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur chargement : $e')));
     } finally {
       if (mounted) setState(() => _loadingFiles = false);
     }
@@ -116,8 +118,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       await _loadFiles();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur upload : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur upload : $e')));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -127,15 +130,14 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     setState(() => _downloadingId = driveFile.id);
     try {
       final dir = await getApplicationDocumentsDirectory();
-      final localPath =
-          await _service.downloadFile(driveFile, dir.path);
+      final localPath = await _service.downloadFile(driveFile, dir.path);
       if (!mounted) return;
       final recentList = await _recents.load();
       await _recents.addOrUpdate(recentList, localPath);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Téléchargement terminé')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Téléchargement terminé')));
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -147,8 +149,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur téléchargement : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur téléchargement : $e')));
     } finally {
       if (mounted) setState(() => _downloadingId = null);
     }
@@ -175,9 +178,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   @override
   Widget build(BuildContext context) {
     if (_checkingAuth) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!_signedIn) {
@@ -201,8 +202,8 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
               Text(
                 'Google Drive',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
@@ -210,10 +211,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
                 'téléchargez-les pour les consulter ou envoyez vos PDF locaux '
                 'vers le cloud.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.grey[600]),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
               SizedBox(
@@ -229,9 +229,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
                 'Nécessite une configuration Google Cloud (voir documentation)',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[500],
-                      fontStyle: FontStyle.italic,
-                    ),
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),
@@ -276,52 +276,55 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : const Icon(Icons.upload),
       ),
       body: _loadingFiles
           ? const Center(child: CircularProgressIndicator())
           : _files.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadFiles,
-                  child: ListView.builder(
-                    itemCount: _files.length,
-                    itemBuilder: (context, index) {
-                      final file = _files[index];
-                      final isDownloading = _downloadingId == file.id;
-                      return ListTile(
-                        leading: const Icon(Icons.picture_as_pdf,
-                            color: Colors.red, size: 32),
-                        title: Text(
-                          file.name ?? 'Sans nom',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          [
-                            _formatSize(file.size),
-                            _formatDate(file.modifiedTime),
-                          ]
-                              .where((s) => s.isNotEmpty)
-                              .join('  ·  '),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        trailing: isDownloading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : IconButton(
-                                tooltip: 'Télécharger',
-                                icon: const Icon(Icons.download_outlined),
-                                onPressed: () => _download(file),
-                              ),
-                      );
-                    },
-                  ),
-                ),
+          ? _buildEmptyState()
+          : RefreshIndicator(
+              onRefresh: _loadFiles,
+              child: ListView.builder(
+                itemCount: _files.length,
+                itemBuilder: (context, index) {
+                  final file = _files[index];
+                  final isDownloading = _downloadingId == file.id;
+                  return ListTile(
+                    leading: const Icon(
+                      Icons.picture_as_pdf,
+                      color: Colors.red,
+                      size: 32,
+                    ),
+                    title: Text(
+                      file.name ?? 'Sans nom',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      [
+                        _formatSize(file.size),
+                        _formatDate(file.modifiedTime),
+                      ].where((s) => s.isNotEmpty).join('  ·  '),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: isDownloading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            tooltip: 'Télécharger',
+                            icon: const Icon(Icons.download_outlined),
+                            onPressed: () => _download(file),
+                          ),
+                  );
+                },
+              ),
+            ),
     );
   }
 

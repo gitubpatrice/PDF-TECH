@@ -19,8 +19,10 @@ class _SplitScreenState extends State<SplitScreen> {
   bool _processing = false;
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à diviser');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à diviser',
+    );
     if (path == null) return;
     try {
       final total = await PdfToolsService().getPageCount(path);
@@ -34,9 +36,9 @@ class _SplitScreenState extends State<SplitScreen> {
       });
     } on PdfValidationException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -44,22 +46,30 @@ class _SplitScreenState extends State<SplitScreen> {
     if (_filePath == null) return;
     if (_fromPage > _toPage) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La page de début doit être ≤ à la page de fin')),
+        const SnackBar(
+          content: Text('La page de début doit être ≤ à la page de fin'),
+        ),
       );
       return;
     }
     setState(() => _processing = true);
     try {
-      final output =
-          await PdfToolsService().splitPdf(_filePath!, _fromPage, _toPage);
+      final output = await PdfToolsService().splitPdf(
+        _filePath!,
+        _fromPage,
+        _toPage,
+      );
       if (!mounted) return;
-      await showResultSheet(context,
-          outputPath: output,
-          operationLabel: 'Pages $_fromPage–$_toPage extraites');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'Pages $_fromPage–$_toPage extraites',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -81,11 +91,12 @@ class _SplitScreenState extends State<SplitScreen> {
             ),
             if (_filePath != null) ...[
               const SizedBox(height: 24),
-              Text('Extraire les pages',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Extraire les pages',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -125,7 +136,10 @@ class _SplitScreenState extends State<SplitScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.call_split),
                 label: Text(_processing ? 'Extraction en cours…' : 'Extraire'),
                 onPressed: (_processing || _filePath == null) ? null : _split,
@@ -169,9 +183,13 @@ class _PageField extends StatelessWidget {
             ),
             Expanded(
               child: Center(
-                child: Text('$value',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                child: Text(
+                  '$value',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
             IconButton.outlined(
@@ -190,15 +208,21 @@ class _FilePickerCard extends StatelessWidget {
   final String? subtitle;
   final VoidCallback onPick;
 
-  const _FilePickerCard(
-      {required this.fileName, required this.onPick, this.subtitle});
+  const _FilePickerCard({
+    required this.fileName,
+    required this.onPick,
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: const Icon(Icons.picture_as_pdf,
-            color: Color(0xFFC62828), size: 32),
+        leading: const Icon(
+          Icons.picture_as_pdf,
+          color: Color(0xFFC62828),
+          size: 32,
+        ),
         title: Text(fileName ?? 'Aucun fichier sélectionné'),
         subtitle: subtitle != null ? Text(subtitle!) : null,
         trailing: TextButton(onPressed: onPick, child: const Text('Choisir')),

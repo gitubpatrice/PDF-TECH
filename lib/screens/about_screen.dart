@@ -11,31 +11,61 @@ class AboutScreen extends StatefulWidget {
 
 class _AboutScreenState extends State<AboutScreen> {
   static const _version = '1.8.0';
-  static const _author  = 'Patrice Haltaya';
+  static const _author = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
 
   static const _features = [
-    (icon: Icons.picture_as_pdf,              label: 'Lecteur PDF',
-        desc: 'Zoom, recherche, signets, navigation, mode nuit, reprise de page'),
-    (icon: Icons.draw_outlined,               label: 'Annotations',
-        desc: 'Surligner, souligner, barrer, notes'),
-    (icon: Icons.merge_type,                  label: 'Fusionner / Diviser',
-        desc: 'Combiner plusieurs PDFs ou extraire des pages'),
-    (icon: Icons.lock_outline,                label: 'Protéger / Déchiffrer',
-        desc: 'Chiffrement AES-256 et suppression de mot de passe'),
-    (icon: Icons.compress,                    label: 'Compresser',
-        desc: 'Réduire la taille du fichier'),
-    (icon: Icons.add_photo_alternate_outlined, label: 'Images → PDF',
-        desc: 'Convertir JPG/PNG en PDF multi-pages'),
-    (icon: Icons.document_scanner_outlined,   label: 'OCR',
-        desc: 'Extraire le texte (natif + ML Kit pour scannés)'),
-    (icon: Icons.draw,                        label: 'Signature électronique',
-        desc: 'Dessiner et insérer une signature'),
-    (icon: Icons.add_to_drive,                label: 'Google Drive',
-        desc: 'Upload, téléchargement et partage'),
-    (icon: Icons.home_outlined,               label: 'Accueil',
-        desc: 'Stockage, reprendre, actions rapides, favoris, récents'),
+    (
+      icon: Icons.picture_as_pdf,
+      label: 'Lecteur PDF',
+      desc: 'Zoom, recherche, signets, navigation, mode nuit, reprise de page',
+    ),
+    (
+      icon: Icons.draw_outlined,
+      label: 'Annotations',
+      desc: 'Surligner, souligner, barrer, notes',
+    ),
+    (
+      icon: Icons.merge_type,
+      label: 'Fusionner / Diviser',
+      desc: 'Combiner plusieurs PDFs ou extraire des pages',
+    ),
+    (
+      icon: Icons.lock_outline,
+      label: 'Protéger / Déchiffrer',
+      desc: 'Chiffrement AES-256 et suppression de mot de passe',
+    ),
+    (
+      icon: Icons.compress,
+      label: 'Compresser',
+      desc: 'Réduire la taille du fichier',
+    ),
+    (
+      icon: Icons.add_photo_alternate_outlined,
+      label: 'Images → PDF',
+      desc: 'Convertir JPG/PNG en PDF multi-pages',
+    ),
+    (
+      icon: Icons.document_scanner_outlined,
+      label: 'OCR',
+      desc: 'Extraire le texte (natif + ML Kit pour scannés)',
+    ),
+    (
+      icon: Icons.draw,
+      label: 'Signature électronique',
+      desc: 'Dessiner et insérer une signature',
+    ),
+    (
+      icon: Icons.add_to_drive,
+      label: 'Google Drive',
+      desc: 'Upload, téléchargement et partage',
+    ),
+    (
+      icon: Icons.home_outlined,
+      label: 'Accueil',
+      desc: 'Stockage, reprendre, actions rapides, favoris, récents',
+    ),
   ];
 
   Future<void> _checkUpdate() async {
@@ -60,9 +90,11 @@ class _AboutScreenState extends State<AboutScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(info.body.isNotEmpty
-                    ? info.body
-                    : 'Une nouvelle version est disponible.'),
+                Text(
+                  info.body.isNotEmpty
+                      ? info.body
+                      : 'Une nouvelle version est disponible.',
+                ),
                 if (info.expectedSha256 != null) ...[
                   const SizedBox(height: 14),
                   Container(
@@ -75,13 +107,23 @@ class _AboutScreenState extends State<AboutScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
-                          Icon(Icons.verified_outlined,
-                              size: 14, color: cs.primary),
-                          const SizedBox(width: 6),
-                          const Text('SHA-256 attendu (APK arm64-v8a)',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-                        ]),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.verified_outlined,
+                              size: 14,
+                              color: cs.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'SHA-256 attendu (APK arm64-v8a)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 6),
                         SelectableText(
                           info.expectedSha256!,
@@ -94,7 +136,10 @@ class _AboutScreenState extends State<AboutScreen> {
                         const SizedBox(height: 6),
                         Text(
                           'Vérifiez avant install : sha256sum app-arm64-v8a-release.apk',
-                          style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -104,8 +149,14 @@ class _AboutScreenState extends State<AboutScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Plus tard')),
-            FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Plus tard'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
           ],
         );
       },
@@ -120,46 +171,74 @@ class _AboutScreenState extends State<AboutScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 40),
         children: [
-
           // ── Header ──────────────────────────────────────────────────────────
-          Center(child: Column(children: [
-            Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(
-                color: const Color(0xFFC62828).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.picture_as_pdf, size: 44, color: Color(0xFFC62828)),
+          Center(
+            child: Column(
+              children: [
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC62828).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.picture_as_pdf,
+                    size: 44,
+                    color: Color(0xFFC62828),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'PDF Tech',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'v$_version',
+                    style: TextStyle(
+                      color: cs.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Gestionnaire de PDF complet — 23 outils',
+                  style: Theme.of(context).textTheme.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _checkingUpdate ? null : _checkUpdate,
+                  icon: _checkingUpdate
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.system_update_outlined, size: 18),
+                  label: Text(
+                    _checkingUpdate
+                        ? 'Vérification…'
+                        : 'Vérifier les mises à jour',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
-            Text('PDF Tech',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: cs.primaryContainer,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text('v$_version',
-                  style: TextStyle(color: cs.primary,
-                      fontWeight: FontWeight.w600, fontSize: 13)),
-            ),
-            const SizedBox(height: 8),
-            Text('Gestionnaire de PDF complet — 23 outils',
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center),
-            const SizedBox(height: 14),
-            FilledButton.icon(
-              onPressed: _checkingUpdate ? null : _checkUpdate,
-              icon: _checkingUpdate
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.system_update_outlined, size: 18),
-              label: Text(_checkingUpdate ? 'Vérification…' : 'Vérifier les mises à jour'),
-            ),
-          ])),
+          ),
 
           const SizedBox(height: 28),
 
@@ -173,7 +252,9 @@ class _AboutScreenState extends State<AboutScreen> {
           // ── Fonctionnalités ─────────────────────────────────────────────────
           _sectionTitle(context, 'Fonctionnalités'),
           const SizedBox(height: 8),
-          ..._features.map((f) => _FeatureRow(icon: f.icon, label: f.label, desc: f.desc)),
+          ..._features.map(
+            (f) => _FeatureRow(icon: f.icon, label: f.label, desc: f.desc),
+          ),
 
           const SizedBox(height: 24),
 
@@ -231,11 +312,14 @@ class _AboutScreenState extends State<AboutScreen> {
   Widget _sectionTitle(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 2),
-      child: Text(title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5)),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Colors.grey.shade600,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+        ),
+      ),
     );
   }
 }
@@ -244,7 +328,11 @@ class _FeatureRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String desc;
-  const _FeatureRow({required this.icon, required this.label, required this.desc});
+  const _FeatureRow({
+    required this.icon,
+    required this.label,
+    required this.desc,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -252,8 +340,15 @@ class _FeatureRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         dense: true,
-        leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-        title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+        leading: Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        title: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
         subtitle: Text(desc, style: const TextStyle(fontSize: 11)),
       ),
     );
@@ -264,12 +359,32 @@ class _PrivacyCard extends StatelessWidget {
   const _PrivacyCard();
 
   static const _items = [
-    (icon: Icons.block,              color: Color(0xFFE53935), label: 'Aucune publicité'),
-    (icon: Icons.analytics_outlined, color: Color(0xFFFF7043), label: 'Aucun tracker'),
-    (icon: Icons.wifi_off,           color: Color(0xFF43A047), label: 'Fonctionne hors ligne'),
-    (icon: Icons.visibility_off,     color: Color(0xFF1976D2), label: 'Aucune collecte de données'),
-    (icon: Icons.share_outlined,     color: Color(0xFF7B1FA2), label: 'Aucun partage de données'),
-    (icon: Icons.store_mall_directory_outlined, color: Color(0xFF00897B), label: 'Sans Play Store'),
+    (icon: Icons.block, color: Color(0xFFE53935), label: 'Aucune publicité'),
+    (
+      icon: Icons.analytics_outlined,
+      color: Color(0xFFFF7043),
+      label: 'Aucun tracker',
+    ),
+    (
+      icon: Icons.wifi_off,
+      color: Color(0xFF43A047),
+      label: 'Fonctionne hors ligne',
+    ),
+    (
+      icon: Icons.visibility_off,
+      color: Color(0xFF1976D2),
+      label: 'Aucune collecte de données',
+    ),
+    (
+      icon: Icons.share_outlined,
+      color: Color(0xFF7B1FA2),
+      label: 'Aucun partage de données',
+    ),
+    (
+      icon: Icons.store_mall_directory_outlined,
+      color: Color(0xFF00897B),
+      label: 'Sans Play Store',
+    ),
   ];
 
   @override
@@ -277,27 +392,43 @@ class _PrivacyCard extends StatelessWidget {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.shield_outlined, color: Color(0xFF43A047), size: 18),
-            const SizedBox(width: 6),
-            Text('100 % privé — zéro surveillance',
-                style: TextStyle(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.shield_outlined,
+                  color: Color(0xFF43A047),
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '100 % privé — zéro surveillance',
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: Colors.grey.shade300)),
-          ]),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _items.map((item) => _Badge(
-              icon: item.icon,
-              label: item.label,
-              color: item.color,
-            )).toList(),
-          ),
-        ]),
+                    color: Colors.grey.shade300,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _items
+                  .map(
+                    (item) => _Badge(
+                      icon: item.icon,
+                      label: item.label,
+                      color: item.color,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -318,11 +449,21 @@ class _Badge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 5),
-        Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -338,20 +479,40 @@ class _HelpCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 6),
-          ...steps.asMap().entries.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${e.key + 1}. ',
-                  style: TextStyle(fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600)),
-              Expanded(child: Text(e.value, style: const TextStyle(fontSize: 12))),
-            ]),
-          )),
-        ]),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            const SizedBox(height: 6),
+            ...steps.asMap().entries.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${e.key + 1}. ',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

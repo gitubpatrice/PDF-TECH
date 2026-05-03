@@ -21,56 +21,56 @@ void main() {
 }
 
 ThemeData _githubDarkTheme() {
-  const bg       = Color(0xFF0D1117); // canvas default
-  const surface  = Color(0xFF161B22); // overlay background (cards, appbar)
+  const bg = Color(0xFF0D1117); // canvas default
+  const surface = Color(0xFF161B22); // overlay background (cards, appbar)
   const surface2 = Color(0xFF21262D); // elevated / input fields
-  const border   = Color(0xFF30363D); // default border
-  const textPri  = Color(0xFFE6EDF3); // primary text
-  const textSec  = Color(0xFF8B949E); // muted text
-  const blue     = Color(0xFF58A6FF); // link / accent
+  const border = Color(0xFF30363D); // default border
+  const textPri = Color(0xFFE6EDF3); // primary text
+  const textSec = Color(0xFF8B949E); // muted text
+  const blue = Color(0xFF58A6FF); // link / accent
   const blueCont = Color(0xFF1F6FEB); // button fill
-  const red      = Color(0xFFF85149); // error / danger
+  const red = Color(0xFFF85149); // error / danger
 
   final cs = const ColorScheme(
     brightness: Brightness.dark,
     // Primary
-    primary:            blue,
-    onPrimary:          bg,
-    primaryContainer:   blueCont,
+    primary: blue,
+    onPrimary: bg,
+    primaryContainer: blueCont,
     onPrimaryContainer: textPri,
     // Secondary
-    secondary:            blue,
-    onSecondary:          bg,
-    secondaryContainer:   surface2,
+    secondary: blue,
+    onSecondary: bg,
+    secondaryContainer: surface2,
     onSecondaryContainer: textPri,
     // Tertiary
-    tertiary:            blue,
-    onTertiary:          bg,
-    tertiaryContainer:   surface2,
+    tertiary: blue,
+    onTertiary: bg,
+    tertiaryContainer: surface2,
     onTertiaryContainer: textPri,
     // Error
-    error:        red,
-    onError:      textPri,
-    errorContainer:   Color(0xFF8E1A15),
+    error: red,
+    onError: textPri,
+    errorContainer: Color(0xFF8E1A15),
     onErrorContainer: textPri,
     // Surface
-    surface:                  bg,
-    onSurface:                textPri,
-    onSurfaceVariant:         textSec,
-    surfaceContainerLowest:   bg,
-    surfaceContainerLow:      surface,
-    surfaceContainer:         surface,
-    surfaceContainerHigh:     surface2,
-    surfaceContainerHighest:  surface2,
+    surface: bg,
+    onSurface: textPri,
+    onSurfaceVariant: textSec,
+    surfaceContainerLowest: bg,
+    surfaceContainerLow: surface,
+    surfaceContainer: surface,
+    surfaceContainerHigh: surface2,
+    surfaceContainerHighest: surface2,
     // Outline
-    outline:        border,
+    outline: border,
     outlineVariant: surface2,
     // Inverse
-    inverseSurface:   textPri,
+    inverseSurface: textPri,
     onInverseSurface: bg,
-    inversePrimary:   blueCont,
+    inversePrimary: blueCont,
     // Scrim / shadow
-    scrim:  Color(0xFF000000),
+    scrim: Color(0xFF000000),
     shadow: Color(0xFF000000),
   );
 
@@ -164,10 +164,10 @@ ThemeData _githubDarkTheme() {
     iconTheme: const IconThemeData(color: textSec),
     textTheme: const TextTheme(
       bodyMedium: TextStyle(color: textPri),
-      bodySmall:  TextStyle(color: textSec),
+      bodySmall: TextStyle(color: textSec),
       titleMedium: TextStyle(color: textPri, fontWeight: FontWeight.w600),
-      titleSmall:  TextStyle(color: textSec),
-      titleLarge:  TextStyle(color: textPri, fontWeight: FontWeight.w600),
+      titleSmall: TextStyle(color: textSec),
+      titleLarge: TextStyle(color: textPri, fontWeight: FontWeight.w600),
     ),
   );
 }
@@ -203,7 +203,11 @@ class _PdfTechAppState extends State<PdfTechApp> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.picture_as_pdf, size: 36, color: Color(0xFFC62828)),
+        icon: const Icon(
+          Icons.picture_as_pdf,
+          size: 36,
+          color: Color(0xFFC62828),
+        ),
         title: const Text('Bienvenue dans PDF Tech'),
         content: const Text(
           'Pour parcourir vos PDFs (Téléchargements, Documents, WhatsApp, '
@@ -214,11 +218,13 @@ class _PdfTechAppState extends State<PdfTechApp> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Plus tard')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Plus tard'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Autoriser')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Autoriser'),
+          ),
         ],
       ),
     );
@@ -262,10 +268,12 @@ class _PdfTechAppState extends State<PdfTechApp> {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString('theme_mode');
     if (saved != null && mounted) {
-      setState(() => _themeMode = ThemeMode.values.firstWhere(
-            (m) => m.name == saved,
-            orElse: () => ThemeMode.system,
-          ));
+      setState(
+        () => _themeMode = ThemeMode.values.firstWhere(
+          (m) => m.name == saved,
+          orElse: () => ThemeMode.system,
+        ),
+      );
     }
   }
 
@@ -281,17 +289,12 @@ class _PdfTechAppState extends State<PdfTechApp> {
       title: 'PDF Tech',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
         useMaterial3: true,
       ),
       darkTheme: _githubDarkTheme(),
       themeMode: _themeMode,
-      home: HomeScreen(
-        themeMode: _themeMode,
-        onThemeChanged: _setTheme,
-      ),
+      home: HomeScreen(themeMode: _themeMode, onThemeChanged: _setTheme),
     );
   }
 }

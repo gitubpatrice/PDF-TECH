@@ -33,8 +33,10 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
   }
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à filigraner');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à filigraner',
+    );
     if (path == null) return;
     setState(() {
       _filePath = path;
@@ -46,7 +48,8 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
     if (_filePath == null) return;
     if (_textCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entrez un texte de filigrane')));
+        const SnackBar(content: Text('Entrez un texte de filigrane')),
+      );
       return;
     }
     setState(() => _processing = true);
@@ -58,12 +61,16 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
         color: _color,
       );
       if (!mounted) return;
-      await showResultSheet(context,
-          outputPath: output, operationLabel: 'Filigrane ajouté');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'Filigrane ajouté',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -80,21 +87,27 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
           children: [
             Card(
               child: ListTile(
-                leading: const Icon(Icons.picture_as_pdf,
-                    color: Color(0xFFC62828), size: 32),
+                leading: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFC62828),
+                  size: 32,
+                ),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                trailing:
-                    TextButton(onPressed: _pickFile, child: const Text('Choisir')),
+                trailing: TextButton(
+                  onPressed: _pickFile,
+                  child: const Text('Choisir'),
+                ),
                 onTap: _pickFile,
               ),
             ),
             if (_filePath != null) ...[
               const SizedBox(height: 24),
-              Text('Texte du filigrane',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Texte du filigrane',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
               TextField(
                 controller: _textCtrl,
@@ -106,11 +119,12 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text('Opacité : ${(_opacity * 100).round()}%',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Opacité : ${(_opacity * 100).round()}%',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               Slider(
                 value: _opacity,
                 min: 0.05,
@@ -120,11 +134,12 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
                 onChanged: (v) => setState(() => _opacity = v),
               ),
               const SizedBox(height: 12),
-              Text('Couleur',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Couleur',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
               Row(
                 children: _presetColors.map((c) {
@@ -142,12 +157,16 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
                           border: selected
                               ? Border.all(
                                   color: Theme.of(context).colorScheme.primary,
-                                  width: 3)
+                                  width: 3,
+                                )
                               : null,
                         ),
                         child: selected
-                            ? const Icon(Icons.check,
-                                color: Colors.white, size: 18)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 18,
+                              )
                             : null,
                       ),
                     ),
@@ -179,8 +198,10 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
               ),
               const SizedBox(height: 8),
               const Center(
-                child: Text('Aperçu du filigrane',
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+                child: Text(
+                  'Aperçu du filigrane',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
               ),
             ],
             const SizedBox(height: 32),
@@ -192,11 +213,17 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.water_drop),
                 label: Text(
-                    _processing ? 'Ajout en cours…' : 'Ajouter le filigrane'),
-                onPressed: (_processing || _filePath == null) ? null : _addWatermark,
+                  _processing ? 'Ajout en cours…' : 'Ajouter le filigrane',
+                ),
+                onPressed: (_processing || _filePath == null)
+                    ? null
+                    : _addWatermark,
               ),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom),

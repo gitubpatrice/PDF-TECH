@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -27,13 +30,29 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   final Map<int, _Thumb> _thumbs = {};
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir un PDF',
+    );
     if (!mounted) return;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    final doc = PdfDocument(inputBytes: bytes);
-    final count = doc.pages.count;
-    doc.dispose();
+    final int count;
+    try {
+      final bytes = await PdfToolsService.safeReadPdf(path);
+      count = await Isolate.run(() {
+        final doc = PdfDocument(inputBytes: bytes);
+        final c = doc.pages.count;
+        doc.dispose();
+        return c;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      return;
+    }
+    if (!mounted) return;
 
     setState(() {
       _path = path;
@@ -75,7 +94,9 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rawBytes, width, height,
+      rawBytes,
+      width,
+      height,
       ui.PixelFormat.rgba8888,
       completer.complete,
     );
@@ -88,34 +109,28 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
     if (_path == null) return;
     setState(() => _isProcessing = true);
     try {
-      final bytes = await File(_path!).readAsBytes();
-      final source = PdfDocument(inputBytes: bytes);
-      final output = PdfDocument();
-      output.pageSettings.margins.all = 0;
-
-      for (final origIndex in _order) {
-        final page = source.pages[origIndex];
-        output.pageSettings.size = page.size;
-        final newPage = output.pages.add();
-        newPage.graphics.drawPdfTemplate(page.createTemplate(), Offset.zero);
-      }
-      source.dispose();
+      final bytes = await PdfToolsService.safeReadPdf(_path!);
+      final order = List<int>.from(_order);
+      final out = await Isolate.run(() => _reorderIsolate(bytes, order));
 
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final outPath = '${dir.path}/pages_reordonnees_$ts.pdf';
-      await File(outPath).writeAsBytes(await output.save());
-      output.dispose();
+      await File(outPath).writeAsBytes(out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(context,
-          outputPath: outPath, operationLabel: 'Pages réordonnées');
+      showResultSheet(
+        context,
+        outputPath: outPath,
+        operationLabel: 'Pages réordonnées',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -137,9 +152,10 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
                 ? const Padding(
                     padding: EdgeInsets.all(14),
                     child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : TextButton(
                     onPressed: _process,
@@ -158,22 +174,26 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.swap_vert_circle_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.swap_vert_circle_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('Réorganiser les pages',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Réorganiser les pages',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
-            Text('Glissez-déposez les pages pour les réordonner',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.grey),
-                textAlign: TextAlign.center),
+            Text(
+              'Glissez-déposez les pages pour les réordonner',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: _pickFile,
@@ -189,22 +209,32 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   Widget _buildReorder() {
     return Column(
       children: [
-        _FileHeader(name: _name!, onChange: _isProcessing ? null : _pickFile),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: PdfFileHeader(
+            name: _name!,
+            onChange: _isProcessing ? null : _pickFile,
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
           child: Row(
             children: [
-              Text('${_order.length} pages',
-                  style: const TextStyle(
-                      color: Colors.grey,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13)),
+              Text(
+                '${_order.length} pages',
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
               const SizedBox(width: 8),
               if (_isLoadingThumbs)
                 const SizedBox(
-                    width: 12,
-                    height: 12,
-                    child: CircularProgressIndicator(strokeWidth: 1.5)),
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                ),
               const Spacer(),
               if (_isModified)
                 TextButton(
@@ -239,22 +269,28 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: thumb != null
-                        ? Image.memory(thumb.bytes,
+                        ? Image.memory(
+                            thumb.bytes,
                             fit: BoxFit.cover,
-                            gaplessPlayback: true)
+                            gaplessPlayback: true,
+                          )
                         : Container(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
                             child: const Icon(Icons.article_outlined, size: 20),
                           ),
                   ),
                 ),
                 title: Text('Page ${i + 1}'),
                 subtitle: origIndex != i
-                    ? Text('originale : ${origIndex + 1}',
+                    ? Text(
+                        'originale : ${origIndex + 1}',
                         style: const TextStyle(
-                            fontSize: 11, color: Colors.grey))
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      )
                     : null,
                 trailing: ReorderableDragStartListener(
                   index: i,
@@ -269,32 +305,23 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   }
 }
 
+Uint8List _reorderIsolate(Uint8List bytes, List<int> order) {
+  final source = PdfDocument(inputBytes: bytes);
+  final output = PdfDocument();
+  output.pageSettings.margins.all = 0;
+  for (final origIndex in order) {
+    final page = source.pages[origIndex];
+    output.pageSettings.size = page.size;
+    final newPage = output.pages.add();
+    newPage.graphics.drawPdfTemplate(page.createTemplate(), Offset.zero);
+  }
+  source.dispose();
+  final saved = output.saveSync();
+  output.dispose();
+  return saved is Uint8List ? saved : Uint8List.fromList(saved);
+}
+
 class _Thumb {
   final Uint8List bytes;
   _Thumb(this.bytes);
-}
-
-class _FileHeader extends StatelessWidget {
-  final String name;
-  final VoidCallback? onChange;
-  const _FileHeader({required this.name, this.onChange});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.picture_as_pdf, color: Colors.red),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(name,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w500))),
-          if (onChange != null)
-            TextButton(onPressed: onChange, child: const Text('Changer')),
-        ],
-      ),
-    );
-  }
 }

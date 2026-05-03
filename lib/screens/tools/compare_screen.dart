@@ -1,10 +1,12 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
 class CompareScreen extends StatefulWidget {
@@ -38,12 +40,25 @@ class _CompareScreenState extends State<CompareScreen> {
     );
     if (!mounted) return;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    final doc = PdfDocument(inputBytes: bytes);
-    final count = doc.pages.count;
-    doc.dispose();
+    final int count;
+    try {
+      final bytes = await PdfToolsService.safeReadPdf(path);
+      count = await Isolate.run(() {
+        final doc = PdfDocument(inputBytes: bytes);
+        final c = doc.pages.count;
+        doc.dispose();
+        return c;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      return;
+    }
+    if (!mounted) return;
 
-    final name = path.split(RegExp(r'[/\\]')).last;
+    final name = fileNameOf(path);
     setState(() {
       if (isA) {
         _pathA = path;
@@ -72,7 +87,12 @@ class _CompareScreenState extends State<CompareScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> _loadThumb(String path, int index, Map<int, Uint8List> cache, int total) async {
+  Future<void> _loadThumb(
+    String path,
+    int index,
+    Map<int, Uint8List> cache,
+    int total,
+  ) async {
     if (cache.containsKey(index) || index >= total) return;
     final pdfDoc = await pdfx.PdfDocument.openFile(path);
     final page = await pdfDoc.getPage(index + 1);
@@ -97,7 +117,9 @@ class _CompareScreenState extends State<CompareScreen> {
   Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rawBytes, width, height,
+      rawBytes,
+      width,
+      height,
       ui.PixelFormat.rgba8888,
       completer.complete,
     );
@@ -134,33 +156,42 @@ class _CompareScreenState extends State<CompareScreen> {
       child: Column(
         children: [
           const SizedBox(height: 16),
-          Icon(Icons.compare_outlined,
-              size: 72,
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.35)),
+          Icon(
+            Icons.compare_outlined,
+            size: 72,
+            color: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.35),
+          ),
           const SizedBox(height: 16),
-          Text('Comparer deux PDFs',
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Comparer deux PDFs',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 6),
-          Text('Affichez côte à côte deux versions d\'un document',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
-              textAlign: TextAlign.center),
+          Text(
+            'Affichez côte à côte deux versions d\'un document',
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 32),
           _pdfSlot(true),
           const SizedBox(height: 16),
-          const Row(children: [
-            Expanded(child: Divider()),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text('VS', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-            Expanded(child: Divider()),
-          ]),
+          const Row(
+            children: [
+              Expanded(child: Divider()),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'VS',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Expanded(child: Divider()),
+            ],
+          ),
           const SizedBox(height: 16),
           _pdfSlot(false),
         ],
@@ -181,40 +212,58 @@ class _CompareScreenState extends State<CompareScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: path == null
-              ? Row(children: [
-                  Icon(Icons.add_circle_outline,
-                      color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(label,
-                        style: const TextStyle(fontWeight: FontWeight.w500)),
-                  ),
-                  const Text('Choisir',
-                      style: TextStyle(color: Colors.blue)),
-                ])
-              : Row(children: [
-                  const Icon(Icons.picture_as_pdf, color: Colors.red),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(label,
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
-                        Text(name!,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w500)),
-                        Text('$pages pages',
-                            style: const TextStyle(
-                                fontSize: 11, color: Colors.grey)),
-                      ],
+              ? Row(
+                  children: [
+                    Icon(
+                      Icons.add_circle_outline,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
-                  ),
-                  TextButton(
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                    const Text('Choisir', style: TextStyle(color: Colors.blue)),
+                  ],
+                )
+              : Row(
+                  children: [
+                    const Icon(Icons.picture_as_pdf, color: Colors.red),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            name!,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            '$pages pages',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
                       onPressed: () => _pickFile(isA),
-                      child: const Text('Changer')),
-                ]),
+                      child: const Text('Changer'),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
@@ -231,8 +280,10 @@ class _CompareScreenState extends State<CompareScreen> {
             onPressed: _currentPage > 0 ? () => _goTo(_currentPage - 1) : null,
             icon: const Icon(Icons.chevron_left),
           ),
-          Text('Page ${_currentPage + 1} / $_maxPages',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          Text(
+            'Page ${_currentPage + 1} / $_maxPages',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
           IconButton(
             iconSize: 20,
             onPressed: _currentPage < _maxPages - 1
@@ -253,23 +304,29 @@ class _CompareScreenState extends State<CompareScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text(_nameA!,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue)),
+                child: Text(
+                  _nameA!,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(_nameB!,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange)),
+                child: Text(
+                  _nameB!,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
               ),
             ],
           ),
@@ -282,7 +339,9 @@ class _CompareScreenState extends State<CompareScreen> {
                   children: [
                     Expanded(child: _pageView(_thumbsA, _pagesA, Colors.blue)),
                     const VerticalDivider(width: 1),
-                    Expanded(child: _pageView(_thumbsB, _pagesB, Colors.orange)),
+                    Expanded(
+                      child: _pageView(_thumbsB, _pagesB, Colors.orange),
+                    ),
                   ],
                 ),
         ),
@@ -293,16 +352,16 @@ class _CompareScreenState extends State<CompareScreen> {
   Widget _pageView(Map<int, Uint8List> cache, int total, Color accent) {
     if (_currentPage >= total) {
       return Center(
-        child: Text('Pas de page ${_currentPage + 1}',
-            style: TextStyle(color: accent, fontSize: 12)),
+        child: Text(
+          'Pas de page ${_currentPage + 1}',
+          style: TextStyle(color: accent, fontSize: 12),
+        ),
       );
     }
     final thumb = cache[_currentPage];
     if (thumb == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return InteractiveViewer(
-      child: Image.memory(thumb, fit: BoxFit.contain),
-    );
+    return InteractiveViewer(child: Image.memory(thumb, fit: BoxFit.contain));
   }
 }

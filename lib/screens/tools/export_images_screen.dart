@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
 class ExportImagesScreen extends StatefulWidget {
@@ -21,23 +23,36 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
   String? _name;
   int _totalPages = 0;
   String _format = 'png'; // 'png' ou 'jpeg'
-  double _scale = 2.0;   // facteur de résolution (1x, 2x, 3x)
+  double _scale = 2.0; // facteur de résolution (1x, 2x, 3x)
   bool _isProcessing = false;
   int _processedPages = 0;
   List<String> _outputPaths = [];
   bool _isDone = false;
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir un PDF',
+    );
     if (!mounted) return;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    final doc = PdfDocument(inputBytes: bytes);
-    final count = doc.pages.count;
-    doc.dispose();
+    final int count;
+    try {
+      final bytes = await PdfToolsService.safeReadPdf(path);
+      final doc = PdfDocument(inputBytes: bytes);
+      count = doc.pages.count;
+      doc.dispose();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       _path = path;
-      _name = path.split(RegExp(r'[/\\]')).last;
+      _name = fileNameOf(path);
       _totalPages = count;
       _outputPaths = [];
       _isDone = false;
@@ -93,6 +108,8 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
         }
 
         if (mounted) setState(() => _processedPages = i);
+        // Yield au framework pour rafraîchir la barre de progression.
+        await Future<void>.delayed(Duration.zero);
       }
 
       await pdfDoc.close();
@@ -106,15 +123,18 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
   Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rawBytes, width, height,
+      rawBytes,
+      width,
+      height,
       ui.PixelFormat.rgba8888,
       completer.complete,
     );
@@ -156,22 +176,26 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.image_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.image_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('Exporter en images',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Exporter en images',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
-            Text('Convertissez chaque page du PDF en image PNG ou JPEG',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.grey),
-                textAlign: TextAlign.center),
+            Text(
+              'Convertissez chaque page du PDF en image PNG ou JPEG',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: _pickFile,
@@ -187,8 +211,13 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
   Widget _buildContent() {
     return Column(
       children: [
-        _FileHeader(
-            name: _name!, onChange: _isProcessing ? null : _pickFile),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: PdfFileHeader(
+            name: _name!,
+            onChange: _isProcessing ? null : _pickFile,
+          ),
+        ),
         const Divider(height: 1),
         if (_isProcessing)
           _buildProgress()
@@ -207,16 +236,25 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$_totalPages page${_totalPages > 1 ? 's' : ''}',
-                style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(
+              '$_totalPages page${_totalPages > 1 ? 's' : ''}',
+              style: const TextStyle(color: Colors.grey, fontSize: 13),
+            ),
             const SizedBox(height: 24),
-            Text('Format',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text('Format', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             SegmentedButton<String>(
               segments: const [
-                ButtonSegment(value: 'png', label: Text('PNG'), icon: Icon(Icons.image)),
-                ButtonSegment(value: 'jpeg', label: Text('JPEG'), icon: Icon(Icons.photo)),
+                ButtonSegment(
+                  value: 'png',
+                  label: Text('PNG'),
+                  icon: Icon(Icons.image),
+                ),
+                ButtonSegment(
+                  value: 'jpeg',
+                  label: Text('JPEG'),
+                  icon: Icon(Icons.photo),
+                ),
               ],
               selected: {_format},
               onSelectionChanged: (s) => setState(() => _format = s.first),
@@ -229,8 +267,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 24),
-            Text('Résolution',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text('Résolution', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -246,8 +283,10 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
                 ),
                 SizedBox(
                   width: 36,
-                  child: Text('${_scale.toInt()}x',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  child: Text(
+                    '${_scale.toInt()}x',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
@@ -255,10 +294,10 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
               _scale == 1.0
                   ? 'Basse (72 dpi)'
                   : _scale == 2.0
-                      ? 'Standard (144 dpi) — recommandé'
-                      : _scale == 3.0
-                          ? 'Haute (216 dpi)'
-                          : 'Très haute (288 dpi)',
+                  ? 'Standard (144 dpi) — recommandé'
+                  : _scale == 3.0
+                  ? 'Haute (216 dpi)'
+                  : 'Très haute (288 dpi)',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 40),
@@ -287,11 +326,15 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 24),
-              const Text('Export en cours…',
-                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+              const Text(
+                'Export en cours…',
+                style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+              ),
               const SizedBox(height: 12),
-              Text('Page $_processedPages / $_totalPages',
-                  style: const TextStyle(color: Colors.grey)),
+              Text(
+                'Page $_processedPages / $_totalPages',
+                style: const TextStyle(color: Colors.grey),
+              ),
               const SizedBox(height: 8),
               LinearProgressIndicator(
                 value: _totalPages > 0 ? _processedPages / _totalPages : null,
@@ -317,7 +360,9 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
                   child: Text(
                     '${_outputPaths.length} image${_outputPaths.length > 1 ? 's' : ''} exportée${_outputPaths.length > 1 ? 's' : ''} · ${_format.toUpperCase()}',
                     style: TextStyle(
-                        color: Colors.green[700], fontWeight: FontWeight.w500),
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
                 TextButton.icon(
@@ -341,27 +386,31 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
               itemCount: _outputPaths.length,
               itemBuilder: (_, i) {
                 return GestureDetector(
-                  onTap: () => Share.shareXFiles(
-                    [XFile(_outputPaths[i])],
-                    subject: 'Page ${i + 1}',
-                  ),
+                  onTap: () => Share.shareXFiles([
+                    XFile(_outputPaths[i]),
+                  ], subject: 'Page ${i + 1}'),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.file(File(_outputPaths[i]),
-                            fit: BoxFit.cover),
+                        Image.file(File(_outputPaths[i]), fit: BoxFit.cover),
                         Positioned(
-                          bottom: 0, left: 0, right: 0,
+                          bottom: 0,
+                          left: 0,
+                          right: 0,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                vertical: 4, horizontal: 6),
+                              vertical: 4,
+                              horizontal: 6,
+                            ),
                             color: Colors.black54,
                             child: Text(
                               'Page ${i + 1}',
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 11),
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
                               textAlign: TextAlign.center,
                             ),
                           ),
@@ -373,31 +422,6 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FileHeader extends StatelessWidget {
-  final String name;
-  final VoidCallback? onChange;
-  const _FileHeader({required this.name, this.onChange});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.picture_as_pdf, color: Colors.red),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(name,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w500))),
-          if (onChange != null)
-            TextButton(onPressed: onChange, child: const Text('Changer')),
         ],
       ),
     );

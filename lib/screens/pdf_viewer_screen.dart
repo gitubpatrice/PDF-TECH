@@ -100,9 +100,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur de sauvegarde : $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur de sauvegarde : $e')));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -115,7 +115,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Annotations non sauvegardées'),
         content: const Text(
-            'Voulez-vous sauvegarder vos annotations avant de quitter ?'),
+          'Voulez-vous sauvegarder vos annotations avant de quitter ?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -153,8 +154,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () {
               final page = int.tryParse(ctrl.text);
@@ -183,11 +185,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         setState(() => _totalPages = d.document.pages.count);
         if (_savedPage > 1 && _savedPage <= d.document.pages.count) {
           _controller.jumpToPage(_savedPage);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Reprise à la page $_savedPage'),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Reprise à la page $_savedPage'),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 2),
+            ),
+          );
         }
       },
       onPageChanged: (d) {
@@ -209,7 +213,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         if (!didPop) {
           final nav = Navigator.of(context);
           final canPop = await _onWillPop();
-          if (canPop && mounted) { nav.pop(); }
+          if (canPop && mounted) {
+            nav.pop();
+          }
         }
       },
       child: Scaffold(
@@ -218,13 +224,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 title: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.title,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15)),
+                    Text(
+                      widget.title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 15),
+                    ),
                     if (_totalPages > 0)
-                      Text('Page $_currentPage / $_totalPages',
-                          style: const TextStyle(
-                              fontSize: 11, color: Colors.grey)),
+                      Text(
+                        'Page $_currentPage / $_totalPages',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
                   ],
                 ),
                 actions: [
@@ -233,10 +245,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ? const Padding(
                             padding: EdgeInsets.all(14),
                             child: SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2)),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
                           )
                         : IconButton(
                             tooltip: 'Sauvegarder les annotations',
@@ -250,8 +262,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   ),
                   IconButton(
                     tooltip: 'Rechercher',
-                    icon: Icon(
-                        _isSearchOpen ? Icons.search_off : Icons.search),
+                    icon: Icon(_isSearchOpen ? Icons.search_off : Icons.search),
                     onPressed: () =>
                         setState(() => _isSearchOpen = !_isSearchOpen),
                   ),
@@ -270,11 +281,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     onSelected: (v) {
                       switch (v) {
                         case 'zoom_in':
-                          _controller.zoomLevel =
-                              (_controller.zoomLevel + 0.25).clamp(1.0, 5.0);
+                          _controller.zoomLevel = (_controller.zoomLevel + 0.25)
+                              .clamp(1.0, 5.0);
                         case 'zoom_out':
-                          _controller.zoomLevel =
-                              (_controller.zoomLevel - 0.25).clamp(0.5, 5.0);
+                          _controller.zoomLevel = (_controller.zoomLevel - 0.25)
+                              .clamp(0.5, 5.0);
                         case 'fit':
                           _controller.zoomLevel = 1.0;
                         case 'jump':
@@ -283,26 +294,34 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     },
                     itemBuilder: (_) => const [
                       PopupMenuItem(
-                          value: 'zoom_in',
-                          child: ListTile(
-                              leading: Icon(Icons.zoom_in),
-                              title: Text('Zoom avant'))),
+                        value: 'zoom_in',
+                        child: ListTile(
+                          leading: Icon(Icons.zoom_in),
+                          title: Text('Zoom avant'),
+                        ),
+                      ),
                       PopupMenuItem(
-                          value: 'zoom_out',
-                          child: ListTile(
-                              leading: Icon(Icons.zoom_out),
-                              title: Text('Zoom arrière'))),
+                        value: 'zoom_out',
+                        child: ListTile(
+                          leading: Icon(Icons.zoom_out),
+                          title: Text('Zoom arrière'),
+                        ),
+                      ),
                       PopupMenuItem(
-                          value: 'fit',
-                          child: ListTile(
-                              leading: Icon(Icons.fit_screen),
-                              title: Text('Ajuster à l\'écran'))),
+                        value: 'fit',
+                        child: ListTile(
+                          leading: Icon(Icons.fit_screen),
+                          title: Text('Ajuster à l\'écran'),
+                        ),
+                      ),
                       PopupMenuDivider(),
                       PopupMenuItem(
-                          value: 'jump',
-                          child: ListTile(
-                              leading: Icon(Icons.input),
-                              title: Text('Aller à la page…'))),
+                        value: 'jump',
+                        child: ListTile(
+                          leading: Icon(Icons.input),
+                          title: Text('Aller à la page…'),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -336,10 +355,26 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 child: _nightMode
                     ? ColorFiltered(
                         colorFilter: const ColorFilter.matrix([
-                          -1, 0, 0, 0, 255,
-                           0,-1, 0, 0, 255,
-                           0, 0,-1, 0, 255,
-                           0, 0, 0, 1,   0,
+                          -1,
+                          0,
+                          0,
+                          0,
+                          255,
+                          0,
+                          -1,
+                          0,
+                          0,
+                          255,
+                          0,
+                          0,
+                          -1,
+                          0,
+                          255,
+                          0,
+                          0,
+                          0,
+                          1,
+                          0,
                         ]),
                         child: _buildViewer(),
                       )
@@ -404,13 +439,17 @@ class _SearchBar extends StatelessWidget {
             ),
           ),
           IconButton(
-              icon: const Icon(Icons.arrow_upward, size: 20),
-              onPressed: onPrev),
+            icon: const Icon(Icons.arrow_upward, size: 20),
+            onPressed: onPrev,
+          ),
           IconButton(
-              icon: const Icon(Icons.arrow_downward, size: 20),
-              onPressed: onNext),
+            icon: const Icon(Icons.arrow_downward, size: 20),
+            onPressed: onNext,
+          ),
           IconButton(
-              icon: const Icon(Icons.close, size: 20), onPressed: onClose),
+            icon: const Icon(Icons.close, size: 20),
+            onPressed: onClose,
+          ),
         ],
       ),
     );
@@ -479,18 +518,12 @@ class _AnnotationBar extends StatelessWidget {
             onTap: () => onModeChanged(PdfAnnotationMode.stickyNote),
           ),
           const VerticalDivider(indent: 8, endIndent: 8),
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: onPrev,
-          ),
+          IconButton(icon: const Icon(Icons.chevron_left), onPressed: onPrev),
           Text(
             '$currentPage/$totalPages',
             style: const TextStyle(fontWeight: FontWeight.w500),
           ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: onNext,
-          ),
+          IconButton(icon: const Icon(Icons.chevron_right), onPressed: onNext),
         ],
       ),
     );
@@ -525,8 +558,7 @@ class _ModeButton extends StatelessWidget {
               ? BoxDecoration(
                   color: activeColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: activeColor.withValues(alpha: 0.5)),
+                  border: Border.all(color: activeColor.withValues(alpha: 0.5)),
                 )
               : null,
           child: Icon(

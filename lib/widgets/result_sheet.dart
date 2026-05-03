@@ -23,15 +23,19 @@ Future<void> showResultSheet(
           children: [
             Icon(Icons.check_circle, color: Colors.green[600], size: 48),
             const SizedBox(height: 10),
-            Text(operationLabel,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+            Text(
+              operationLabel,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 6),
-            Text(fileName,
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
+            Text(
+              fileName,
+              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             const SizedBox(height: 18),
             // Bouton "Ouvrir" pleine largeur (action principale)
             SizedBox(
@@ -44,10 +48,8 @@ Future<void> showResultSheet(
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => PdfViewerScreen(
-                        path: outputPath,
-                        title: fileName,
-                      ),
+                      builder: (_) =>
+                          PdfViewerScreen(path: outputPath, title: fileName),
                     ),
                   );
                 },
@@ -56,8 +58,10 @@ Future<void> showResultSheet(
             const SizedBox(height: 14),
             const Divider(height: 1),
             const SizedBox(height: 12),
-            const Text('Partager ou envoyer',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const Text(
+              'Partager ou envoyer',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             const SizedBox(height: 8),
             // Boutons partager + cloud direct
             CloudShareRow(path: outputPath),
