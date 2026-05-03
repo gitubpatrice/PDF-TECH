@@ -1,7 +1,11 @@
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -21,8 +25,8 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
   final _headerCtrl = TextEditingController();
   final _footerCtrl = TextEditingController();
   String _alignment = 'center'; // left / center / right
-  double _fontSize  = 10;
-  bool   _skipFirst = false;
+  double _fontSize = 10;
+  bool _skipFirst = false;
 
   @override
   void dispose() {
@@ -32,16 +36,32 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
   }
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir un PDF',
+    );
     if (!mounted) return;
     if (path == null) return;
-    final bytes = await File(path).readAsBytes();
-    final doc = PdfDocument(inputBytes: bytes);
-    final count = doc.pages.count;
-    doc.dispose();
+    final int count;
+    try {
+      final bytes = await PdfToolsService.safeReadPdf(path);
+      count = await Isolate.run(() {
+        final doc = PdfDocument(inputBytes: bytes);
+        final c = doc.pages.count;
+        doc.dispose();
+        return c;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      return;
+    }
+    if (!mounted) return;
     setState(() {
       _path = path;
-      _name = path.split(RegExp(r'[/\\]')).last;
+      _name = fileNameOf(path);
       _totalPages = count;
     });
   }
@@ -52,62 +72,96 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
     final footer = _footerCtrl.text.trim();
     if (header.isEmpty && footer.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Entrez un en-tête ou un pied de page')));
+        const SnackBar(content: Text('Entrez un en-tête ou un pied de page')),
+      );
       return;
     }
     setState(() => _isProcessing = true);
     try {
-      final bytes  = await File(_path!).readAsBytes();
-      final doc    = PdfDocument(inputBytes: bytes);
-      final font   = PdfStandardFont(PdfFontFamily.helvetica, _fontSize);
-      final brush  = PdfSolidBrush(PdfColor(80, 80, 80));
-      final align  = _alignment == 'left'
-          ? PdfTextAlignment.left
+      final bytes = await PdfToolsService.safeReadPdf(_path!);
+      final alignIdx = _alignment == 'left'
+          ? 0
           : _alignment == 'right'
-              ? PdfTextAlignment.right
-              : PdfTextAlignment.center;
-
-      for (int i = 0; i < doc.pages.count; i++) {
-        if (_skipFirst && i == 0) continue;
-        final page = doc.pages[i];
-        final w = page.getClientSize().width;
-        final h = page.getClientSize().height;
-        final fmt = PdfStringFormat(alignment: align);
-
-        if (header.isNotEmpty) {
-          page.graphics.drawString(
-            header, font,
-            brush: brush,
-            bounds: Rect.fromLTWH(16, 6, w - 32, 18),
-            format: fmt,
-          );
-        }
-        if (footer.isNotEmpty) {
-          page.graphics.drawString(
-            footer, font,
-            brush: brush,
-            bounds: Rect.fromLTWH(16, h - 20, w - 32, 18),
-            format: fmt,
-          );
-        }
-      }
+          ? 2
+          : 1;
+      final fontSize = _fontSize;
+      final skipFirst = _skipFirst;
+      final out = await Isolate.run(
+        () => _headerFooterIsolate(
+          bytes,
+          header,
+          footer,
+          alignIdx,
+          fontSize,
+          skipFirst,
+        ),
+      );
 
       final dir = await getApplicationDocumentsDirectory();
-      final ts  = DateTime.now().millisecondsSinceEpoch;
+      final ts = DateTime.now().millisecondsSinceEpoch;
       final outPath = '${dir.path}/entete_pied_$ts.pdf';
-      await File(outPath).writeAsBytes(await doc.save());
-      doc.dispose();
+      await File(outPath).writeAsBytes(out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(context,
-          outputPath: outPath, operationLabel: 'En-tête/Pied de page ajouté');
+      showResultSheet(
+        context,
+        outputPath: outPath,
+        operationLabel: 'En-tête/Pied de page ajouté',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
+  }
+
+  static Uint8List _headerFooterIsolate(
+    Uint8List bytes,
+    String header,
+    String footer,
+    int alignIdx,
+    double fontSize,
+    bool skipFirst,
+  ) {
+    final doc = PdfDocument(inputBytes: bytes);
+    final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
+    final brush = PdfSolidBrush(PdfColor(80, 80, 80));
+    final align = alignIdx == 0
+        ? PdfTextAlignment.left
+        : alignIdx == 2
+        ? PdfTextAlignment.right
+        : PdfTextAlignment.center;
+    for (int i = 0; i < doc.pages.count; i++) {
+      if (skipFirst && i == 0) continue;
+      final page = doc.pages[i];
+      final w = page.getClientSize().width;
+      final h = page.getClientSize().height;
+      final fmt = PdfStringFormat(alignment: align);
+      if (header.isNotEmpty) {
+        page.graphics.drawString(
+          header,
+          font,
+          brush: brush,
+          bounds: Rect.fromLTWH(16, 6, w - 32, 18),
+          format: fmt,
+        );
+      }
+      if (footer.isNotEmpty) {
+        page.graphics.drawString(
+          footer,
+          font,
+          brush: brush,
+          bounds: Rect.fromLTWH(16, h - 20, w - 32, 18),
+          format: fmt,
+        );
+      }
+    }
+    final saved = doc.saveSync();
+    doc.dispose();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
   }
 
   @override
@@ -121,9 +175,10 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
                 ? const Padding(
                     padding: EdgeInsets.all(14),
                     child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   )
                 : TextButton(
                     onPressed: _process,
@@ -142,22 +197,26 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.vertical_split_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.vertical_split_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('En-tête / Pied de page',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'En-tête / Pied de page',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
-            Text('Ajoutez un texte fixe en haut et/ou en bas de chaque page',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Colors.grey),
-                textAlign: TextAlign.center),
+            Text(
+              'Ajoutez un texte fixe en haut et/ou en bas de chaque page',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 32),
             FilledButton.icon(
               onPressed: _pickFile,
@@ -176,10 +235,12 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _FileHeader(name: _name!, onChange: _pickFile),
+          PdfFileHeader(name: _name!, onChange: _pickFile),
           const SizedBox(height: 4),
-          Text('$_totalPages pages',
-              style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(
+            '$_totalPages pages',
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
           const SizedBox(height: 20),
 
           TextField(
@@ -207,16 +268,31 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
           const SizedBox(height: 8),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(value: 'left',   icon: Icon(Icons.format_align_left),   label: Text('Gauche')),
-              ButtonSegment(value: 'center', icon: Icon(Icons.format_align_center), label: Text('Centre')),
-              ButtonSegment(value: 'right',  icon: Icon(Icons.format_align_right),  label: Text('Droite')),
+              ButtonSegment(
+                value: 'left',
+                icon: Icon(Icons.format_align_left),
+                label: Text('Gauche'),
+              ),
+              ButtonSegment(
+                value: 'center',
+                icon: Icon(Icons.format_align_center),
+                label: Text('Centre'),
+              ),
+              ButtonSegment(
+                value: 'right',
+                icon: Icon(Icons.format_align_right),
+                label: Text('Droite'),
+              ),
             ],
             selected: {_alignment},
             onSelectionChanged: (s) => setState(() => _alignment = s.first),
           ),
 
           const SizedBox(height: 20),
-          Text('Taille du texte', style: Theme.of(context).textTheme.titleSmall),
+          Text(
+            'Taille du texte',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
           Row(
             children: [
               Expanded(
@@ -230,9 +306,12 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
                 ),
               ),
               SizedBox(
-                  width: 44,
-                  child: Text('${_fontSize.toInt()} pt',
-                      style: const TextStyle(fontSize: 12))),
+                width: 44,
+                child: Text(
+                  '${_fontSize.toInt()} pt',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
             ],
           ),
 
@@ -255,27 +334,6 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _FileHeader extends StatelessWidget {
-  final String name;
-  final VoidCallback onChange;
-  const _FileHeader({required this.name, required this.onChange});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        const Icon(Icons.picture_as_pdf, color: Colors.red),
-        const SizedBox(width: 10),
-        Expanded(
-            child: Text(name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w500))),
-        TextButton(onPressed: onChange, child: const Text('Changer')),
-      ],
     );
   }
 }

@@ -25,8 +25,10 @@ class _RotateScreenState extends State<RotateScreen> {
   ];
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à pivoter');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à pivoter',
+    );
     if (path == null) return;
     try {
       final total = await PdfToolsService().getPageCount(path);
@@ -38,9 +40,9 @@ class _RotateScreenState extends State<RotateScreen> {
       });
     } on PdfValidationException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -51,13 +53,16 @@ class _RotateScreenState extends State<RotateScreen> {
       final output = await PdfToolsService().rotatePdf(_filePath!, _angle);
       if (!mounted) return;
       final label = _angles.firstWhere((a) => a.angle == _angle).label;
-      await showResultSheet(context,
-          outputPath: output,
-          operationLabel: 'Pages tournées de $label');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'Pages tournées de $label',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -74,33 +79,39 @@ class _RotateScreenState extends State<RotateScreen> {
           children: [
             Card(
               child: ListTile(
-                leading: const Icon(Icons.picture_as_pdf,
-                    color: Color(0xFFC62828), size: 32),
+                leading: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFC62828),
+                  size: 32,
+                ),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                subtitle: _totalPages > 0
-                    ? Text('$_totalPages pages')
-                    : null,
-                trailing: TextButton(onPressed: _pickFile, child: const Text('Choisir')),
+                subtitle: _totalPages > 0 ? Text('$_totalPages pages') : null,
+                trailing: TextButton(
+                  onPressed: _pickFile,
+                  child: const Text('Choisir'),
+                ),
                 onTap: _pickFile,
               ),
             ),
             if (_filePath != null) ...[
               const SizedBox(height: 28),
-              Text('Angle de rotation',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Angle de rotation',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               Center(
                 child: SegmentedButton<PdfPageRotateAngle>(
                   segments: _angles
-                      .map((a) => ButtonSegment(
-                          value: a.angle, label: Text(a.label)))
+                      .map(
+                        (a) =>
+                            ButtonSegment(value: a.angle, label: Text(a.label)),
+                      )
                       .toList(),
                   selected: {_angle},
-                  onSelectionChanged: (s) =>
-                      setState(() => _angle = s.first),
+                  onSelectionChanged: (s) => setState(() => _angle = s.first),
                 ),
               ),
               const SizedBox(height: 24),
@@ -110,8 +121,10 @@ class _RotateScreenState extends State<RotateScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline,
-                          color: Theme.of(context).colorScheme.primary),
+                      Icon(
+                        Icons.info_outline,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -133,9 +146,14 @@ class _RotateScreenState extends State<RotateScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.rotate_right),
-                label: Text(_processing ? 'Rotation en cours…' : 'Appliquer la rotation'),
+                label: Text(
+                  _processing ? 'Rotation en cours…' : 'Appliquer la rotation',
+                ),
                 onPressed: (_processing || _filePath == null) ? null : _rotate,
               ),
             ),

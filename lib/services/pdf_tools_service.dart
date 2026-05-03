@@ -19,8 +19,24 @@ class PdfToolsService {
   /// zip-bomb-style files. Adjust if real workflows need more.
   static const int _maxPdfBytes = 200 * 1024 * 1024;
 
+  /// Hard cap exposed for callers that need to display the limit.
+  static int get maxPdfBytes => _maxPdfBytes;
+
   /// Reads a PDF file with size validation and magic-bytes sniffing.
   /// Throws [PdfValidationException] on oversized / non-PDF input.
+  ///
+  /// Public entry point for screens that previously did
+  /// `File(path).readAsBytes()` directly: routing through this method
+  /// enforces the 200 MB cap and the `%PDF-` signature check.
+  static Future<Uint8List> safeReadPdf(String path) => _safeReadPdf(path);
+
+  /// Avoids the `Uint8List.fromList(doc.saveSync())` re-copy when Syncfusion
+  /// already returns a `Uint8List` (which it currently does). Falls back to
+  /// the copy only when the runtime type is a generic `List<int>`.
+  static Uint8List _toBytes(List<int> saved) {
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  }
+
   static Future<Uint8List> _safeReadPdf(String path) async {
     final f = File(path);
     if (!f.existsSync()) {
@@ -29,17 +45,20 @@ class PdfToolsService {
     final length = await f.length();
     if (length > _maxPdfBytes) {
       throw PdfValidationException(
-          'PDF trop volumineux (max ${_maxPdfBytes ~/ (1024 * 1024)} Mo)');
+        'PDF trop volumineux (max ${_maxPdfBytes ~/ (1024 * 1024)} Mo)',
+      );
     }
     if (length < 5) {
       throw const PdfValidationException('Fichier PDF invalide');
     }
     final bytes = await f.readAsBytes();
     // Magic bytes: PDF files start with "%PDF-".
-    if (bytes[0] != 0x25 || bytes[1] != 0x50 || bytes[2] != 0x44 ||
-        bytes[3] != 0x46 || bytes[4] != 0x2D) {
-      throw const PdfValidationException(
-          'Fichier non PDF (signature absente)');
+    if (bytes[0] != 0x25 ||
+        bytes[1] != 0x50 ||
+        bytes[2] != 0x44 ||
+        bytes[3] != 0x46 ||
+        bytes[4] != 0x2D) {
+      throw const PdfValidationException('Fichier non PDF (signature absente)');
     }
     return bytes;
   }
@@ -85,7 +104,7 @@ class PdfToolsService {
       }
       source.dispose();
     }
-    final out = Uint8List.fromList(merged.saveSync());
+    final out = _toBytes(merged.saveSync());
     merged.dispose();
     return out;
   }
@@ -94,8 +113,7 @@ class PdfToolsService {
 
   Future<String> splitPdf(String inputPath, int fromPage, int toPage) async {
     final bytes = await _safeReadPdf(inputPath);
-    final out = await Isolate.run(
-        () => _splitIsolate(bytes, fromPage, toPage));
+    final out = await Isolate.run(() => _splitIsolate(bytes, fromPage, toPage));
     final path = await _savePath('extrait_p${fromPage}_$toPage');
     await File(path).writeAsBytes(out);
     return path;
@@ -115,7 +133,7 @@ class PdfToolsService {
       newPage.graphics.drawPdfTemplate(srcPage.createTemplate(), Offset.zero);
     }
     source.dispose();
-    final out = Uint8List.fromList(result.saveSync());
+    final out = _toBytes(result.saveSync());
     result.dispose();
     return out;
   }
@@ -126,19 +144,23 @@ class PdfToolsService {
     final bytes = await _safeReadPdf(inputPath);
     final ownerPwd = _randomOwnerPassword();
     final out = await Isolate.run(
-        () => _protectIsolate(bytes, userPassword, ownerPwd));
+      () => _protectIsolate(bytes, userPassword, ownerPwd),
+    );
     final path = await _savePath('protege');
     await File(path).writeAsBytes(out);
     return path;
   }
 
   static Uint8List _protectIsolate(
-      Uint8List bytes, String userPassword, String ownerPassword) {
+    Uint8List bytes,
+    String userPassword,
+    String ownerPassword,
+  ) {
     final document = PdfDocument(inputBytes: bytes);
     document.security.userPassword = userPassword;
     document.security.ownerPassword = ownerPassword;
     document.security.algorithm = PdfEncryptionAlgorithm.aesx256Bit;
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }
@@ -159,7 +181,7 @@ class PdfToolsService {
     for (int i = 0; i < document.pages.count; i++) {
       document.pages[i].rotation = angle;
     }
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }
@@ -177,17 +199,27 @@ class PdfToolsService {
     final g = (color.g * 255).round();
     final b = (color.b * 255).round();
     final out = await Isolate.run(
-        () => _watermarkIsolate(bytes, text, opacity, r, g, b));
+      () => _watermarkIsolate(bytes, text, opacity, r, g, b),
+    );
     final path = await _savePath('filigrane');
     await File(path).writeAsBytes(out);
     return path;
   }
 
-  static Uint8List _watermarkIsolate(Uint8List bytes, String text,
-      double opacity, int r, int g, int b) {
+  static Uint8List _watermarkIsolate(
+    Uint8List bytes,
+    String text,
+    double opacity,
+    int r,
+    int g,
+    int b,
+  ) {
     final document = PdfDocument(inputBytes: bytes);
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 52,
-        style: PdfFontStyle.bold);
+    final font = PdfStandardFont(
+      PdfFontFamily.helvetica,
+      52,
+      style: PdfFontStyle.bold,
+    );
     final brush = PdfSolidBrush(PdfColor(r, g, b));
     for (int i = 0; i < document.pages.count; i++) {
       final page = document.pages[i];
@@ -209,7 +241,7 @@ class PdfToolsService {
       );
       gfx.restore();
     }
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }
@@ -222,8 +254,12 @@ class PdfToolsService {
     String author = 'PDF Tech',
   }) async {
     final out = await Isolate.run(() => _createIsolate(title, content, author));
-    final safeName = title.replaceAll(RegExp(r'[^\w\s-]'), '').replaceAll(' ', '_');
-    final path = await _savePath(safeName.isEmpty ? 'nouveau_document' : safeName);
+    final safeName = title
+        .replaceAll(RegExp(r'[^\w\s-]'), '')
+        .replaceAll(' ', '_');
+    final path = await _savePath(
+      safeName.isEmpty ? 'nouveau_document' : safeName,
+    );
     await File(path).writeAsBytes(out);
     return path;
   }
@@ -235,12 +271,17 @@ class PdfToolsService {
     final page = document.pages.add();
     _drawPage(page, title, content, 0);
     _addPageNumbers(document);
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }
 
-  static void _drawPage(PdfPage page, String title, String content, int pageIndex) {
+  static void _drawPage(
+    PdfPage page,
+    String title,
+    String content,
+    int pageIndex,
+  ) {
     final size = page.getClientSize();
     final blue = PdfColor(21, 101, 192);
     if (pageIndex == 0) {
@@ -261,7 +302,12 @@ class PdfToolsService {
       content,
       PdfStandardFont(PdfFontFamily.helvetica, 11),
       brush: PdfSolidBrush(PdfColor(30, 30, 30)),
-      bounds: Rect.fromLTWH(0, pageIndex == 0 ? 56 : 0, size.width, size.height - (pageIndex == 0 ? 76 : 20)),
+      bounds: Rect.fromLTWH(
+        0,
+        pageIndex == 0 ? 56 : 0,
+        size.width,
+        size.height - (pageIndex == 0 ? 76 : 20),
+      ),
       format: PdfStringFormat(lineSpacing: 5.0),
     );
   }
@@ -286,7 +332,10 @@ class PdfToolsService {
 
   // ── Compress ──────────────────────────────────────────────────────────────
 
-  Future<String> compressPdf(String inputPath, PdfCompressionLevel level) async {
+  Future<String> compressPdf(
+    String inputPath,
+    PdfCompressionLevel level,
+  ) async {
     final bytes = await _safeReadPdf(inputPath);
     final out = await Isolate.run(() => _compressIsolate(bytes, level));
     final path = await _savePath('compresse');
@@ -294,10 +343,13 @@ class PdfToolsService {
     return path;
   }
 
-  static Uint8List _compressIsolate(Uint8List bytes, PdfCompressionLevel level) {
+  static Uint8List _compressIsolate(
+    Uint8List bytes,
+    PdfCompressionLevel level,
+  ) {
     final document = PdfDocument(inputBytes: bytes);
     document.compressionLevel = level;
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }
@@ -318,7 +370,7 @@ class PdfToolsService {
     final document = PdfDocument(inputBytes: bytes, password: password);
     document.security.userPassword = '';
     document.security.ownerPassword = '';
-    final out = Uint8List.fromList(document.saveSync());
+    final out = _toBytes(document.saveSync());
     document.dispose();
     return out;
   }

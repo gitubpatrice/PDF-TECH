@@ -24,8 +24,10 @@ class _DecryptScreenState extends State<DecryptScreen> {
   }
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à déchiffrer');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à déchiffrer',
+    );
     if (path == null) return;
     setState(() {
       _path = path;
@@ -43,8 +45,11 @@ class _DecryptScreenState extends State<DecryptScreen> {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded,
-            color: Colors.amber, size: 36),
+        icon: const Icon(
+          Icons.warning_amber_rounded,
+          color: Colors.amber,
+          size: 36,
+        ),
         title: const Text('Le PDF déchiffré sera en clair'),
         content: const Text(
           'Le fichier de sortie ne sera plus protégé par mot de passe. '
@@ -55,11 +60,13 @@ class _DecryptScreenState extends State<DecryptScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('J\'ai compris')),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('J\'ai compris'),
+          ),
         ],
       ),
     );
@@ -67,23 +74,28 @@ class _DecryptScreenState extends State<DecryptScreen> {
 
     setState(() => _isProcessing = true);
     try {
-      final outPath = await PdfToolsService()
-          .decryptPdf(_path!, _passwordCtrl.text);
+      final outPath = await PdfToolsService().decryptPdf(
+        _path!,
+        _passwordCtrl.text,
+      );
 
       if (!mounted) return;
-      setState(() => _isProcessing = false);
-      messenger.showSnackBar(SnackBar(
-        content: const Text('PDF déchiffré avec succès'),
-        action: SnackBarAction(
-          label: 'Partager',
-          onPressed: () => Share.shareXFiles([XFile(outPath)]),
-        ),
-      ));
+      // `_passwordCtrl.clear()` n'est pas du state Flutter — pas dans setState.
+      _passwordCtrl.clear();
       setState(() {
+        _isProcessing = false;
         _path = null;
         _name = null;
-        _passwordCtrl.clear();
       });
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('PDF déchiffré avec succès'),
+          action: SnackBarAction(
+            label: 'Partager',
+            onPressed: () => Share.shareXFiles([XFile(outPath)]),
+          ),
+        ),
+      );
     } on PdfValidationException catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -110,29 +122,28 @@ class _DecryptScreenState extends State<DecryptScreen> {
           children: [
             // Illustration + description
             Center(
-              child: Icon(Icons.lock_open_outlined,
-                  size: 72,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.5)),
+              child: Icon(
+                Icons.lock_open_outlined,
+                size: 72,
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.5),
+              ),
             ),
             const SizedBox(height: 12),
             Center(
               child: Text(
                 'Retirez le mot de passe d\'un PDF protégé\n(vous devez connaître le mot de passe)',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: Colors.grey),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
             ),
             const SizedBox(height: 32),
 
             // Fichier
-            Text('Fichier PDF',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text('Fichier PDF', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
             _path == null
                 ? SizedBox(
@@ -142,7 +153,8 @@ class _DecryptScreenState extends State<DecryptScreen> {
                       icon: const Icon(Icons.folder_open),
                       label: const Text('Choisir un PDF'),
                       style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48)),
+                        minimumSize: const Size(0, 48),
+                      ),
                     ),
                   )
                 : ListTile(
@@ -154,21 +166,29 @@ class _DecryptScreenState extends State<DecryptScreen> {
                         color: Colors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.picture_as_pdf,
-                          color: Colors.red, size: 22),
+                      child: const Icon(
+                        Icons.picture_as_pdf,
+                        color: Colors.red,
+                        size: 22,
+                      ),
                     ),
-                    title: Text(_name!,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13)),
+                    title: Text(
+                      _name!,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
                     trailing: TextButton(
-                        onPressed: _pickFile,
-                        child: const Text('Changer')),
+                      onPressed: _pickFile,
+                      child: const Text('Changer'),
+                    ),
                   ),
             const SizedBox(height: 24),
 
             // Mot de passe
-            Text('Mot de passe actuel',
-                style: Theme.of(context).textTheme.titleSmall),
+            Text(
+              'Mot de passe actuel',
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _passwordCtrl,
@@ -181,7 +201,8 @@ class _DecryptScreenState extends State<DecryptScreen> {
                 prefixIcon: const Icon(Icons.key_outlined),
                 suffixIcon: IconButton(
                   icon: Icon(
-                      _obscure ? Icons.visibility : Icons.visibility_off),
+                    _obscure ? Icons.visibility : Icons.visibility_off,
+                  ),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
                 border: const OutlineInputBorder(),
@@ -193,19 +214,21 @@ class _DecryptScreenState extends State<DecryptScreen> {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed:
-                    (_path != null && !_isProcessing) ? _decrypt : null,
+                onPressed: (_path != null && !_isProcessing) ? _decrypt : null,
                 icon: _isProcessing
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.lock_open_outlined),
                 label: Text(
-                    _isProcessing ? 'Déchiffrement…' : 'Déchiffrer le PDF'),
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 48)),
+                  _isProcessing ? 'Déchiffrement…' : 'Déchiffrer le PDF',
+                ),
+                style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
               ),
             ),
           ],

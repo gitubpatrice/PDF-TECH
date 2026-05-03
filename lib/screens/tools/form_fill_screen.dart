@@ -1,8 +1,11 @@
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import '../../services/pdf_tools_service.dart';
 import '../../services/share_service.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -22,7 +25,10 @@ class _FormFillScreenState extends State<FormFillScreen> {
   bool _isAnalyzing = false;
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir un PDF',
+    );
     if (!mounted) return;
     if (path == null) return;
 
@@ -48,18 +54,22 @@ class _FormFillScreenState extends State<FormFillScreen> {
   }
 
   Future<List<_FieldInfo>> _analyzeFields(String path) async {
-    final bytes = await File(path).readAsBytes();
+    final bytes = await PdfToolsService.safeReadPdf(path);
     final doc = PdfDocument(inputBytes: bytes);
     final result = <_FieldInfo>[];
     for (int i = 0; i < doc.form.fields.count; i++) {
       final f = doc.form.fields[i];
       final rawName = f.name;
-      result.add(_FieldInfo(
-        name: (rawName == null || rawName.isEmpty) ? 'Champ ${i + 1}' : rawName,
-        type: _typeName(f),
-        value: _fieldValue(f),
-        icon: _typeIcon(f),
-      ));
+      result.add(
+        _FieldInfo(
+          name: (rawName == null || rawName.isEmpty)
+              ? 'Champ ${i + 1}'
+              : rawName,
+          type: _typeName(f),
+          value: _fieldValue(f),
+          icon: _typeIcon(f),
+        ),
+      );
     }
     doc.dispose();
     return result;
@@ -107,7 +117,11 @@ class _FormFillScreenState extends State<FormFillScreen> {
       setState(() => _isAnalyzing = true);
       try {
         final updated = await _analyzeFields(_path!);
-        if (mounted) setState(() { _fields = updated; _isAnalyzing = false; });
+        if (mounted)
+          setState(() {
+            _fields = updated;
+            _isAnalyzing = false;
+          });
       } catch (_) {
         if (mounted) setState(() => _isAnalyzing = false);
       }
@@ -129,22 +143,24 @@ class _FormFillScreenState extends State<FormFillScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.assignment_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('Formulaire PDF',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Formulaire PDF',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             Text(
               'Sélectionnez un PDF avec des champs interactifs pour le remplir',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -176,11 +192,16 @@ class _FormFillScreenState extends State<FormFillScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.info_outline,
-                        size: 56, color: Colors.orange[300]),
+                    Icon(
+                      Icons.info_outline,
+                      size: 56,
+                      color: Colors.orange[300],
+                    ),
                     const SizedBox(height: 16),
-                    const Text('Aucun champ de formulaire détecté',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
+                    const Text(
+                      'Aucun champ de formulaire détecté',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 8),
                     const Text(
                       'Ce PDF ne contient pas de formulaire interactif.',
@@ -208,7 +229,9 @@ class _FormFillScreenState extends State<FormFillScreen> {
                 Text(
                   '${_fields.length} champ${_fields.length > 1 ? 's' : ''} détecté${_fields.length > 1 ? 's' : ''}',
                   style: TextStyle(
-                      color: Colors.green[700], fontWeight: FontWeight.w500),
+                    color: Colors.green[700],
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -223,17 +246,26 @@ class _FormFillScreenState extends State<FormFillScreen> {
                   margin: const EdgeInsets.only(bottom: 5),
                   child: ListTile(
                     dense: true,
-                    leading: Icon(f.icon,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 20),
-                    title: Text(f.name,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500)),
-                    subtitle: Text(f.type,
-                        style: const TextStyle(fontSize: 11)),
-                    trailing: Text(f.value,
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey)),
+                    leading: Icon(
+                      f.icon,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 20,
+                    ),
+                    title: Text(
+                      f.name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    subtitle: Text(
+                      f.type,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    trailing: Text(
+                      f.value,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
                   ),
                 );
               },
@@ -245,8 +277,9 @@ class _FormFillScreenState extends State<FormFillScreen> {
               onPressed: _openViewer,
               icon: const Icon(Icons.edit_document),
               label: const Text('Remplir le formulaire'),
-              style:
-                  FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
             ),
           ),
         ],
@@ -271,9 +304,11 @@ class _FileHeader extends StatelessWidget {
           const Icon(Icons.picture_as_pdf, color: Colors.red),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
+            child: Text(
+              name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
           TextButton(onPressed: onChange, child: const Text('Changer')),
         ],
@@ -319,7 +354,10 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
       final bytes = await _controller.saveDocument();
       await File(widget.path).writeAsBytes(bytes);
       if (!mounted) return;
-      setState(() { _hasChanges = false; _isSaving = false; });
+      setState(() {
+        _hasChanges = false;
+        _isSaving = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Formulaire sauvegardé'),
@@ -330,8 +368,9 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -346,11 +385,13 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Aplatir')),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Aplatir'),
+          ),
         ],
       ),
     );
@@ -358,24 +399,32 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final filledBytes = await _controller.saveDocument();
-      final doc = PdfDocument(inputBytes: filledBytes);
-      doc.form.flattenAllFields();
+      final filled = await _controller.saveDocument();
+      final filledBytes = filled is Uint8List
+          ? filled
+          : Uint8List.fromList(filled);
+      final out = await Isolate.run(() => _flattenIsolate(filledBytes));
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final outPath = '${dir.path}/formulaire_aplati_$ts.pdf';
-      await File(outPath).writeAsBytes(await doc.save());
-      doc.dispose();
+      await File(outPath).writeAsBytes(out);
 
       if (!mounted) return;
-      setState(() { _hasChanges = false; _isSaving = false; });
-      showResultSheet(context,
-          outputPath: outPath, operationLabel: 'Formulaire aplati');
+      setState(() {
+        _hasChanges = false;
+        _isSaving = false;
+      });
+      showResultSheet(
+        context,
+        outputPath: outPath,
+        operationLabel: 'Formulaire aplati',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -386,14 +435,17 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
       builder: (_) => AlertDialog(
         title: const Text('Formulaire non sauvegardé'),
         content: const Text(
-            'Voulez-vous sauvegarder vos réponses avant de quitter ?'),
+          'Voulez-vous sauvegarder vos réponses avant de quitter ?',
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Ignorer')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ignorer'),
+          ),
           TextButton(
-              onPressed: () => Navigator.pop(context, null),
-              child: const Text('Annuler')),
+            onPressed: () => Navigator.pop(context, null),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () async {
               await _save();
@@ -424,13 +476,16 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.name,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 15)),
+              Text(
+                widget.name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 15),
+              ),
               if (_totalPages > 0)
-                Text('Page $_currentPage / $_totalPages',
-                    style:
-                        const TextStyle(fontSize: 11, color: Colors.grey)),
+                Text(
+                  'Page $_currentPage / $_totalPages',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
             ],
           ),
           actions: [
@@ -439,10 +494,10 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
                   ? const Padding(
                       padding: EdgeInsets.all(14),
                       child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child:
-                              CircularProgressIndicator(strokeWidth: 2)),
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
                     )
                   : IconButton(
                       tooltip: 'Sauvegarder',
@@ -484,10 +539,8 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
           enableTextSelection: false,
           onDocumentLoaded: (d) =>
               setState(() => _totalPages = d.document.pages.count),
-          onPageChanged: (d) =>
-              setState(() => _currentPage = d.newPageNumber),
-          onFormFieldValueChanged: (_) =>
-              setState(() => _hasChanges = true),
+          onPageChanged: (d) => setState(() => _currentPage = d.newPageNumber),
+          onFormFieldValueChanged: (_) => setState(() => _hasChanges = true),
         ),
         bottomNavigationBar: BottomAppBar(
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -499,8 +552,10 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
                     ? () => _controller.previousPage()
                     : null,
               ),
-              Text('$_currentPage / $_totalPages',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
+              Text(
+                '$_currentPage / $_totalPages',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
                 onPressed: _currentPage < _totalPages
@@ -520,14 +575,23 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
   }
 }
 
+Uint8List _flattenIsolate(Uint8List filledBytes) {
+  final doc = PdfDocument(inputBytes: filledBytes);
+  doc.form.flattenAllFields();
+  final saved = doc.saveSync();
+  doc.dispose();
+  return saved is Uint8List ? saved : Uint8List.fromList(saved);
+}
+
 class _FieldInfo {
   final String name;
   final String type;
   final String value;
   final IconData icon;
-  const _FieldInfo(
-      {required this.name,
-      required this.type,
-      required this.value,
-      required this.icon});
+  const _FieldInfo({
+    required this.name,
+    required this.type,
+    required this.value,
+    required this.icon,
+  });
 }

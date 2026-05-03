@@ -8,6 +8,8 @@ import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
 class OcrScreen extends StatefulWidget {
@@ -28,12 +30,15 @@ class _OcrScreenState extends State<OcrScreen> {
   String _mode = ''; // 'text' ou 'ocr'
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context, title: 'Choisir un PDF');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir un PDF',
+    );
     if (!mounted) return;
     if (path == null) return;
     setState(() {
       _path = path;
-      _name = path.split(RegExp(r'[/\\]')).last;
+      _name = fileNameOf(path);
       _extractedText = '';
       _isDone = false;
       _mode = '';
@@ -53,10 +58,13 @@ class _OcrScreenState extends State<OcrScreen> {
 
     try {
       // ── Étape 1 : extraction de texte native (rapide) ───────────────────────
-      final bytes = await File(_path!).readAsBytes();
+      final bytes = await PdfToolsService.safeReadPdf(_path!);
       final sfDoc = PdfDocument(inputBytes: bytes);
       final total = sfDoc.pages.count;
-      setState(() { _totalPages = total; _mode = 'text'; });
+      setState(() {
+        _totalPages = total;
+        _mode = 'text';
+      });
 
       final extractor = PdfTextExtractor(sfDoc);
       final textBuffer = StringBuffer();
@@ -64,6 +72,8 @@ class _OcrScreenState extends State<OcrScreen> {
         final t = extractor.extractText(startPageIndex: i, endPageIndex: i);
         textBuffer.writeln(t);
         setState(() => _processedPages = i + 1);
+        // Yield au loop d'event pour ne pas bloquer l'UI sur de gros PDFs.
+        await Future<void>.delayed(Duration.zero);
       }
       sfDoc.dispose();
 
@@ -82,7 +92,10 @@ class _OcrScreenState extends State<OcrScreen> {
       }
 
       // ── Étape 2 : OCR sur PDF scanné ────────────────────────────────────────
-      setState(() { _mode = 'ocr'; _processedPages = 0; });
+      setState(() {
+        _mode = 'ocr';
+        _processedPages = 0;
+      });
 
       final pdfDoc = await pdfx.PdfDocument.openFile(_path!);
       final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
@@ -91,7 +104,9 @@ class _OcrScreenState extends State<OcrScreen> {
       // Sous-dossier dédié à cette session OCR. Purgé en finally même si
       // exception ou kill — évite que des PNG en clair (= contenu PDF
       // reconstituable) restent dans le cache app après échec.
-      final ocrTmp = Directory('${tmpRoot.path}/ocr_session_${DateTime.now().millisecondsSinceEpoch}');
+      final ocrTmp = Directory(
+        '${tmpRoot.path}/ocr_session_${DateTime.now().millisecondsSinceEpoch}',
+      );
       await ocrTmp.create();
 
       try {
@@ -120,10 +135,14 @@ class _OcrScreenState extends State<OcrScreen> {
               ocrBuffer.writeln('── Page $i ──');
               ocrBuffer.writeln(result.text);
             }
-            try { await tmpFile.delete(); } catch (_) {}
+            try {
+              await tmpFile.delete();
+            } catch (_) {}
           }
 
           setState(() => _processedPages = i);
+          // Yield pour rendre la main au framework entre deux pages OCR.
+          await Future<void>.delayed(Duration.zero);
         }
 
         await pdfDoc.close();
@@ -143,8 +162,9 @@ class _OcrScreenState extends State<OcrScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
   }
 
@@ -152,13 +172,14 @@ class _OcrScreenState extends State<OcrScreen> {
   Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      rawBytes, width, height,
+      rawBytes,
+      width,
+      height,
       ui.PixelFormat.rgba8888,
       completer.complete,
     );
     final uiImage = await completer.future;
-    final byteData =
-        await uiImage.toByteData(format: ui.ImageByteFormat.png);
+    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
     return byteData!.buffer.asUint8List();
   }
 
@@ -193,10 +214,9 @@ class _OcrScreenState extends State<OcrScreen> {
     final dir = await getTemporaryDirectory();
     final outPath = '${dir.path}/texte_extrait.txt';
     await File(outPath).writeAsString(_extractedText);
-    await Share.shareXFiles(
-      [XFile(outPath, mimeType: 'text/plain')],
-      subject: 'Texte extrait de ${_name ?? "PDF"}',
-    );
+    await Share.shareXFiles([
+      XFile(outPath, mimeType: 'text/plain'),
+    ], subject: 'Texte extrait de ${_name ?? "PDF"}');
   }
 
   @override
@@ -230,22 +250,24 @@ class _OcrScreenState extends State<OcrScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.document_scanner_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.document_scanner_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('Extraction de texte (OCR)',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Extraction de texte (OCR)',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             Text(
               'Extrayez le texte d\'un PDF natif ou scanné',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -263,9 +285,12 @@ class _OcrScreenState extends State<OcrScreen> {
   Widget _buildContent() {
     return Column(
       children: [
-        _FileHeader(
-          name: _name!,
-          onChange: _isProcessing ? null : _pickFile,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: PdfFileHeader(
+            name: _name!,
+            onChange: _isProcessing ? null : _pickFile,
+          ),
         ),
         const Divider(height: 1),
         if (_isProcessing)
@@ -286,12 +311,16 @@ class _OcrScreenState extends State<OcrScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.auto_fix_high,
-                  size: 56, color: Colors.deepOrange),
+              const Icon(
+                Icons.auto_fix_high,
+                size: 56,
+                color: Colors.deepOrange,
+              ),
               const SizedBox(height: 16),
-              const Text('Prêt à extraire le texte',
-                  style:
-                      TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+              const Text(
+                'Prêt à extraire le texte',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
               const SizedBox(height: 8),
               const Text(
                 'PDF natif → extraction instantanée\n'
@@ -304,8 +333,7 @@ class _OcrScreenState extends State<OcrScreen> {
                 onPressed: _process,
                 icon: const Icon(Icons.search),
                 label: const Text('Extraire le texte'),
-                style: FilledButton.styleFrom(
-                    minimumSize: const Size(200, 48)),
+                style: FilledButton.styleFrom(minimumSize: const Size(200, 48)),
               ),
             ],
           ),
@@ -315,9 +343,7 @@ class _OcrScreenState extends State<OcrScreen> {
   }
 
   Widget _buildProgress() {
-    final label = _mode == 'ocr'
-        ? 'OCR en cours…'
-        : 'Extraction en cours…';
+    final label = _mode == 'ocr' ? 'OCR en cours…' : 'Extraction en cours…';
     return Expanded(
       child: Center(
         child: Padding(
@@ -327,18 +353,22 @@ class _OcrScreenState extends State<OcrScreen> {
             children: [
               const CircularProgressIndicator(),
               const SizedBox(height: 24),
-              Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w500, fontSize: 16)),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+              ),
               if (_totalPages > 0) ...[
                 const SizedBox(height: 12),
-                Text('Page $_processedPages / $_totalPages',
-                    style: const TextStyle(color: Colors.grey)),
+                Text(
+                  'Page $_processedPages / $_totalPages',
+                  style: const TextStyle(color: Colors.grey),
+                ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(
-                  value: _totalPages > 0
-                      ? _processedPages / _totalPages
-                      : null,
+                  value: _totalPages > 0 ? _processedPages / _totalPages : null,
                 ),
               ],
             ],
@@ -359,8 +389,7 @@ class _OcrScreenState extends State<OcrScreen> {
               children: [
                 Icon(
                   isEmpty ? Icons.warning_amber : Icons.check_circle,
-                  color:
-                      isEmpty ? Colors.orange : Colors.green[600],
+                  color: isEmpty ? Colors.orange : Colors.green[600],
                   size: 17,
                 ),
                 const SizedBox(width: 6),
@@ -370,9 +399,7 @@ class _OcrScreenState extends State<OcrScreen> {
                         ? 'Aucun texte détecté'
                         : '${_extractedText.length} caractères  ·  ${_mode == 'ocr' ? 'OCR' : 'Natif'}',
                     style: TextStyle(
-                      color: isEmpty
-                          ? Colors.orange
-                          : Colors.green[700],
+                      color: isEmpty ? Colors.orange : Colors.green[700],
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -393,11 +420,16 @@ class _OcrScreenState extends State<OcrScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.image_not_supported_outlined,
-                        size: 56, color: Colors.grey[400]),
+                    Icon(
+                      Icons.image_not_supported_outlined,
+                      size: 56,
+                      color: Colors.grey[400],
+                    ),
                     const SizedBox(height: 16),
-                    const Text('Aucun texte reconnaissable trouvé',
-                        style: TextStyle(color: Colors.grey)),
+                    const Text(
+                      'Aucun texte reconnaissable trouvé',
+                      style: TextStyle(color: Colors.grey),
+                    ),
                     const SizedBox(height: 24),
                     OutlinedButton(
                       onPressed: _process,
@@ -417,32 +449,6 @@ class _OcrScreenState extends State<OcrScreen> {
                 ),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FileHeader extends StatelessWidget {
-  final String name;
-  final VoidCallback? onChange;
-  const _FileHeader({required this.name, this.onChange});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          const Icon(Icons.picture_as_pdf, color: Colors.red),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(name,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
-          ),
-          if (onChange != null)
-            TextButton(onPressed: onChange, child: const Text('Changer')),
         ],
       ),
     );

@@ -18,10 +18,10 @@ class _MergeScreenState extends State<MergeScreen> {
   Future<void> _addFiles() async {
     final picked = await Navigator.push<List<String>>(
       context,
-      MaterialPageRoute(builder: (_) => const PdfPickerScreen(
-        title: 'Ajouter des PDFs',
-        multi: true,
-      )),
+      MaterialPageRoute(
+        builder: (_) =>
+            const PdfPickerScreen(title: 'Ajouter des PDFs', multi: true),
+      ),
     );
     if (picked == null || picked.isEmpty) return;
     setState(() {
@@ -42,13 +42,16 @@ class _MergeScreenState extends State<MergeScreen> {
     try {
       final output = await PdfToolsService().mergePdfs(_files);
       if (!mounted) return;
-      await showResultSheet(context,
-          outputPath: output, operationLabel: 'PDFs fusionnés avec succès');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'PDFs fusionnés avec succès',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur : $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -74,12 +77,13 @@ class _MergeScreenState extends State<MergeScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.merge_type,
-                        size: 80,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: 0.3)),
+                    Icon(
+                      Icons.merge_type,
+                      size: 80,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.3),
+                    ),
                     const SizedBox(height: 16),
                     const Text('Aucun PDF sélectionné'),
                     const SizedBox(height: 8),
@@ -97,8 +101,10 @@ class _MergeScreenState extends State<MergeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
                 children: [
-                  Text('${_files.length} fichier(s) — glissez pour réordonner',
-                      style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                  Text(
+                    '${_files.length} fichier(s) — glissez pour réordonner',
+                    style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                   const Spacer(),
                   TextButton.icon(
                     icon: const Icon(Icons.add, size: 18),
@@ -125,18 +131,21 @@ class _MergeScreenState extends State<MergeScreen> {
                     key: ValueKey(path),
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text('${index + 1}'),
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(
+                        _fileName(path),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      title: Text(_fileName(path),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text(_fileSize(path)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                color: Colors.red),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
                             onPressed: () =>
                                 setState(() => _files.removeAt(index)),
                           ),
@@ -151,7 +160,11 @@ class _MergeScreenState extends State<MergeScreen> {
           ],
           Padding(
             padding: EdgeInsets.fromLTRB(
-                16, 8, 16, MediaQuery.of(context).padding.bottom + 12),
+              16,
+              8,
+              16,
+              MediaQuery.of(context).padding.bottom + 12,
+            ),
             child: SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -160,7 +173,10 @@ class _MergeScreenState extends State<MergeScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.merge_type),
                 label: Text(_processing ? 'Fusion en cours…' : 'Fusionner'),
                 onPressed: _processing ? null : _merge,

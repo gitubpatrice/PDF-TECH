@@ -27,8 +27,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
   }
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à protéger');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à protéger',
+    );
     if (path == null) return;
     setState(() {
       _filePath = path;
@@ -39,26 +41,34 @@ class _ProtectScreenState extends State<ProtectScreen> {
   Future<void> _protect() async {
     if (_filePath == null) return;
     if (_passwordCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Entrez un mot de passe')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Entrez un mot de passe')));
       return;
     }
     if (_passwordCtrl.text != _confirmCtrl.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Les mots de passe ne correspondent pas')));
+        const SnackBar(content: Text('Les mots de passe ne correspondent pas')),
+      );
       return;
     }
     setState(() => _processing = true);
     try {
-      final output = await PdfToolsService()
-          .protectPdf(_filePath!, _passwordCtrl.text);
+      final output = await PdfToolsService().protectPdf(
+        _filePath!,
+        _passwordCtrl.text,
+      );
       if (!mounted) return;
-      await showResultSheet(context,
-          outputPath: output, operationLabel: 'PDF protégé par mot de passe');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'PDF protégé par mot de passe',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -75,20 +85,27 @@ class _ProtectScreenState extends State<ProtectScreen> {
           children: [
             Card(
               child: ListTile(
-                leading: const Icon(Icons.picture_as_pdf,
-                    color: Color(0xFFC62828), size: 32),
+                leading: const Icon(
+                  Icons.picture_as_pdf,
+                  color: Color(0xFFC62828),
+                  size: 32,
+                ),
                 title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                trailing: TextButton(onPressed: _pickFile, child: const Text('Choisir')),
+                trailing: TextButton(
+                  onPressed: _pickFile,
+                  child: const Text('Choisir'),
+                ),
                 onTap: _pickFile,
               ),
             ),
             if (_filePath != null) ...[
               const SizedBox(height: 24),
-              Text('Définir le mot de passe',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                'Définir le mot de passe',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _passwordCtrl,
@@ -101,7 +118,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
+                    icon: Icon(
+                      _obscure1 ? Icons.visibility : Icons.visibility_off,
+                    ),
                     onPressed: () => setState(() => _obscure1 = !_obscure1),
                   ),
                 ),
@@ -118,7 +137,9 @@ class _ProtectScreenState extends State<ProtectScreen> {
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
+                    icon: Icon(
+                      _obscure2 ? Icons.visibility : Icons.visibility_off,
+                    ),
                     onPressed: () => setState(() => _obscure2 = !_obscure2),
                   ),
                 ),
@@ -138,9 +159,14 @@ class _ProtectScreenState extends State<ProtectScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Icon(Icons.lock),
-                label: Text(_processing ? 'Protection en cours…' : 'Protéger le PDF'),
+                label: Text(
+                  _processing ? 'Protection en cours…' : 'Protéger le PDF',
+                ),
                 onPressed: (_processing || _filePath == null) ? null : _protect,
               ),
             ),

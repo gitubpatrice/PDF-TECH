@@ -55,14 +55,17 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showSnackBar(SnackBar(
-        content: Text(
-            'PDF créé : ${_images.length} page${_images.length > 1 ? 's' : ''}'),
-        action: SnackBarAction(
-          label: 'Partager',
-          onPressed: () => Share.shareXFiles([XFile(outPath)]),
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'PDF créé : ${_images.length} page${_images.length > 1 ? 's' : ''}',
+          ),
+          action: SnackBarAction(
+            label: 'Partager',
+            onPressed: () => Share.shareXFiles([XFile(outPath)]),
+          ),
         ),
-      ));
+      );
       setState(() => _images.clear());
     } catch (e) {
       if (!mounted) return;
@@ -87,13 +90,17 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Icon(Icons.picture_as_pdf),
-                  label: Text(_isProcessing
-                      ? 'Conversion…'
-                      : 'Créer le PDF (${_images.length} image${_images.length > 1 ? 's' : ''})'),
-                  style:
-                      FilledButton.styleFrom(minimumSize: const Size(0, 48)),
+                  label: Text(
+                    _isProcessing
+                        ? 'Conversion…'
+                        : 'Créer le PDF (${_images.length} image${_images.length > 1 ? 's' : ''})',
+                  ),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),
                 ),
               ),
             )
@@ -108,22 +115,21 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.image_outlined,
-                size: 88,
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.35)),
+            Icon(
+              Icons.image_outlined,
+              size: 88,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 24),
-            Text('Images → PDF',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text('Images → PDF', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(
               'Convertissez vos photos JPG/PNG en un seul PDF',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -143,17 +149,20 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(children: [
-            Text(
+          child: Row(
+            children: [
+              Text(
                 '${_images.length} image${_images.length > 1 ? 's' : ''}',
-                style: Theme.of(context).textTheme.titleSmall),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: _pickImages,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Ajouter'),
-            ),
-          ]),
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _pickImages,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Ajouter'),
+              ),
+            ],
+          ),
         ),
         const Divider(height: 1),
         Expanded(
@@ -174,22 +183,29 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
                 key: ValueKey(path),
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: Image.file(File(path),
-                      width: 48, height: 48, fit: BoxFit.cover),
+                  child: Image.file(
+                    File(path),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-                title: Text(name,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13)),
-                subtitle: Text('Page ${i + 1}',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                title: Text(
+                  name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: Text(
+                  'Page ${i + 1}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.drag_handle, color: Colors.grey),
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
-                      onPressed: () =>
-                          setState(() => _images.removeAt(i)),
+                      onPressed: () => setState(() => _images.removeAt(i)),
                     ),
                   ],
                 ),

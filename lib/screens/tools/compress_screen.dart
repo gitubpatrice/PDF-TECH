@@ -22,8 +22,10 @@ class _CompressScreenState extends State<CompressScreen> {
   bool _processing = false;
 
   Future<void> _pickFile() async {
-    final path = await PdfPickerScreen.pickOne(context,
-        title: 'Choisir le PDF à compresser');
+    final path = await PdfPickerScreen.pickOne(
+      context,
+      title: 'Choisir le PDF à compresser',
+    );
     if (path == null) return;
     setState(() {
       _filePath = path;
@@ -59,12 +61,16 @@ class _CompressScreenState extends State<CompressScreen> {
           duration: const Duration(seconds: 4),
         ),
       );
-      await showResultSheet(context,
-          outputPath: output, operationLabel: 'PDF compressé');
+      await showResultSheet(
+        context,
+        outputPath: output,
+        operationLabel: 'PDF compressé',
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -104,10 +110,9 @@ class _CompressScreenState extends State<CompressScreen> {
             // ── Compression level ──────────────────────────────────────────
             Text(
               'Niveau de compression',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             Center(
@@ -140,10 +145,9 @@ class _CompressScreenState extends State<CompressScreen> {
 
             // ── Info card ──────────────────────────────────────────────────
             Card(
-              color: Theme.of(context)
-                  .colorScheme
-                  .primaryContainer
-                  .withValues(alpha: 0.45),
+              color: Theme.of(
+                context,
+              ).colorScheme.primaryContainer.withValues(alpha: 0.45),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -185,9 +189,11 @@ class _CompressScreenState extends State<CompressScreen> {
                       )
                     : const Icon(Icons.compress),
                 label: Text(
-                    _processing ? 'Compression en cours…' : 'Compresser'),
-                onPressed:
-                    (_processing || _filePath == null) ? null : _compress,
+                  _processing ? 'Compression en cours…' : 'Compresser',
+                ),
+                onPressed: (_processing || _filePath == null)
+                    ? null
+                    : _compress,
               ),
             ),
             SizedBox(height: MediaQuery.of(context).padding.bottom),
