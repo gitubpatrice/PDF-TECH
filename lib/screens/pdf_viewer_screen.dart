@@ -182,6 +182,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       canShowScrollHead: true,
       canShowScrollStatus: true,
       onDocumentLoaded: (d) {
+        // Le callback peut tomber après dispose si l'utilisateur ferme
+        // pendant le chargement → mounted check obligatoire avant
+        // setState/ScaffoldMessenger.
+        if (!mounted) return;
         setState(() => _totalPages = d.document.pages.count);
         if (_savedPage > 1 && _savedPage <= d.document.pages.count) {
           _controller.jumpToPage(_savedPage);

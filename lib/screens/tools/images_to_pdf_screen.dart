@@ -1,9 +1,35 @@
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+
+/// Construit un PDF à partir d'une liste d'images dans un Isolate.
+/// Sans isolate, le UI thread freeze sur 50+ photos haute-rés
+/// (decode + drawImage + save = plusieurs secondes).
+Future<Uint8List> _buildPdfFromImagesInIsolate(List<String> imagePaths) async {
+  return Isolate.run(() async {
+    final doc = PdfDocument();
+    try {
+      for (final imgPath in imagePaths) {
+        final bytes = await File(imgPath).readAsBytes();
+        final image = PdfBitmap(bytes);
+        final page = doc.pages.add();
+        final size = page.getClientSize();
+        page.graphics.drawImage(
+          image,
+          Rect.fromLTWH(0, 0, size.width, size.height),
+        );
+      }
+      return Uint8List.fromList(await doc.save());
+    } finally {
+      doc.dispose();
+    }
+  });
+}
 
 class ImagesToPdfScreen extends StatefulWidget {
   const ImagesToPdfScreen({super.key});
@@ -36,22 +62,13 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _isProcessing = true);
     try {
-      final doc = PdfDocument();
-      for (final imgPath in _images) {
-        final bytes = await File(imgPath).readAsBytes();
-        final image = PdfBitmap(bytes);
-        final page = doc.pages.add();
-        final size = page.getClientSize();
-        page.graphics.drawImage(
-          image,
-          Rect.fromLTWH(0, 0, size.width, size.height),
-        );
-      }
+      // Build PDF dans un isolate : decode bitmap + drawImage + save sont
+      // CPU-lourds, restaient sur thread UI → gel sur 50+ photos haute-rés.
+      final pdfBytes = await _buildPdfFromImagesInIsolate(List.of(_images));
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final outPath = '${dir.path}/images_$ts.pdf';
-      await File(outPath).writeAsBytes(await doc.save());
-      doc.dispose();
+      await File(outPath).writeAsBytes(pdfBytes);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
