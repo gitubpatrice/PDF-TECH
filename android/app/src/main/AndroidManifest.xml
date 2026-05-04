@@ -77,5 +77,21 @@
             <action android:name="android.intent.action.SEND"/>
             <data android:mimeType="application/pdf"/>
         </intent>
+        <!-- url_launcher Android 11+ : sans ces queries, canLaunchUrl
+             retourne false sur https/mailto (lien Apache, contact email…). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
     </queries>
 </manifest>
