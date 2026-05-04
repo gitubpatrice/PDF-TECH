@@ -131,7 +131,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
   /// ensuite la déplacer/redimensionner par drag (à implémenter en V2).
   Future<void> _addImage() async {
     final messenger = ScaffoldMessenger.of(context);
-    final res = await FilePicker.platform.pickFiles(type: FileType.image);
+    final res = await FilePicker.pickFiles(type: FileType.image);
     if (res == null || res.files.single.path == null) return;
     final bytes = await File(res.files.single.path!).readAsBytes();
     if (bytes.isEmpty) return;
@@ -170,8 +170,9 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
         if (a.tool == _Tool.draw && a.path != null) {
           // distance min au tracé
           for (final p in a.path!) {
-            if ((p.dx - dx).abs() < 0.04 && (p.dy - dy).abs() < 0.04)
+            if ((p.dx - dx).abs() < 0.04 && (p.dy - dy).abs() < 0.04) {
               return true;
+            }
           }
           return false;
         }

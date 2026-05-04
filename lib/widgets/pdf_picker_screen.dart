@@ -240,7 +240,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   }
 
   Future<void> _browseAnyFolder() async {
-    final dir = await FilePicker.platform.getDirectoryPath();
+    final dir = await FilePicker.getDirectoryPath();
     if (dir == null || !mounted) return;
     final label = dir.split(RegExp(r'[/\\]')).last;
     await _browseFolder(dir, label.isEmpty ? 'Dossier' : label);

@@ -117,11 +117,12 @@ class _FormFillScreenState extends State<FormFillScreen> {
       setState(() => _isAnalyzing = true);
       try {
         final updated = await _analyzeFields(_path!);
-        if (mounted)
+        if (mounted) {
           setState(() {
             _fields = updated;
             _isAnalyzing = false;
           });
+        }
       } catch (_) {
         if (mounted) setState(() => _isAnalyzing = false);
       }

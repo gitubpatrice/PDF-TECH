@@ -17,7 +17,7 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
   bool _isProcessing = false;
 
   Future<void> _pickImages() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: true,
     );

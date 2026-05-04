@@ -143,11 +143,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadRecents() async {
     final files = await _recentFilesService.load();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _recentFiles = files;
         _isLoading = false;
       });
+    }
   }
 
   Future<void> _pickAndOpen() async {
@@ -651,8 +652,9 @@ class _HomeTabState extends State<_HomeTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.isLoading)
+    if (widget.isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
 
     final favorites = widget.recentFiles.where((f) => f.isFavorite).toList();
     final recents = widget.recentFiles.where((f) => !f.isFavorite).toList();

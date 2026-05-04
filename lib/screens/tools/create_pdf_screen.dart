@@ -87,7 +87,7 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
   }
 
   Future<void> _addImage() async {
-    final res = await FilePicker.platform.pickFiles(type: FileType.image);
+    final res = await FilePicker.pickFiles(type: FileType.image);
     if (res == null || res.files.single.path == null) return;
     setState(() {
       _blocks.add(

@@ -16,11 +16,11 @@ dependencies:
     path: ../files_tech_core
 
   # PDF - visualisation et manipulation
-  syncfusion_flutter_pdfviewer: ^27.1.48
-  syncfusion_flutter_pdf: ^27.1.48
+  syncfusion_flutter_pdfviewer: ^33.2.4
+  syncfusion_flutter_pdf: ^33.2.4
 
   # Gestion des fichiers
-  file_picker: ^8.1.2
+  file_picker: ^11.0.0
   path_provider: ^2.1.4
   permission_handler: ^12.0.1
 
@@ -31,7 +31,7 @@ dependencies:
   shared_preferences: ^2.3.2
 
   # Signature électronique
-  syncfusion_flutter_signaturepad: ^27.0.0
+  syncfusion_flutter_signaturepad: ^33.2.4
 
   # Google Drive
   google_sign_in: ^6.2.1
@@ -39,7 +39,7 @@ dependencies:
   http: ^1.2.0
 
   # Formatage des dates
-  intl: ^0.19.0
+  intl: ^0.20.0
 
   # OCR - rendu de pages PDF en images + reconnaissance de texte
   pdfx: ^2.6.0

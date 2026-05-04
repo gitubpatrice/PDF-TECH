@@ -102,7 +102,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   }
 
   Future<void> _upload() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
     );

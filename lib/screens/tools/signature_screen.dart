@@ -47,8 +47,9 @@ class _SignatureScreenState extends State<SignatureScreen> {
       // Export signature image from pad
       final image = await _signatureKey.currentState!.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null)
+      if (byteData == null) {
         throw Exception('Impossible d\'exporter la signature');
+      }
       final pngBytes = byteData.buffer.asUint8List();
 
       // Load PDF (size + magic bytes validés)
