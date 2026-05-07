@@ -8,23 +8,26 @@ The main source code of the project is placed under [Apache License 2.0](./LICEN
 
 Versions are those declared in `pubspec.yaml` at the time of writing. Run `flutter pub deps` for the exact resolved tree.
 
-| # | Package                            | Version  | License (typical)        | Repository                                                            |
-| - | ---------------------------------- | -------- | ------------------------ | --------------------------------------------------------------------- |
-| 1 | `cupertino_icons`                  | ^1.0.8   | MIT                      | https://github.com/flutter/packages                                   |
-| 2 | `syncfusion_flutter_pdfviewer`     | ^27.1.48 | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_pdfviewer                 |
-| 3 | `syncfusion_flutter_pdf`           | ^27.1.48 | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_pdf                       |
-| 4 | `syncfusion_flutter_signaturepad`  | ^27.0.0  | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_signaturepad              |
-| 5 | `file_picker`                      | ^8.1.2   | MIT                      | https://github.com/miguelpruivo/flutter_file_picker                   |
-| 6 | `path_provider`                    | ^2.1.4   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
-| 7 | `permission_handler`               | ^11.3.1  | MIT                      | https://github.com/baseflow/flutter-permission-handler                |
-| 8 | `share_plus`                       | ^10.0.3  | BSD-3-Clause             | https://github.com/fluttercommunity/plus_plugins                      |
-| 9 | `shared_preferences`               | ^2.3.2   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
-| 10 | `google_sign_in`                  | ^6.2.1   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
-| 11 | `googleapis`                      | ^13.2.0  | BSD-3-Clause             | https://github.com/google/googleapis.dart                             |
-| 12 | `http`                            | ^1.2.0   | BSD-3-Clause             | https://github.com/dart-lang/http                                     |
-| 13 | `intl`                            | ^0.19.0  | BSD-3-Clause             | https://github.com/dart-lang/i18n                                     |
-| 14 | `pdfx`                            | ^2.6.0   | MIT                      | https://github.com/ScerIO/packages.flutter                            |
-| 15 | `google_mlkit_text_recognition`   | ^0.13.0  | MIT                      | https://github.com/flutter-ml/google_ml_kit_flutter                   |
+| #  | Package                            | Version  | License (typical)        | Repository                                                            |
+| -- | ---------------------------------- | -------- | ------------------------ | --------------------------------------------------------------------- |
+| 1  | `cupertino_icons`                  | ^1.0.8   | MIT                      | https://github.com/flutter/packages                                   |
+| 2  | `files_tech_core`                  | path     | Apache-2.0               | https://github.com/gitubpatrice/files_tech_core                       |
+| 3  | `syncfusion_flutter_pdfviewer`     | ^33.2.4  | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_pdfviewer                 |
+| 4  | `syncfusion_flutter_pdf`           | ^33.2.4  | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_pdf                       |
+| 5  | `syncfusion_flutter_signaturepad`  | ^33.2.4  | Syncfusion EULA          | https://pub.dev/packages/syncfusion_flutter_signaturepad              |
+| 6  | `file_picker`                      | ^11.0.0  | MIT                      | https://github.com/miguelpruivo/flutter_file_picker                   |
+| 7  | `path_provider`                    | ^2.1.4   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
+| 8  | `permission_handler`               | ^12.0.1  | MIT                      | https://github.com/baseflow/flutter-permission-handler                |
+| 9  | `share_plus`                       | ^10.0.3  | BSD-3-Clause             | https://github.com/fluttercommunity/plus_plugins                      |
+| 10 | `shared_preferences`               | ^2.3.2   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
+| 11 | `google_sign_in`                   | ^6.2.1   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
+| 12 | `googleapis`                       | ^13.2.0  | BSD-3-Clause             | https://github.com/google/googleapis.dart                             |
+| 13 | `http`                             | ^1.2.0   | BSD-3-Clause             | https://github.com/dart-lang/http                                     |
+| 14 | `intl`                             | ^0.20.0  | BSD-3-Clause             | https://github.com/dart-lang/i18n                                     |
+| 15 | `pdfx`                             | ^2.6.0   | MIT                      | https://github.com/ScerIO/packages.flutter                            |
+| 16 | `google_mlkit_text_recognition`    | ^0.15.1  | MIT                      | https://github.com/flutter-ml/google_ml_kit_flutter                   |
+| 17 | `url_launcher`                     | ^6.3.1   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
+| 18 | `flutter_markdown`                 | ^0.7.4   | BSD-3-Clause             | https://github.com/flutter/packages                                   |
 
 ## Dev dependencies
 

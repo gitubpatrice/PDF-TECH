@@ -1,6 +1,6 @@
 # Politique de confidentialité — PDF Tech
 
-**Version du document** : 28 avril 2026
+**Version du document** : 7 mai 2026
 **App** : PDF Tech
 **Site officiel** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -63,6 +63,7 @@ Les fichiers ou contenus ne sont transmis à un tiers que dans les cas suivants 
 
 - Les fonctions de signature ou d'annotation facilitent le travail documentaire, mais l'utilisateur doit vérifier la portée juridique de ses documents signés.
 - La vérification de mises à jour interroge l'API GitHub Releases publique (HTTPS, sans authentification, sans cookie). Aucun identifiant utilisateur n'est transmis.
+- L'intégration Google Drive est **optionnelle** et déclenchée par l'utilisateur. Elle s'appuie sur Google Sign-In (OAuth 2.0). Le jeton OAuth est stocké localement sur l'appareil et n'est utilisé que pour les opérations d'upload, de téléchargement ou de partage demandées par l'utilisateur. La révocation s'effectue depuis le compte Google de l'utilisateur.
 
 ## 7. Conservation et suppression
 
@@ -78,10 +79,11 @@ Voir [SECURITY.md](./SECURITY.md) pour la politique de signalement.
 
 | Permission / accès                          | Raison                                                                                              |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `INTERNET`                                  | Vérification de mises à jour via API GitHub Releases. Pas d'autre usage réseau.                    |
-| `READ_MEDIA_IMAGES`                         | Sélection d'images pour conversion Images → PDF.                                                  |
-| `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs (Téléchargements, Documents, etc.).      |
+| `INTERNET`                                  | Vérification de mises à jour via l'API GitHub Releases publique. Également utilisée si l'utilisateur active Google Drive (optionnel). Pas d'autre usage réseau. |
+| `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs (Téléchargements, Documents, etc.) hors du sandbox de l'app. |
 | ML Kit Latin (groupé)                       | OCR sur les pages PDF, à partir de fichiers choisis par l'utilisateur. Modèle local.                |
+
+`READ_MEDIA_IMAGES` n'est **pas** demandée. La sélection d'images (outil Images → PDF) passe par le Storage Access Framework (`file_picker`) qui octroie l'accès via une URI éphémère, sans permission runtime.
 
 ## 10. Enfants
 

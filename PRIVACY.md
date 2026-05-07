@@ -1,6 +1,6 @@
 # Privacy Policy — PDF Tech
 
-**Document version** : 28 April 2026
+**Document version** : 7 May 2026
 **App** : PDF Tech
 **Website** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -65,6 +65,7 @@ Android share, email or external app functions follow the user's own choices and
 
 - Signature or annotation features ease document work but the user must verify the legal scope of signed documents.
 - Update check queries the public GitHub Releases API (HTTPS, no authentication, no cookie). No user identifier is transmitted.
+- Google Drive integration is **optional** and triggered only by the user. It uses Google Sign-In (OAuth 2.0). The OAuth token is stored locally on the device and used to upload, download or share PDFs that the user explicitly designates. Revocation is handled from the user's Google account.
 
 ## 7. Retention and deletion
 
@@ -85,10 +86,11 @@ See [SECURITY.md](./SECURITY.md) for the vulnerability disclosure policy.
 
 | Permission / access                         | Reason                                                                                                |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `INTERNET`                                  | Update check via GitHub Releases API. No other server-side network use.                              |
-| `READ_MEDIA_IMAGES`                         | Image selection for the Images → PDF feature.                                                        |
-| `MANAGE_EXTERNAL_STORAGE`                   | Allow the user to browse and open PDFs in Downloads, Documents, etc.                                  |
+| `INTERNET`                                  | Update check via the public GitHub Releases API. Also used if the user opts in to Google Drive (optional). No other server-side network use. |
+| `MANAGE_EXTERNAL_STORAGE`                   | Allow the user to browse and open PDFs in Downloads, Documents, etc. (locations outside the app sandbox). |
 | ML Kit Latin text recognition (bundled)     | Run OCR on PDF pages from files chosen by the user. Local ML Kit model (no external transmission).   |
+
+`READ_MEDIA_IMAGES` is **not** requested. Image selection for the Images → PDF feature uses the Storage Access Framework (`file_picker`), which grants access via a temporary URI without a runtime permission.
 
 ## 10. Children
 
