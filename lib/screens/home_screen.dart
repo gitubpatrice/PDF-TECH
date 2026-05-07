@@ -1471,11 +1471,8 @@ class _AllPdfsScreen extends StatefulWidget {
 class _AllPdfsScreenState extends State<_AllPdfsScreen> {
   String _search = '';
 
-  String _formatSize(int b) {
-    if (b < 1024) return '$b B';
-    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
-    return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
+  // v1.10.1 — délégué à FormatUtils.bytesStorage (files_tech_core).
+  String _formatSize(int b) => FormatUtils.bytesStorage(b);
 
   @override
   Widget build(BuildContext context) {

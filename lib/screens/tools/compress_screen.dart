@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
@@ -42,11 +43,8 @@ class _CompressScreenState extends State<CompressScreen> {
     });
   }
 
-  String _formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes o';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} Ko';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} Mo';
-  }
+  // v1.10.1 — délégué à FormatUtils.bytes (style FR Ko/Mo, 1 décimale Mo).
+  String _formatSize(int bytes) => FormatUtils.bytes(bytes);
 
   Future<void> _compress() async {
     if (_filePath == null) return;
