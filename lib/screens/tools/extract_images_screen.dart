@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -49,7 +49,7 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
     });
     try {
       final pdfBytes = await PdfToolsService.safeReadPdf(_path!);
-      final jpegs = await Isolate.run(() => _extractJpegs(pdfBytes));
+      final jpegs = await runPdfIsolate(() => _extractJpegs(pdfBytes));
 
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;

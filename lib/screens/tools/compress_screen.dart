@@ -38,7 +38,7 @@ class _CompressScreenState extends State<CompressScreen> {
     if (!mounted) return;
     setState(() {
       _filePath = path;
-      _fileName = path.split(RegExp(r'[/\\]')).last;
+      _fileName = PathUtils.fileName(path);
       _originalSize = size;
     });
   }

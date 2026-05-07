@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:isolate';
+import 'package:files_tech_core/files_tech_core.dart';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,7 +12,7 @@ import 'package:share_plus/share_plus.dart';
 /// Sans isolate, le UI thread freeze sur 50+ photos haute-rés
 /// (decode + drawImage + save = plusieurs secondes).
 Future<Uint8List> _buildPdfFromImagesInIsolate(List<String> imagePaths) async {
-  return Isolate.run(() async {
+  return runPdfIsolate(() async {
     final doc = PdfDocument();
     try {
       for (final imgPath in imagePaths) {
@@ -39,7 +40,13 @@ class ImagesToPdfScreen extends StatefulWidget {
 }
 
 class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
+  /// Cap cumulatif sur la somme des tailles des images sélectionnées.
+  /// Au-delà, on rejette l'ajout : sinon construire le PDF en isolate
+  /// peut OOM (decode bitmap + drawImage + save tient tout en RAM).
+  static const int _maxCumulativeBytes = 500 * 1024 * 1024;
+
   final List<String> _images = [];
+  int _totalBytes = 0;
   bool _isProcessing = false;
 
   Future<void> _pickImages() async {
@@ -49,8 +56,10 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
       allowMultiple: true,
     );
     if (result == null) return;
-    final accepted = <String>[];
+    final accepted = <(String, int)>[];
     var skipped = 0;
+    var capReached = false;
+    var runningTotal = _totalBytes;
     for (final f in result.files) {
       final p = f.path;
       if (p == null || _images.contains(p)) continue;
@@ -60,17 +69,33 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
           skipped++;
           continue;
         }
+        if (runningTotal + len > _maxCumulativeBytes) {
+          capReached = true;
+          break;
+        }
+        runningTotal += len;
+        accepted.add((p, len));
       } catch (_) {
         skipped++;
         continue;
       }
-      accepted.add(p);
     }
     if (!mounted) return;
     setState(() {
-      _images.addAll(accepted);
+      for (final entry in accepted) {
+        _images.add(entry.$1);
+        _totalBytes += entry.$2;
+      }
     });
-    if (skipped > 0) {
+    if (capReached) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Limite atteinte : 500 Mo cumulés. Conversion à effectuer avant d\'en ajouter d\'autres.',
+          ),
+        ),
+      );
+    } else if (skipped > 0) {
       messenger.showSnackBar(
         SnackBar(
           content: Text(
@@ -107,7 +132,10 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
           ),
         ),
       );
-      setState(() => _images.clear());
+      setState(() {
+        _images.clear();
+        _totalBytes = 0;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -219,7 +247,7 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
             itemCount: _images.length,
             itemBuilder: (_, i) {
               final path = _images[i];
-              final name = path.split(RegExp(r'[/\\]')).last;
+              final name = PathUtils.fileName(path);
               return ListTile(
                 key: ValueKey(path),
                 leading: ClipRRect(
@@ -246,7 +274,19 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
                     const Icon(Icons.drag_handle, color: Colors.grey),
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
-                      onPressed: () => setState(() => _images.removeAt(i)),
+                      onPressed: () async {
+                        // Re-stat à la suppression : évite de tracker un Map
+                        // path→size en parallèle. Acceptable (1 IO par tap).
+                        var size = 0;
+                        try {
+                          size = await File(path).length();
+                        } catch (_) {}
+                        if (!mounted) return;
+                        setState(() {
+                          _images.removeAt(i);
+                          _totalBytes = (_totalBytes - size).clamp(0, 1 << 62);
+                        });
+                      },
                     ),
                   ],
                 ),

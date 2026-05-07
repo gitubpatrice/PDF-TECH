@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -33,7 +33,7 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
     final int total;
     try {
       final bytes = await PdfToolsService.safeReadPdf(path);
-      total = await Isolate.run(() {
+      total = await runPdfIsolate(() {
         final doc = PdfDocument(inputBytes: bytes);
         final c = doc.pages.count;
         doc.dispose();
@@ -69,7 +69,9 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
     try {
       final bytes = await PdfToolsService.safeReadPdf(_path!);
       final toRemove = Set<int>.from(_selected);
-      final out = await Isolate.run(() => _deletePagesIsolate(bytes, toRemove));
+      final out = await runPdfIsolate(
+        () => _deletePagesIsolate(bytes, toRemove),
+      );
 
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;

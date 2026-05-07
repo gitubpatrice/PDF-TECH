@@ -1,6 +1,7 @@
 import 'dart:io';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:async';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -39,7 +40,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
     final int count;
     try {
       final bytes = await PdfToolsService.safeReadPdf(path);
-      count = await Isolate.run(() {
+      count = await runPdfIsolate(() {
         final doc = PdfDocument(inputBytes: bytes);
         final c = doc.pages.count;
         doc.dispose();
@@ -56,7 +57,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
 
     setState(() {
       _path = path;
-      _name = path.split(RegExp(r'[/\\]')).last;
+      _name = PathUtils.fileName(path);
       _order = List.generate(count, (i) => i);
       _thumbs.clear();
       _isLoadingThumbs = true;
@@ -111,7 +112,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
     try {
       final bytes = await PdfToolsService.safeReadPdf(_path!);
       final order = List<int>.from(_order);
-      final out = await Isolate.run(() => _reorderIsolate(bytes, order));
+      final out = await runPdfIsolate(() => _reorderIsolate(bytes, order));
 
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;

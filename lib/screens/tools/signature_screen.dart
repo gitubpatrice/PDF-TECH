@@ -1,4 +1,5 @@
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -37,7 +38,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
     if (!mounted) return;
     setState(() {
       _filePath = path;
-      _fileName = path.split(RegExp(r'[/\\]')).last;
+      _fileName = PathUtils.fileName(path);
     });
   }
 
@@ -56,7 +57,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
       // Load PDF (size + magic bytes validés)
       final bytes = await PdfToolsService.safeReadPdf(_filePath!);
       final position = _position;
-      final out = await Isolate.run(
+      final out = await runPdfIsolate(
         () => _signatureIsolate(bytes, pngBytes, position),
       );
 

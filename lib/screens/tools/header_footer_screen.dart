@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -45,7 +45,7 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
     final int count;
     try {
       final bytes = await PdfToolsService.safeReadPdf(path);
-      count = await Isolate.run(() {
+      count = await runPdfIsolate(() {
         final doc = PdfDocument(inputBytes: bytes);
         final c = doc.pages.count;
         doc.dispose();
@@ -86,7 +86,7 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
           : 1;
       final fontSize = _fontSize;
       final skipFirst = _skipFirst;
-      final out = await Isolate.run(
+      final out = await runPdfIsolate(
         () => _headerFooterIsolate(
           bytes,
           header,

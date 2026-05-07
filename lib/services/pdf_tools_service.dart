@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'dart:isolate';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'isolate_runner.dart';
 
 /// Thrown when the input file is too big or not a valid PDF.
 class PdfValidationException implements Exception {
@@ -85,7 +85,7 @@ class PdfToolsService {
     for (final path in inputPaths) {
       allBytes.add(await _safeReadPdf(path));
     }
-    final out = await Isolate.run(() => _mergeIsolate(allBytes));
+    final out = await runPdfIsolate(() => _mergeIsolate(allBytes));
     final path = await _savePath('fusion');
     await File(path).writeAsBytes(out);
     return path;
@@ -113,7 +113,9 @@ class PdfToolsService {
 
   Future<String> splitPdf(String inputPath, int fromPage, int toPage) async {
     final bytes = await _safeReadPdf(inputPath);
-    final out = await Isolate.run(() => _splitIsolate(bytes, fromPage, toPage));
+    final out = await runPdfIsolate(
+      () => _splitIsolate(bytes, fromPage, toPage),
+    );
     final path = await _savePath('extrait_p${fromPage}_$toPage');
     await File(path).writeAsBytes(out);
     return path;
@@ -143,7 +145,7 @@ class PdfToolsService {
   Future<String> protectPdf(String inputPath, String userPassword) async {
     final bytes = await _safeReadPdf(inputPath);
     final ownerPwd = _randomOwnerPassword();
-    final out = await Isolate.run(
+    final out = await runPdfIsolate(
       () => _protectIsolate(bytes, userPassword, ownerPwd),
     );
     final path = await _savePath('protege');
@@ -170,7 +172,7 @@ class PdfToolsService {
   Future<String> rotatePdf(String inputPath, PdfPageRotateAngle angle) async {
     final bytes = await _safeReadPdf(inputPath);
     // Le angle est un enum, sendable sans souci.
-    final out = await Isolate.run(() => _rotateIsolate(bytes, angle));
+    final out = await runPdfIsolate(() => _rotateIsolate(bytes, angle));
     final path = await _savePath('rotation');
     await File(path).writeAsBytes(out);
     return path;
@@ -198,7 +200,7 @@ class PdfToolsService {
     final r = (color.r * 255).round();
     final g = (color.g * 255).round();
     final b = (color.b * 255).round();
-    final out = await Isolate.run(
+    final out = await runPdfIsolate(
       () => _watermarkIsolate(bytes, text, opacity, r, g, b),
     );
     final path = await _savePath('filigrane');
@@ -253,7 +255,9 @@ class PdfToolsService {
     required String content,
     String author = 'PDF Tech',
   }) async {
-    final out = await Isolate.run(() => _createIsolate(title, content, author));
+    final out = await runPdfIsolate(
+      () => _createIsolate(title, content, author),
+    );
     final safeName = title
         .replaceAll(RegExp(r'[^\w\s-]'), '')
         .replaceAll(' ', '_');
@@ -337,7 +341,7 @@ class PdfToolsService {
     PdfCompressionLevel level,
   ) async {
     final bytes = await _safeReadPdf(inputPath);
-    final out = await Isolate.run(() => _compressIsolate(bytes, level));
+    final out = await runPdfIsolate(() => _compressIsolate(bytes, level));
     final path = await _savePath('compresse');
     await File(path).writeAsBytes(out);
     return path;
@@ -361,7 +365,7 @@ class PdfToolsService {
   Future<String> decryptPdf(String inputPath, String password) async {
     final bytes = await _safeReadPdf(inputPath);
     try {
-      final out = await Isolate.run(() => _decryptIsolate(bytes, password));
+      final out = await runPdfIsolate(() => _decryptIsolate(bytes, password));
       final path = await _savePath('dechiffre');
       await File(path).writeAsBytes(out);
       return path;
@@ -386,7 +390,7 @@ class PdfToolsService {
 
   Future<int> getPageCount(String path) async {
     final bytes = await _safeReadPdf(path);
-    return Isolate.run(() {
+    return runPdfIsolate(() {
       final doc = PdfDocument(inputBytes: bytes);
       final count = doc.pages.count;
       doc.dispose();

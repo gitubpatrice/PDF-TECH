@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../widgets/pdf_file_header.dart';
@@ -36,7 +37,7 @@ class _RotateScreenState extends State<RotateScreen> {
       if (!mounted) return;
       setState(() {
         _filePath = path;
-        _fileName = path.split(RegExp(r'[/\\]')).last;
+        _fileName = PathUtils.fileName(path);
         _totalPages = total;
       });
     } on PdfValidationException catch (e) {

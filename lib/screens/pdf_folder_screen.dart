@@ -39,7 +39,7 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
   Future<void> _scan() async {
     try {
       final dir = Directory(widget.path);
-      if (!dir.existsSync()) {
+      if (!await dir.exists()) {
         setState(() {
           _error = 'Dossier introuvable';
           _loading = false;
@@ -196,7 +196,7 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                             // En pratique le cache _stats est rempli par _scan()
                             // avant le premier rendu de la liste.
                             final stat = _stats[f.path];
-                            final name = f.path.split('/').last;
+                            final name = PathUtils.fileName(f.path);
                             final parent = f.parent.path
                                 .replaceAll(widget.path, '')
                                 .replaceFirst(RegExp(r'^/'), '');

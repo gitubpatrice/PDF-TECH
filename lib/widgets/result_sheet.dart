@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:files_tech_core/files_tech_core.dart' show PathUtils;
 import '../screens/pdf_viewer_screen.dart';
 import 'cloud_share_row.dart';
 
@@ -7,7 +8,7 @@ Future<void> showResultSheet(
   required String outputPath,
   required String operationLabel,
 }) async {
-  final fileName = outputPath.split(RegExp(r'[/\\]')).last;
+  final fileName = PathUtils.fileName(outputPath);
 
   await showModalBottomSheet(
     context: context,

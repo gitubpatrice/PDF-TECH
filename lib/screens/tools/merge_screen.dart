@@ -73,7 +73,7 @@ class _MergeScreenState extends State<MergeScreen> {
     }
   }
 
-  String _fileName(String path) => path.split(RegExp(r'[/\\]')).last;
+  String _fileName(String path) => PathUtils.fileName(path);
   String _fileSize(String path) => FormatUtils.bytes(_fileSizes[path] ?? 0);
 
   @override

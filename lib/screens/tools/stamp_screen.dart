@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -73,7 +73,7 @@ class _StampScreenState extends State<StampScreen> {
       final opacity = _opacity;
 
       final bytes = await PdfToolsService.safeReadPdf(_path!);
-      final out = await Isolate.run(
+      final out = await runPdfIsolate(
         () => _stampIsolate(bytes, text, r, g, b, opacity, firstOnly),
       );
 

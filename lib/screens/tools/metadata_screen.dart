@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'dart:isolate';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -45,7 +45,7 @@ class _MetadataScreenState extends State<MetadataScreen> {
     final _Meta meta;
     try {
       final bytes = await PdfToolsService.safeReadPdf(path);
-      meta = await Isolate.run(() {
+      meta = await runPdfIsolate(() {
         final doc = PdfDocument(inputBytes: bytes);
         final info = doc.documentInformation;
         final m = _Meta(
@@ -84,7 +84,7 @@ class _MetadataScreenState extends State<MetadataScreen> {
       final author = _authorCtrl.text.trim();
       final subject = _subjectCtrl.text.trim();
       final keywords = _keywordsCtrl.text.trim();
-      final out = await Isolate.run(
+      final out = await runPdfIsolate(
         () => _metadataIsolate(bytes, title, author, subject, keywords),
       );
 

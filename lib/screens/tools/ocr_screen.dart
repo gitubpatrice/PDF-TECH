@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -204,7 +205,7 @@ class _OcrScreenState extends State<OcrScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Sauvegardé : ${outPath.split('/').last}'),
+        content: Text('Sauvegardé : ${PathUtils.fileName(outPath)}'),
         behavior: SnackBarBehavior.floating,
       ),
     );

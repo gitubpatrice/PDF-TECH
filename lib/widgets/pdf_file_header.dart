@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 
 /// Ligne d'en-tête réutilisable affichant le nom du PDF sélectionné
 /// avec un bouton "Changer". Variante compacte (pas de Card) — utilisée
@@ -78,4 +79,4 @@ class PdfFilePickerCard extends StatelessWidget {
 }
 
 /// Extrait le nom de fichier depuis un chemin (compatible Android/Windows).
-String fileNameOf(String path) => path.split(RegExp(r'[/\\]')).last;
+String fileNameOf(String path) => PathUtils.fileName(path);

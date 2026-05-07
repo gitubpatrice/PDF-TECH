@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:isolate';
+import 'package:files_tech_core/files_tech_core.dart';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
@@ -222,7 +223,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
   ///
   /// Pour ne pas figer l'UI : (1) la lecture sécurisée + parse Syncfusion +
   /// dessin de toutes les annotations + save sont délégués à un isolate via
-  /// [Isolate.run] ; (2) la sérialisation des annotations en types primitifs
+  /// [runPdfIsolate] ; (2) la sérialisation des annotations en types primitifs
   /// se fait sur le main thread avec un yield entre chaque page pour rendre
   /// la frame.
   Future<String> _flatten() async {
@@ -239,7 +240,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
       await Future<void>.delayed(Duration.zero);
     }
     final path = widget.path;
-    final outBytes = await Isolate.run(
+    final outBytes = await runPdfIsolate(
       () => _flattenInIsolate(path, serialized),
     );
     final out = await _saveToVisibleDocuments(outBytes);
@@ -295,7 +296,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
   }
 
   String _baseName(String p) {
-    final n = p.split(RegExp(r'[/\\]')).last;
+    final n = PathUtils.fileName(p);
     return n.replaceAll(RegExp(r'\.pdf$', caseSensitive: false), '');
   }
 
@@ -678,11 +679,22 @@ class _AnnoPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _AnnoPainter old) =>
-      old.annos != annos ||
-      old.drawingPath != drawingPath ||
-      old.rectStart != rectStart ||
-      old.rectCurrent != rectCurrent;
+  bool shouldRepaint(covariant _AnnoPainter old) {
+    // Optimisation modeste : la comparaison de référence sur la liste
+    // [annos] et le chemin [drawingPath] est insuffisante (la liste est
+    // mutée en place côté state) → on observe aussi `length` + dernier
+    // point pour détecter le dessin actif. Si l'utilisateur dessine,
+    // `drawingPath` change quasi à chaque frame → on accepte un repaint
+    // systématique pour cette branche, jamais ressenti à l'usage.
+    if (drawingPath != null || rectStart != null || rectCurrent != null) {
+      return true;
+    }
+    if (old.annos.length != annos.length) return true;
+    if (!identical(old.annos, annos)) return true;
+    return old.drawingPath != drawingPath ||
+        old.rectStart != rectStart ||
+        old.rectCurrent != rectCurrent;
+  }
 }
 
 /// Helper pour afficher un Uint8List en image (utilisé par le picker image

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:files_tech_core/files_tech_core.dart';
 
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -31,7 +32,7 @@ class GoogleDriveService {
   Future<String> uploadFile(String path) async {
     final api = await _getApi();
     final file = File(path);
-    final name = path.split(RegExp(r'[/\\]')).last;
+    final name = PathUtils.fileName(path);
     final driveFile = drive.File()
       ..name = name
       ..mimeType = 'application/pdf';

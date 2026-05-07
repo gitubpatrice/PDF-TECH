@@ -87,10 +87,19 @@ See [SECURITY.md](./SECURITY.md) for the vulnerability disclosure policy.
 | Permission / access                         | Reason                                                                                                |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `INTERNET`                                  | Update check via the public GitHub Releases API. Also used if the user opts in to Google Drive (optional). No other server-side network use. |
-| `MANAGE_EXTERNAL_STORAGE`                   | Allow the user to browse and open PDFs in Downloads, Documents, etc. (locations outside the app sandbox). |
+| `MANAGE_EXTERNAL_STORAGE`                   | Allow the user to browse and open PDFs **anywhere on the device** — including locations that are outside the app sandbox and outside the Storage Access Framework's per-file scope: `Download/`, `Documents/`, WhatsApp / Telegram document folders, and the global "Find all my PDFs" recursive scan. |
 | ML Kit Latin text recognition (bundled)     | Run OCR on PDF pages from files chosen by the user. Local ML Kit model (no external transmission).   |
 
 `READ_MEDIA_IMAGES` is **not** requested. Image selection for the Images → PDF feature uses the Storage Access Framework (`file_picker`), which grants access via a temporary URI without a runtime permission.
+
+### Why MANAGE_EXTERNAL_STORAGE rather than the Storage Access Framework alone
+
+The Storage Access Framework (SAF, exposed via `file_picker`) only grants access to **one file or one tree** at a time, after an explicit user pick. PDF Tech also needs to:
+
+- list PDFs in `Download/`, `Documents/`, `Android/media/com.whatsapp/...` and `Android/media/org.telegram.messenger/...` **without** forcing the user to navigate the SAF picker each time;
+- run a **recursive scan** of the device storage ("Find all my PDFs") to surface PDFs the user may have forgotten where they saved.
+
+These workflows are not technically possible with SAF alone. `MANAGE_EXTERNAL_STORAGE` is therefore requested with an explanatory dialog. The permission is **only used locally to list and read PDF files** — no file is uploaded, no path is sent off-device. The user can revoke it at any time from Android Settings, and the app continues to work via the SAF picker fallback (`Choisir…` tile / FAB).
 
 ## 10. Children
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -35,7 +36,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
     if (path == null) return;
     setState(() {
       _filePath = path;
-      _fileName = path.split(RegExp(r'[/\\]')).last;
+      _fileName = PathUtils.fileName(path);
     });
   }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'dart:isolate';
+import 'package:files_tech_core/files_tech_core.dart';
+import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -32,7 +33,7 @@ class _FormFillScreenState extends State<FormFillScreen> {
     if (!mounted) return;
     if (path == null) return;
 
-    final name = path.split(RegExp(r'[/\\]')).last;
+    final name = PathUtils.fileName(path);
     setState(() {
       _isAnalyzing = true;
       _path = path;
@@ -404,7 +405,7 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
       final filledBytes = filled is Uint8List
           ? filled
           : Uint8List.fromList(filled);
-      final out = await Isolate.run(() => _flattenIsolate(filledBytes));
+      final out = await runPdfIsolate(() => _flattenIsolate(filledBytes));
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
       final outPath = '${dir.path}/formulaire_aplati_$ts.pdf';

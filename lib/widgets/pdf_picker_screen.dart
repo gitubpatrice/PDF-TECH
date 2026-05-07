@@ -144,17 +144,15 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       final entries = await root.list(followLinks: false).toList();
       final folders =
           entries.whereType<Directory>().where((d) {
-            final name = d.path.split(RegExp(r'[/\\]')).last;
+            final name = PathUtils.fileName(d.path);
             if (name.startsWith('.')) return false;
             if (name == 'Android') return false;
             if (shortcutPaths.contains(d.path)) return false;
             return true;
           }).toList()..sort(
-            (a, b) => a.path
-                .split(RegExp(r'[/\\]'))
-                .last
-                .toLowerCase()
-                .compareTo(b.path.split(RegExp(r'[/\\]')).last.toLowerCase()),
+            (a, b) => PathUtils.fileName(
+              a.path,
+            ).toLowerCase().compareTo(PathUtils.fileName(b.path).toLowerCase()),
           );
       if (!mounted) return;
       setState(() => _allFolders = folders);
@@ -242,7 +240,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   Future<void> _browseAnyFolder() async {
     final dir = await FilePicker.getDirectoryPath();
     if (dir == null || !mounted) return;
-    final label = dir.split(RegExp(r'[/\\]')).last;
+    final label = PathUtils.fileName(dir);
     await _browseFolder(dir, label.isEmpty ? 'Dossier' : label);
   }
 
@@ -430,7 +428,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
               mainAxisSpacing: 6,
               childAspectRatio: 2.7,
               children: _allFolders.map((d) {
-                final name = d.path.split(RegExp(r'[/\\]')).last;
+                final name = PathUtils.fileName(d.path);
                 return _ShortcutCard(
                   icon: _smartIconFor(name),
                   label: name,
