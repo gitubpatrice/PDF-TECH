@@ -107,7 +107,9 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
       );
       withStat.sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
       if (!mounted) return;
-      if (!mounted) return;
+      // Invalide le memoize : nouveau _pdfs ⇒ filtré stale (même si query identique).
+      _cachedQuery = null;
+      _cachedFiltered = const [];
       setState(() {
         _pdfs = withStat.map((e) => e.$1).toList(growable: false);
         _stats = {for (final e in withStat) e.$1.path: e.$2};

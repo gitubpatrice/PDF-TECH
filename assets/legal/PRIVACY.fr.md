@@ -1,6 +1,6 @@
 # Politique de confidentialité — PDF Tech
 
-**Version du document** : 28 avril 2026
+**Version du document** : 7 mai 2026
 **App** : PDF Tech
 **Site officiel** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -79,7 +79,6 @@ Voir [SECURITY.md](./SECURITY.md) pour la politique de signalement.
 | Permission / accès                          | Raison                                                                                              |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `INTERNET`                                  | Vérification de mises à jour via API GitHub Releases. Pas d'autre usage réseau.                    |
-| `READ_MEDIA_IMAGES`                         | Sélection d'images pour conversion Images → PDF.                                                  |
 | `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs (Téléchargements, Documents, etc.).      |
 | ML Kit Latin (groupé)                       | OCR sur les pages PDF, à partir de fichiers choisis par l'utilisateur. Modèle local.                |
 

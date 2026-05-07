@@ -9,7 +9,7 @@
 
 PDF Tech regroupe 23 outils PDF dans une seule application Flutter Android. Tous les traitements s'effectuent sur l'appareil. Aucune donnée n'est transmise à un serveur, sauf action explicite de l'utilisateur (partage, export Google Drive optionnel, vérification de mise à jour anonyme).
 
-Version actuelle : **1.9.2**.
+Version actuelle : **1.11.2**.
 
 ## Fonctionnalités
 
