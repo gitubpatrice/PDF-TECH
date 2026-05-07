@@ -19,9 +19,9 @@ fun keyProp(envName: String, propName: String): String? =
 
 android {
     namespace = "com.pdftech.pdf_tech"
-    // Pinné explicitement pour cohérence cross-app Files Tech (cf Notes Tech,
-    // Pass Tech, Read Files Tech) et reproductibilité des builds CI.
-    compileSdk = 35
+    // Pinné explicitement pour cohérence cross-app Files Tech et
+    // reproductibilité des builds CI. 36 requis par androidx.core 1.17+.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
