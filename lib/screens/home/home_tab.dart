@@ -350,11 +350,14 @@ class _HomeTabState extends State<HomeTab> {
       );
       return;
     }
-    // Pré-calcule les FileStat une seule fois — sinon `sort()` appelle
-    // `statSync()` deux fois par comparaison (O(n log n) IO sur main isolate).
-    final withStat = <(File, FileStat)>[
-      for (final f in found) (f, f.statSync()),
-    ]..sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
+    // Pré-calcule les FileStat une seule fois en parallèle async (évite
+    // IO sync sur main isolate — `sort()` aurait sinon appelé `statSync()`
+    // deux fois par comparaison, O(n log n) bloquant).
+    final withStat = await Future.wait(
+      found.map((f) async => (f, await f.stat())),
+    );
+    if (!navigator.mounted) return;
+    withStat.sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
     final foundSorted = withStat.map((e) => e.$1).toList(growable: false);
     final statsByPath = {for (final entry in withStat) entry.$1.path: entry.$2};
 

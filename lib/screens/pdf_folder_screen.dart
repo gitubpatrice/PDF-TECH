@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +30,39 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
   bool _loading = true;
   String? _error;
   String _search = '';
+
+  // Memoize du filtre + debounce 200 ms (cohérence avec all_pdfs_screen).
+  String? _cachedQuery;
+  List<File> _cachedFiltered = const [];
+  Timer? _debounce;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  List<File> _filtered() {
+    if (_cachedQuery == _search) return _cachedFiltered;
+    final q = _search.toLowerCase();
+    final result = q.isEmpty
+        ? _pdfs
+        : _pdfs
+              .where(
+                (f) => PathUtils.fileName(f.path).toLowerCase().contains(q),
+              )
+              .toList();
+    _cachedQuery = _search;
+    _cachedFiltered = result;
+    return result;
+  }
+
+  void _onSearchChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _search = v);
+    });
+  }
 
   @override
   void initState() {
@@ -66,11 +100,13 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
           }
         }
       }
-      // Pré-calcule les FileStat puis tri (évite un O(n log n) de statSync IO
-      // dans le comparator).
-      final withStat = <(File, FileStat)>[
-        for (final f in found) (f, f.statSync()),
-      ]..sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
+      // Pré-calcule les FileStat en parallèle async (évite IO sync sur main
+      // isolate — sur dossier 200+ PDFs ça freezait l'UI à l'ouverture).
+      final withStat = await Future.wait(
+        found.map((f) async => (f, await f.stat())),
+      );
+      withStat.sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
+      if (!mounted) return;
       if (!mounted) return;
       setState(() {
         _pdfs = withStat.map((e) => e.$1).toList(growable: false);
@@ -100,17 +136,7 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _search.isEmpty
-        ? _pdfs
-        : _pdfs
-              .where(
-                (f) => f.path
-                    .split('/')
-                    .last
-                    .toLowerCase()
-                    .contains(_search.toLowerCase()),
-              )
-              .toList();
+    final filtered = _filtered();
 
     final cs = Theme.of(context).colorScheme;
     return Scaffold(
@@ -158,7 +184,7 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 8),
                       ),
-                      onChanged: (v) => setState(() => _search = v),
+                      onChanged: _onSearchChanged,
                     ),
                   ),
                 Expanded(
