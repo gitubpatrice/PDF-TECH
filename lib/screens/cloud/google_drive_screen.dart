@@ -158,12 +158,8 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   }
 
   String _formatSize(String? sizeStr) {
-    if (sizeStr == null) return '';
-    final bytes = int.tryParse(sizeStr);
-    if (bytes == null) return '';
-    if (bytes < 1024) return '$bytes o';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} Ko';
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} Mo';
+    final n = int.tryParse(sizeStr ?? '') ?? 0;
+    return FormatUtils.bytes(n);
   }
 
   String _formatDate(DateTime? dt) {

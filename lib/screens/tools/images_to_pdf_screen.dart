@@ -43,18 +43,42 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
   bool _isProcessing = false;
 
   Future<void> _pickImages() async {
+    final messenger = ScaffoldMessenger.of(context);
     final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: true,
     );
     if (result == null) return;
-    setState(() {
-      for (final f in result.files) {
-        if (f.path != null && !_images.contains(f.path)) {
-          _images.add(f.path!);
+    final accepted = <String>[];
+    var skipped = 0;
+    for (final f in result.files) {
+      final p = f.path;
+      if (p == null || _images.contains(p)) continue;
+      try {
+        final len = await File(p).length();
+        if (len > 20 * 1024 * 1024) {
+          skipped++;
+          continue;
         }
+      } catch (_) {
+        skipped++;
+        continue;
       }
+      accepted.add(p);
+    }
+    if (!mounted) return;
+    setState(() {
+      _images.addAll(accepted);
     });
+    if (skipped > 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '$skipped image${skipped > 1 ? 's' : ''} ignorée${skipped > 1 ? 's' : ''} (>20 Mo)',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _convert() async {

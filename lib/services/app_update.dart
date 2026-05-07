@@ -6,5 +6,5 @@ import 'package:files_tech_core/files_tech_core.dart';
 const appUpdateService = UpdateService(
   owner: 'gitubpatrice',
   repo: 'PDF-TECH',
-  currentVersion: '1.10.0',
+  currentVersion: '1.10.2',
 );

@@ -10,7 +10,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  static const _version = '1.10.0';
+  static const _version = '1.10.2';
   static const _author = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
@@ -216,7 +216,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Gestionnaire de PDF complet — 23 outils',
+                  'Gestionnaire de PDF complet — 22 outils',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),

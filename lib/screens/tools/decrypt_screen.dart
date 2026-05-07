@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
 class DecryptScreen extends StatefulWidget {
@@ -145,43 +146,12 @@ class _DecryptScreenState extends State<DecryptScreen> {
             // Fichier
             Text('Fichier PDF', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
-            _path == null
-                ? SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _pickFile,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text('Choisir un PDF'),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 48),
-                      ),
-                    ),
-                  )
-                : ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.picture_as_pdf,
-                        color: Colors.red,
-                        size: 22,
-                      ),
-                    ),
-                    title: Text(
-                      _name!,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    trailing: TextButton(
-                      onPressed: _pickFile,
-                      child: const Text('Changer'),
-                    ),
-                  ),
+            PdfFilePickerCard(
+              fileName: _name,
+              onPick: _pickFile,
+              pickLabel: _path == null ? 'Choisir' : 'Changer',
+              emptyLabel: 'Choisir un PDF',
+            ),
             const SizedBox(height: 24),
 
             // Mot de passe

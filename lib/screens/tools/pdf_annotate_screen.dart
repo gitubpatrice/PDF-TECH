@@ -133,7 +133,15 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     final messenger = ScaffoldMessenger.of(context);
     final res = await FilePicker.pickFiles(type: FileType.image);
     if (res == null || res.files.single.path == null) return;
-    final bytes = await File(res.files.single.path!).readAsBytes();
+    final imgFile = File(res.files.single.path!);
+    final length = await imgFile.length();
+    if (length > 30 * 1024 * 1024) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Image trop volumineuse (>30 Mo)')),
+      );
+      return;
+    }
+    final bytes = await imgFile.readAsBytes();
     if (bytes.isEmpty) return;
     // Validation : on tente de décoder via PdfBitmap pour détecter les
     // images non supportées (HEIC sans codec, fichiers corrompus, etc.)

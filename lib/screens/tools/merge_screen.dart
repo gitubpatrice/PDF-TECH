@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -73,12 +74,7 @@ class _MergeScreenState extends State<MergeScreen> {
   }
 
   String _fileName(String path) => path.split(RegExp(r'[/\\]')).last;
-  String _fileSize(String path) {
-    final bytes = _fileSizes[path] ?? 0;
-    return bytes < 1024 * 1024
-        ? '${(bytes / 1024).toStringAsFixed(1)} Ko'
-        : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
-  }
+  String _fileSize(String path) => FormatUtils.bytes(_fileSizes[path] ?? 0);
 
   @override
   Widget build(BuildContext context) {
