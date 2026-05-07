@@ -248,7 +248,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
 
   Future<void> _browseFolder(String path, String label) async {
     final dir = Directory(path);
-    if (!dir.existsSync()) {
+    if (!await dir.exists()) {
       // Auto-création pour le dossier PDF Tech (notre dossier app)
       if (label == 'PDF Tech') {
         try {

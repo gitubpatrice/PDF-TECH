@@ -27,10 +27,17 @@ class _CompressScreenState extends State<CompressScreen> {
       title: 'Choisir le PDF à compresser',
     );
     if (path == null) return;
+    // Lecture async AVANT le setState : `lengthSync()` bloque le main isolate
+    // (IO sync) et provoque du jank si le fichier est sur stockage lent.
+    int size = 0;
+    try {
+      size = await File(path).length();
+    } catch (_) {}
+    if (!mounted) return;
     setState(() {
       _filePath = path;
       _fileName = path.split(RegExp(r'[/\\]')).last;
-      _originalSize = File(path).lengthSync();
+      _originalSize = size;
     });
   }
 
@@ -45,8 +52,8 @@ class _CompressScreenState extends State<CompressScreen> {
     setState(() => _processing = true);
     try {
       final output = await PdfToolsService().compressPdf(_filePath!, _level);
+      final compressedSize = await File(output).length();
       if (!mounted) return;
-      final compressedSize = File(output).lengthSync();
       final saved = _originalSize! - compressedSize;
       final ratio = (_originalSize! > 0)
           ? (saved / _originalSize! * 100).toStringAsFixed(1)

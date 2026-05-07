@@ -37,7 +37,7 @@ class GoogleDriveService {
       ..mimeType = 'application/pdf';
     final result = await api.files.create(
       driveFile,
-      uploadMedia: drive.Media(file.openRead(), file.lengthSync()),
+      uploadMedia: drive.Media(file.openRead(), await file.length()),
     );
     if (result.id == null) throw Exception('Upload échoué : ID nul');
     return result.id!;

@@ -3,7 +3,9 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <!-- READ_MEDIA_IMAGES retiré : la sélection d'images (Images → PDF)
+         passe par file_picker / SAF qui octroie l'accès via URI ; pas
+         besoin de permission MediaStore. -->
     <!-- Lecture de tous les PDFs sur le stockage externe (section Parcourir
          et scan global). MANAGE_EXTERNAL_STORAGE car Documents/Download/
          WhatsApp Documents sont hors scoped storage de l'app. -->

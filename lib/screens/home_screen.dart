@@ -453,10 +453,12 @@ class _HomeTabState extends State<_HomeTab> {
     final last = widget.recentFiles.isNotEmpty
         ? widget.recentFiles.first
         : null;
-    if (last != null && File(last.path).existsSync()) {
+    if (last != null && await File(last.path).exists()) {
+      if (!context.mounted) return;
       widget.onOpen(last.path);
       return;
     }
+    if (!context.mounted) return;
     final picked = await PdfPickerScreen.pickOne(context, title: 'Lire un PDF');
     if (picked != null) widget.onOpen(picked);
   }
@@ -534,7 +536,9 @@ class _HomeTabState extends State<_HomeTab> {
     if (!await _ensureStorageAccess()) return;
     if (!mounted) return;
     final dir = Directory(path);
-    if (!dir.existsSync()) {
+    final exists = await dir.exists();
+    if (!mounted) return;
+    if (!exists) {
       if (label == 'PDF Tech') {
         try {
           await dir.create(recursive: true);
@@ -628,11 +632,18 @@ class _HomeTabState extends State<_HomeTab> {
   }
 
   /// Walk récursif limité aux sous-dossiers utilisateur, ignore caches/Android.
+  /// [depth] borne la profondeur (sécurité contre liens/symlinks pathologiques
+  /// et arbo très profondes qui figent le scan).
+  /// TODO: bouton Annuler (`Completer<bool> _scanCanceller`) pour interrompre
+  /// proprement un scan long depuis l'UI.
+  static const int _walkMaxDepth = 8;
   Future<void> _walk(
     Directory dir,
     List<File> out,
-    void Function() onTick,
-  ) async {
+    void Function() onTick, {
+    int depth = 0,
+  }) async {
+    if (depth >= _walkMaxDepth) return;
     final skip = {'Android', '.thumbnails', '.cache'};
     try {
       await for (final e in dir.list(recursive: false, followLinks: false)) {
@@ -642,7 +653,7 @@ class _HomeTabState extends State<_HomeTab> {
         } else if (e is Directory) {
           final name = e.path.split('/').last;
           if (skip.contains(name) || name.startsWith('.')) continue;
-          await _walk(e, out, onTick);
+          await _walk(e, out, onTick, depth: depth + 1);
         }
       }
     } catch (_) {
@@ -1522,9 +1533,9 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
                     itemCount: filtered.length,
                     itemBuilder: (_, i) {
                       final f = filtered[i];
-                      // FileStat pré-calculé lors du scan : pas d'IO sync
-                      // dans itemBuilder pendant le scroll.
-                      final stat = widget.statsByPath[f.path] ?? f.statSync();
+                      // FileStat pré-calculé lors du scan : JAMAIS de statSync()
+                      // ici (IO sync dans itemBuilder = jank de scroll).
+                      final stat = widget.statsByPath[f.path];
                       final name = f.path.split('/').last;
                       final dirName = f.parent.path.split('/').last;
                       return Card(
@@ -1556,7 +1567,9 @@ class _AllPdfsScreenState extends State<_AllPdfsScreen> {
                             style: const TextStyle(fontSize: 13),
                           ),
                           subtitle: Text(
-                            '$dirName · ${_formatSize(stat.size)}',
+                            stat != null
+                                ? '$dirName · ${_formatSize(stat.size)}'
+                                : dirName,
                             style: const TextStyle(fontSize: 11),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

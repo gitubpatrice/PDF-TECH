@@ -13,6 +13,10 @@ class MergeScreen extends StatefulWidget {
 
 class _MergeScreenState extends State<MergeScreen> {
   final List<String> _files = [];
+  // Tailles pré-calculées au moment du picking pour éviter `lengthSync()`
+  // dans `itemBuilder` (IO synchrone sur le main isolate à chaque frame
+  // de scroll/reorder = jank confirmé).
+  final Map<String, int> _fileSizes = {};
   bool _processing = false;
 
   Future<void> _addFiles() async {
@@ -24,10 +28,21 @@ class _MergeScreenState extends State<MergeScreen> {
       ),
     );
     if (picked == null || picked.isEmpty) return;
-    setState(() {
-      for (final p in picked) {
-        if (!_files.contains(p)) _files.add(p);
+    // Pré-calcul async des tailles (hors du setState pour rester non-bloquant).
+    final newPaths = <String>[];
+    for (final p in picked) {
+      if (!_files.contains(p)) {
+        newPaths.add(p);
+        try {
+          _fileSizes[p] = await File(p).length();
+        } catch (_) {
+          _fileSizes[p] = 0;
+        }
       }
+    }
+    if (!mounted) return;
+    setState(() {
+      _files.addAll(newPaths);
     });
   }
 
@@ -59,7 +74,7 @@ class _MergeScreenState extends State<MergeScreen> {
 
   String _fileName(String path) => path.split(RegExp(r'[/\\]')).last;
   String _fileSize(String path) {
-    final bytes = File(path).lengthSync();
+    final bytes = _fileSizes[path] ?? 0;
     return bytes < 1024 * 1024
         ? '${(bytes / 1024).toStringAsFixed(1)} Ko'
         : '${(bytes / (1024 * 1024)).toStringAsFixed(1)} Mo';
@@ -146,8 +161,10 @@ class _MergeScreenState extends State<MergeScreen> {
                               Icons.delete_outline,
                               color: Colors.red,
                             ),
-                            onPressed: () =>
-                                setState(() => _files.removeAt(index)),
+                            onPressed: () => setState(() {
+                              final removed = _files.removeAt(index);
+                              _fileSizes.remove(removed);
+                            }),
                           ),
                           const Icon(Icons.drag_handle, color: Colors.grey),
                         ],

@@ -194,7 +194,10 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                           itemCount: filtered.length,
                           itemBuilder: (_, i) {
                             final f = filtered[i];
-                            final stat = _stats[f.path] ?? f.statSync();
+                            // JAMAIS de statSync() ici (IO sync dans itemBuilder).
+                            // En pratique le cache _stats est rempli par _scan()
+                            // avant le premier rendu de la liste.
+                            final stat = _stats[f.path];
                             final name = f.path.split('/').last;
                             final parent = f.parent.path
                                 .replaceAll(widget.path, '')
@@ -230,8 +233,9 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                                 subtitle: Text(
                                   [
                                     if (parent.isNotEmpty) parent,
-                                    _formatSize(stat.size),
-                                    _formatDate(stat.modified),
+                                    if (stat != null) _formatSize(stat.size),
+                                    if (stat != null)
+                                      _formatDate(stat.modified),
                                   ].join(' · '),
                                   style: const TextStyle(fontSize: 11),
                                   maxLines: 1,

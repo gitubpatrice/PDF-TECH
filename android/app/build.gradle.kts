@@ -19,7 +19,9 @@ fun keyProp(envName: String, propName: String): String? =
 
 android {
     namespace = "com.pdftech.pdf_tech"
-    compileSdk = flutter.compileSdkVersion
+    // Pinné explicitement pour cohérence cross-app Files Tech (cf Notes Tech,
+    // Pass Tech, Read Files Tech) et reproductibilité des builds CI.
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -52,7 +54,9 @@ android {
     defaultConfig {
         applicationId = "com.pdftech.pdf_tech"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        // Pinné explicitement à 35 (cohérence avec compileSdk = 35) au lieu
+        // de suivre `flutter.targetSdkVersion` qui peut diverger selon le SDK.
+        targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

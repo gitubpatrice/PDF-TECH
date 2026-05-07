@@ -60,9 +60,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   void dispose() {
+    // Ordre important : libérer les overlays Syncfusion AVANT de disposer le
+    // controller (sinon `_searchResult.clear()` appellerait des callbacks sur
+    // un controller déjà disposé).
+    _searchResult.clear();
     _controller.dispose();
     _searchController.dispose();
-    _searchResult.clear();
     super.dispose();
   }
 
@@ -337,8 +340,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               _SearchBar(
                 controller: _searchController,
                 onSearch: (text) {
+                  // Libère les overlays Syncfusion de l'ancien résultat
+                  // (un seul `clear()` suffit avant la nouvelle assignation).
+                  _searchResult.clear();
                   if (text.isEmpty) {
-                    _searchResult.clear();
+                    setState(() {});
                     return;
                   }
                   setState(() {

@@ -39,7 +39,7 @@ class PdfToolsService {
 
   static Future<Uint8List> _safeReadPdf(String path) async {
     final f = File(path);
-    if (!f.existsSync()) {
+    if (!await f.exists()) {
       throw const PdfValidationException('Fichier introuvable');
     }
     final length = await f.length();
@@ -360,10 +360,17 @@ class PdfToolsService {
   /// avertir l'utilisateur que le fichier de sortie est non protégé.
   Future<String> decryptPdf(String inputPath, String password) async {
     final bytes = await _safeReadPdf(inputPath);
-    final out = await Isolate.run(() => _decryptIsolate(bytes, password));
-    final path = await _savePath('dechiffre');
-    await File(path).writeAsBytes(out);
-    return path;
+    try {
+      final out = await Isolate.run(() => _decryptIsolate(bytes, password));
+      final path = await _savePath('dechiffre');
+      await File(path).writeAsBytes(out);
+      return path;
+    } finally {
+      // Best-effort wipe du buffer source (le password est toujours en clair
+      // dans le String, mais au moins on n'aggrave pas en gardant le PDF
+      // chiffré + clés résiduelles en RAM tampon process).
+      bytes.fillRange(0, bytes.length, 0);
+    }
   }
 
   static Uint8List _decryptIsolate(Uint8List bytes, String password) {

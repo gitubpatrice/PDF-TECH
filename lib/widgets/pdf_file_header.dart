@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+// TODO v1.10 : généraliser PdfFileHeader à tous les écrans tools/* qui dupliquent
+// le pattern Card + ListTile picker (compress, protect, rotate, decrypt, signature,
+// split, metadata, delete_pages, reorder_pages, watermark, stamp, header_footer,
+// page_numbers, extract_images, compare, form_fill). ~300-400 lignes à factoriser.
+// Dette technique identifiée dans l'audit v1.9.x — pas un oubli.
+
 /// Ligne d'en-tête réutilisable affichant le nom du PDF sélectionné
 /// avec un bouton "Changer". Factorise un widget précédemment dupliqué
 /// dans la majorité des écrans `tools/*`.
