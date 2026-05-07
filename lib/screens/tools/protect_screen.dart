@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -83,21 +84,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFFC62828),
-                  size: 32,
-                ),
-                title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                trailing: TextButton(
-                  onPressed: _pickFile,
-                  child: const Text('Choisir'),
-                ),
-                onTap: _pickFile,
-              ),
-            ),
+            PdfFilePickerCard(fileName: _fileName, onPick: _pickFile),
             if (_filePath != null) ...[
               const SizedBox(height: 24),
               Text(

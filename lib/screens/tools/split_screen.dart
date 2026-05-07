@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -84,7 +85,7 @@ class _SplitScreenState extends State<SplitScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _FilePickerCard(
+            PdfFilePickerCard(
               fileName: _fileName,
               subtitle: _totalPages > 0 ? '$_totalPages pages' : null,
               onPick: _pickFile,
@@ -199,35 +200,6 @@ class _PageField extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _FilePickerCard extends StatelessWidget {
-  final String? fileName;
-  final String? subtitle;
-  final VoidCallback onPick;
-
-  const _FilePickerCard({
-    required this.fileName,
-    required this.onPick,
-    this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(
-          Icons.picture_as_pdf,
-          color: Color(0xFFC62828),
-          size: 32,
-        ),
-        title: Text(fileName ?? 'Aucun fichier sélectionné'),
-        subtitle: subtitle != null ? Text(subtitle!) : null,
-        trailing: TextButton(onPressed: onPick, child: const Text('Choisir')),
-        onTap: onPick,
-      ),
     );
   }
 }

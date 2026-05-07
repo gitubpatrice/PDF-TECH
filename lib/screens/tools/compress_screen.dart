@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -93,23 +94,12 @@ class _CompressScreenState extends State<CompressScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── File picker card ───────────────────────────────────────────
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFFC62828),
-                  size: 32,
-                ),
-                title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                subtitle: _originalSize != null
-                    ? Text('Taille originale : ${_formatSize(_originalSize!)}')
-                    : null,
-                trailing: TextButton(
-                  onPressed: _pickFile,
-                  child: const Text('Choisir'),
-                ),
-                onTap: _pickFile,
-              ),
+            PdfFilePickerCard(
+              fileName: _fileName,
+              subtitle: _originalSize != null
+                  ? 'Taille originale : ${_formatSize(_originalSize!)}'
+                  : null,
+              onPick: _pickFile,
             ),
 
             const SizedBox(height: 28),

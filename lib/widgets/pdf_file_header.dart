@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 
-// TODO v1.10 : généraliser PdfFileHeader à tous les écrans tools/* qui dupliquent
-// le pattern Card + ListTile picker (compress, protect, rotate, decrypt, signature,
-// split, metadata, delete_pages, reorder_pages, watermark, stamp, header_footer,
-// page_numbers, extract_images, compare, form_fill). ~300-400 lignes à factoriser.
-// Dette technique identifiée dans l'audit v1.9.x — pas un oubli.
-
 /// Ligne d'en-tête réutilisable affichant le nom du PDF sélectionné
-/// avec un bouton "Changer". Factorise un widget précédemment dupliqué
-/// dans la majorité des écrans `tools/*`.
+/// avec un bouton "Changer". Variante compacte (pas de Card) — utilisée
+/// quand un PDF est déjà choisi et qu'on veut juste rappeler son nom
+/// au-dessus d'un formulaire.
 class PdfFileHeader extends StatelessWidget {
   final String name;
   final VoidCallback? onChange;
@@ -37,6 +32,47 @@ class PdfFileHeader extends StatelessWidget {
         if (onChange != null)
           TextButton(onPressed: onChange, child: Text(changeLabel)),
       ],
+    );
+  }
+}
+
+/// Carte de sélection de PDF utilisée comme entête d'écran-outil.
+/// Affiche un placeholder "Aucun fichier sélectionné" tant que [fileName]
+/// est `null`, puis le nom du fichier (+ sous-titre optionnel) une fois choisi.
+/// Le bouton trailing et le tap sur la carte appellent tous deux [onPick].
+///
+/// Factorise le pattern Card+ListTile précédemment dupliqué dans une dizaine
+/// d'écrans `tools/*` (compress, protect, rotate, split, watermark, signature…).
+class PdfFilePickerCard extends StatelessWidget {
+  final String? fileName;
+  final String? subtitle;
+  final VoidCallback onPick;
+  final String pickLabel;
+  final String emptyLabel;
+
+  const PdfFilePickerCard({
+    super.key,
+    required this.fileName,
+    required this.onPick,
+    this.subtitle,
+    this.pickLabel = 'Choisir',
+    this.emptyLabel = 'Aucun fichier sélectionné',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(
+          Icons.picture_as_pdf,
+          color: Color(0xFFC62828),
+          size: 32,
+        ),
+        title: Text(fileName ?? emptyLabel),
+        subtitle: subtitle != null ? Text(subtitle!) : null,
+        trailing: TextButton(onPressed: onPick, child: Text(pickLabel)),
+        onTap: onPick,
+      ),
     );
   }
 }

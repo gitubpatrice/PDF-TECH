@@ -9,6 +9,7 @@ import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import 'dart:io';
 
 import '../../services/pdf_tools_service.dart';
+import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -130,21 +131,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── File picker card ───────────────────────────────────────────
-            Card(
-              child: ListTile(
-                leading: const Icon(
-                  Icons.picture_as_pdf,
-                  color: Color(0xFFC62828),
-                  size: 32,
-                ),
-                title: Text(_fileName ?? 'Aucun fichier sélectionné'),
-                trailing: TextButton(
-                  onPressed: _pickFile,
-                  child: const Text('Choisir'),
-                ),
-                onTap: _pickFile,
-              ),
-            ),
+            PdfFilePickerCard(fileName: _fileName, onPick: _pickFile),
 
             const SizedBox(height: 24),
 
