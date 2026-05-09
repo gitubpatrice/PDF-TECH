@@ -7,7 +7,7 @@ class AppInfo {
 
   /// Version de l'app, alignée sur `pubspec.yaml`.
   /// **Ne jamais bumper sans bumper aussi `pubspec.yaml`.**
-  static const String version = '1.12.0';
+  static const String version = '1.12.1';
 
   /// Nombre d'outils PDF accessibles depuis le grid + viewer (annoter,
   /// lecture). Mis à jour si une tuile est ajoutée/retirée.
