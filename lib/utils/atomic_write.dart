@@ -51,3 +51,19 @@ Future<void> atomicWriteBytes(String path, List<int> bytes) async {
     rethrow;
   }
 }
+
+/// Variante string. UTF-8 par défaut. Ajouté v1.12.2 pour OCR text export
+/// (`_saveAsTxt`) et autres flux text-based.
+Future<void> atomicWriteString(String path, String content) async {
+  final tmpPath = '$path.tmp';
+  final tmpFile = File(tmpPath);
+  try {
+    await tmpFile.writeAsString(content, flush: true);
+    await tmpFile.rename(path);
+  } catch (e) {
+    try {
+      if (await tmpFile.exists()) await tmpFile.delete();
+    } catch (_) {}
+    rethrow;
+  }
+}

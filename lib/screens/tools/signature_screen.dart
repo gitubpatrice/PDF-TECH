@@ -8,6 +8,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 
 import '../../services/pdf_tools_service.dart';
+import '../../services/secure_window.dart';
 import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
@@ -28,6 +29,19 @@ class _SignatureScreenState extends State<SignatureScreen> {
       GlobalKey<SfSignaturePadState>();
   String _position = 'centre'; // 'gauche' | 'centre' | 'droite'
   bool _processing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // F1 v1.12.2 — bloque captures pendant signature manuscrite.
+    SecureWindow.enable();
+  }
+
+  @override
+  void dispose() {
+    SecureWindow.disable();
+    super.dispose();
+  }
 
   Future<void> _pickFile() async {
     final path = await PdfPickerScreen.pickOne(

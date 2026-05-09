@@ -11,6 +11,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -130,7 +131,7 @@ class _OcrScreenState extends State<OcrScreen> {
               pageImage.height ?? (page.height * 2).toInt(),
             );
             final tmpFile = File('${ocrTmp.path}/ocr_p$i.png');
-            await tmpFile.writeAsBytes(pngBytes);
+            await atomicWriteBytes(tmpFile.path, pngBytes);
 
             final inputImage = InputImage.fromFile(tmpFile);
             final result = await recognizer.processImage(inputImage);
@@ -149,10 +150,20 @@ class _OcrScreenState extends State<OcrScreen> {
           // Yield pour rendre la main au framework entre deux pages OCR.
           await Future<void>.delayed(Duration.zero);
         }
-
-        await pdfDoc.close();
-        recognizer.close();
       } finally {
+        // F6 v1.12.2 — close pdfDoc + recognizer DANS finally (avant : exception
+        // au milieu de la boucle laissait FD natif + modèle ML Kit en RAM,
+        // ~5 OCR en échec successifs = process kill par limit FD).
+        try {
+          await pdfDoc.close();
+        } catch (_) {
+          /* best-effort */
+        }
+        try {
+          recognizer.close();
+        } catch (_) {
+          /* best-effort */
+        }
         // Purge garantie même en cas d'exception au milieu de la boucle.
         try {
           if (await ocrTmp.exists()) await ocrTmp.delete(recursive: true);
@@ -203,16 +214,20 @@ class _OcrScreenState extends State<OcrScreen> {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final base = (_name ?? 'document').replaceAll('.pdf', '');
     final outPath = '${dir.path}/${base}_ocr_$ts.txt';
-    await File(outPath).writeAsString(_extractedText);
+    await atomicWriteString(outPath, _extractedText);
     if (!mounted) return;
     showInfoSnack(context, 'Sauvegardé : ${PathUtils.fileName(outPath)}');
   }
 
   Future<void> _share() async {
     final dir = await getTemporaryDirectory();
-    final outPath = '${dir.path}/texte_extrait.txt';
+    // F7 v1.12.2 — nom unique horodaté (avant : `texte_extrait.txt` constant
+    // → race d'écrasement si 2 partages successifs ; persistance silencieuse
+    // si app killée pendant share sheet ne tirait jamais le delete).
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final outPath = '${dir.path}/texte_extrait_$ts.txt';
     final tempFile = File(outPath);
-    await tempFile.writeAsString(_extractedText);
+    await atomicWriteString(outPath, _extractedText);
     try {
       await Share.shareXFiles([
         XFile(outPath, mimeType: 'text/plain'),

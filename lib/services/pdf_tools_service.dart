@@ -77,11 +77,52 @@ class PdfToolsService {
     return '${dir.path}/${name}_$ts.pdf';
   }
 
+  /// F2 v1.12.2 — chemin dédié pour les PDFs DÉCHIFFRÉS (en clair).
+  /// Sous-dossier `decrypted/` séparé du flux de sortie standard.
+  /// Permet une purge ciblée au boot / sur lifecycle paused-detached
+  /// sans toucher aux fichiers utilisateur normaux.
+  static Future<String> decryptedOutputPath(String name) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final sub = Directory('${dir.path}/decrypted');
+    if (!await sub.exists()) await sub.create(recursive: true);
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    return '${sub.path}/${name}_$ts.pdf';
+  }
+
+  /// F2 v1.12.2 — purge des PDFs déchiffrés résiduels.
+  /// À appeler :
+  /// - Au boot dans `main()` (résidu si process tué entre share et delete).
+  /// - Sur `AppLifecycleState.paused` / `detached` (anti device-volé).
+  ///
+  /// Supprime tout le dossier `decrypted/` ; sera recréé au prochain
+  /// `decryptedOutputPath`.
+  static Future<void> purgeDecryptedCache() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final sub = Directory('${dir.path}/decrypted');
+      if (await sub.exists()) {
+        await sub.delete(recursive: true);
+      }
+    } catch (_) {
+      // Best-effort.
+    }
+  }
+
   /// Écrit [bytes] de manière atomique (write tmp + rename) et renvoie le
   /// chemin final. Déduplique le pattern `outputPath` + `atomicWriteBytes`
   /// utilisé dans toutes les méthodes du service.
   static Future<String> _saveAtomic(String name, Uint8List bytes) async {
     final path = await outputPath(name);
+    await atomicWriteBytes(path, bytes);
+    return path;
+  }
+
+  /// Variante atomic write pour les PDFs déchiffrés (dossier dédié).
+  static Future<String> _saveAtomicDecrypted(
+    String name,
+    Uint8List bytes,
+  ) async {
+    final path = await decryptedOutputPath(name);
     await atomicWriteBytes(path, bytes);
     return path;
   }
@@ -96,11 +137,24 @@ class PdfToolsService {
 
   // ── Merge ─────────────────────────────────────────────────────────────────
 
+  /// F4 v1.12.2 — cap cumulatif anti-OOM. Sans ça, 50 PDFs × 199 Mo
+  /// (cap individuel `_safeReadPdf`) = ~10 Go en RAM avant l'isolate
+  /// (qui en fera une copie). Aligné sur `images_to_pdf_screen` (500 Mo).
+  static const int _maxMergeCumulativeBytes = 500 * 1024 * 1024;
+
   Future<String> mergePdfs(List<String> inputPaths) async {
     // Lecture + validation IO en main, parsing+merge dans Isolate (heavy).
     final allBytes = <Uint8List>[];
+    int cumulative = 0;
     for (final path in inputPaths) {
-      allBytes.add(await _safeReadPdf(path));
+      final bytes = await _safeReadPdf(path);
+      cumulative += bytes.length;
+      if (cumulative > _maxMergeCumulativeBytes) {
+        throw const FormatException(
+          'Sélection trop volumineuse (max 500 Mo cumulés).',
+        );
+      }
+      allBytes.add(bytes);
     }
     final out = await runPdfIsolate(() => _mergeIsolate(allBytes));
     return _saveAtomic('fusion', out);
@@ -462,7 +516,8 @@ class PdfToolsService {
         () => _decryptIsolate(bytes, password),
       );
       plaintextRef = plaintext;
-      return await _saveAtomic('dechiffre', plaintext);
+      // F2 v1.12.2 — sortie dans `decrypted/` purgeable au boot + lifecycle.
+      return await _saveAtomicDecrypted('dechiffre', plaintext);
     } finally {
       // Best-effort wipe : le buffer source (PDF chiffré + clés
       // dérivées tampon Syncfusion) ET le buffer de sortie déchiffré

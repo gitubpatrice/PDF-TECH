@@ -8,6 +8,7 @@ import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -102,7 +103,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
           }
           final pageNum = i.toString().padLeft(3, '0');
           final outPath = '${outDir.path}/page_$pageNum.$_format';
-          await File(outPath).writeAsBytes(finalBytes);
+          await atomicWriteBytes(outPath, finalBytes);
           paths.add(outPath);
         }
 

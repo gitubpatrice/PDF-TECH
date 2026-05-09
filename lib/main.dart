@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
+import 'services/pdf_tools_service.dart';
 
 const _settingsChannel = MethodChannel('com.pdftech.pdf_tech/settings');
 
@@ -17,6 +20,10 @@ void main() {
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
   ]);
+  // F2 v1.12.2 — purge des PDFs déchiffrés résiduels (cas où le process
+  // a été tué entre la sortie déchiffrement et son partage/delete user).
+  // Best-effort, fire-and-forget.
+  unawaited(PdfToolsService.purgeDecryptedCache());
   runApp(const PdfTechApp());
 }
 
@@ -179,14 +186,34 @@ class PdfTechApp extends StatefulWidget {
   State<PdfTechApp> createState() => _PdfTechAppState();
 }
 
-class _PdfTechAppState extends State<PdfTechApp> {
+class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadTheme();
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkFirstLaunch());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // F2 v1.12.2 — purge defensive du cache de PDFs déchiffrés à chaque
+    // pause / hidden / detached. Couvre le scénario "device volé après
+    // déchiffrement". Le boot purge déjà au cas où le kill évite ce
+    // chemin.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(PdfToolsService.purgeDecryptedCache());
+    }
   }
 
   Future<void> _checkFirstLaunch() async {

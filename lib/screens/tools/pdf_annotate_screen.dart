@@ -11,6 +11,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart' as pv;
 
 import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -269,7 +270,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
       final visible = Directory('/storage/emulated/0/Documents/PDF Tech');
       if (!await visible.exists()) await visible.create(recursive: true);
       final out = File('${visible.path}/$filename');
-      await out.writeAsBytes(bytes);
+      await atomicWriteBytes(out.path, bytes);
       return out;
     } catch (e) {
       if (kDebugMode) {
@@ -282,12 +283,12 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
       final outDir = Directory('${extDir.path}/output');
       if (!await outDir.exists()) await outDir.create(recursive: true);
       final out = File('${outDir.path}/$filename');
-      await out.writeAsBytes(bytes);
+      await atomicWriteBytes(out.path, bytes);
       return out;
     }
     final docs = await getApplicationDocumentsDirectory();
     final out = File('${docs.path}/$filename');
-    await out.writeAsBytes(bytes);
+    await atomicWriteBytes(out.path, bytes);
     return out;
   }
 

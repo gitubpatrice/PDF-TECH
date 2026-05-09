@@ -1,0 +1,21 @@
+v1.12.2 — Hardening audit vulnérabilités (mai 2026)
+
+Sécurité
+• F1 — FLAG_SECURE sur protect / decrypt / signature / viewer PDF
+  password-protected (annoncé dans la doc mais ABSENT — désormais un
+  MethodChannel Kotlin avec refcount le pose proprement)
+• F2 — PDFs déchiffrés déplacés dans dossier dédié `decrypted/` purgé
+  au boot + sur paused/hidden/detached (anti fuite device volé)
+• F3 — atomic write tmp+rename restauré sur 10 sites en régression
+  (create_pdf ×3, pdf_annotate ×3, extract_images, export_images, ocr ×3)
+
+Performance / robustesse
+• F4 — cap cumulatif 500 Mo sur `mergePdfs` (anti-OOM 50× 199 Mo)
+• F5 — `ImageBounds` probe IHDR/SOF avant decode pour images→PDF
+  (refuse PNG 50000×50000 image-bombs = 16 Go heap)
+• F6 — OCR `pdfDoc.close()` + `recognizer.close()` déplacés dans `finally`
+  (avant : leak FD natif + modèle ML Kit sur exception → ~5 échecs = kill)
+• F7 — OCR partage avec nom unique `texte_extrait_<ts>.txt`
+  (avant : nom constant → race d'écrasement + résidu persistant si kill)
+
+flutter analyze : 0 issue. flutter test : 6/6 passed.

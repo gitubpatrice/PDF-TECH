@@ -3,6 +3,7 @@ import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../utils/atomic_write.dart';
+import '../../utils/image_bounds.dart';
 import '../../utils/snack_utils.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,12 @@ Future<Uint8List> _buildPdfFromImagesInIsolate(List<String> imagePaths) async {
     try {
       for (final imgPath in imagePaths) {
         final bytes = await File(imgPath).readAsBytes();
+        // F5 v1.12.2 — refus dimensions absurdes (PNG IHDR 50000×50000…)
+        // AVANT le decode pixel par PdfBitmap → évite OOM 16 Go heap.
+        final dimErr = ImageBounds.assertSafeBounds(bytes);
+        if (dimErr != null) {
+          throw FormatException('$dimErr ($imgPath)');
+        }
         final image = PdfBitmap(bytes);
         final page = doc.pages.add();
         final size = page.getClientSize();

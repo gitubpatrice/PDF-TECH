@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../services/secure_window.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -21,7 +22,14 @@ class _DecryptScreenState extends State<DecryptScreen> {
   bool _isProcessing = false;
 
   @override
+  void initState() {
+    super.initState();
+    SecureWindow.enable();
+  }
+
+  @override
   void dispose() {
+    SecureWindow.disable();
     _passwordCtrl.dispose();
     super.dispose();
   }

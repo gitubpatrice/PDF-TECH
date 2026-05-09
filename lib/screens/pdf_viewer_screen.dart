@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/secure_window.dart';
 import '../services/share_service.dart';
 import '../utils/atomic_write.dart';
 import '../utils/snack_utils.dart';
@@ -73,6 +74,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   void dispose() {
+    // F1 v1.12.2 — relâche SecureWindow si le PDF était password-protected.
+    if (_password != null) {
+      SecureWindow.disable();
+    }
     // Ordre important : libérer les overlays Syncfusion AVANT de disposer le
     // controller (sinon `_searchResult.clear()` appellerait des callbacks sur
     // un controller déjà disposé).
@@ -254,6 +259,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         _password = entered;
         _passwordAttempt++;
       });
+      // F1 v1.12.2 — PDF password-protected en cours d'ouverture : active
+      // FLAG_SECURE pour bloquer screenshots / aperçu task switcher
+      // pendant la consultation.
+      SecureWindow.enable();
     } finally {
       _passwordDialogOpen = false;
       // Le controller TextEditing du dialog est local, on le libère.

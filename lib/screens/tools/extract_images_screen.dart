@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -60,7 +61,7 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
       final paths = <String>[];
       for (int i = 0; i < jpegs.length; i++) {
         final outPath = '${outDir.path}/image_${i + 1}.jpg';
-        await File(outPath).writeAsBytes(jpegs[i]);
+        await atomicWriteBytes(outPath, jpegs[i]);
         paths.add(outPath);
       }
 

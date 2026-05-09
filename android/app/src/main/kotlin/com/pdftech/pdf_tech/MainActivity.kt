@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import android.provider.Settings
+import android.view.WindowManager
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -100,6 +101,37 @@ class MainActivity : FlutterActivity() {
                     }
                 } else {
                     result.notImplemented()
+                }
+            }
+
+        // F1 v1.12.2 — FLAG_SECURE on/off pour bloquer screenshots / aperçu
+        // task switcher pendant saisie password PDF, signature manuscrite,
+        // viewer de PDF déchiffré. setFlags doit être appelé sur le thread UI
+        // d'où runOnUiThread + check sécurité (Window peut être null si appelé
+        // pendant une transition d'activity).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+                "com.pdftech.pdf_tech/secure_window")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setSecure" -> {
+                        val enabled = call.argument<Boolean>("enabled") ?: false
+                        runOnUiThread {
+                            try {
+                                if (enabled) {
+                                    window.setFlags(
+                                        WindowManager.LayoutParams.FLAG_SECURE,
+                                        WindowManager.LayoutParams.FLAG_SECURE,
+                                    )
+                                } else {
+                                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                                }
+                                result.success(null)
+                            } catch (e: Exception) {
+                                result.error("SECURE_WINDOW_ERROR", e.message, null)
+                            }
+                        }
+                    }
+                    else -> result.notImplemented()
                 }
             }
 
