@@ -8,6 +8,7 @@ import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -44,9 +45,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
       doc.dispose();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -123,9 +122,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -394,7 +391,11 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.file(File(_outputPaths[i]), fit: BoxFit.cover),
+                        Image.file(
+                          File(_outputPaths[i]),
+                          fit: BoxFit.cover,
+                          cacheWidth: 240,
+                        ),
                         Positioned(
                           bottom: 0,
                           left: 0,

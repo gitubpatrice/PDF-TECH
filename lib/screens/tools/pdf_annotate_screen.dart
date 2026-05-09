@@ -1,14 +1,17 @@
 import 'dart:io';
-import 'package:files_tech_core/files_tech_core.dart';
-import '../../services/isolate_runner.dart';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+
 import 'package:file_picker/file_picker.dart';
+import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart' as pv;
+
+import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/result_sheet.dart';
 
 /// Éditeur d'annotations PDF : pose des éléments par-dessus le PDF original
@@ -137,9 +140,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     final imgFile = File(res.files.single.path!);
     final length = await imgFile.length();
     if (length > 30 * 1024 * 1024) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Image trop volumineuse (>30 Mo)')),
-      );
+      messenger.showInfoSnack('Image trop volumineuse (>30 Mo)');
       return;
     }
     final bytes = await imgFile.readAsBytes();
@@ -149,12 +150,9 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     // avant d'ajouter l'annotation. Évite un échec silencieux à l'export.
     try {
       PdfBitmap(bytes);
-    } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Image illisible (formats supportés : JPG, PNG)'),
-        ),
-      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('[PdfAnnotate._addImage decode] $e');
+      messenger.showInfoSnack('Image illisible (formats supportés : JPG, PNG)');
       return;
     }
     // Position par défaut : centre de la page, 30% largeur, ratio préservé
@@ -195,9 +193,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
 
   Future<void> _save() async {
     if (_annos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucune annotation à sauvegarder')),
-      );
+      showInfoSnack(context, 'Aucune annotation à sauvegarder');
       return;
     }
     setState(() => _saving = true);
@@ -213,9 +209,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -277,8 +271,10 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
       final out = File('${visible.path}/$filename');
       await out.writeAsBytes(bytes);
       return out;
-    } catch (_) {
-      /* fallback */
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[PdfAnnotate._saveToVisibleDocuments fallback] $e');
+      }
     }
     // Fallback : /Android/data/<pkg>/files/output/ (FileProvider-shareable)
     final extDir = await getExternalStorageDirectory();
@@ -791,8 +787,8 @@ void _drawAnnotationFromMap(PdfPage page, Map<String, Object?> a, Size size) {
       try {
         final bitmap = PdfBitmap(imgBytes);
         page.graphics.drawImage(bitmap, rect);
-      } catch (_) {
-        /* image illisible — skip */
+      } catch (e) {
+        if (kDebugMode) debugPrint('[PdfAnnotate.drawImage isolate] $e');
       }
       break;
     case _Tool.erase:

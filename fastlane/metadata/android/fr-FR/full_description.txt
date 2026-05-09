@@ -1,0 +1,51 @@
+PDF Tech : 23 outils complets pour gérer vos PDFs, **100 % localement**, sans télémétrie ni publicité.
+
+<b>Lecture &amp; navigation</b>
+• Lecteur Syncfusion : zoom, recherche, signets, mode nuit, reprise de page
+• Annotations : surligner, souligner, barrer, notes, dessin
+• Reprise automatique de la dernière page lue
+
+<b>Édition &amp; manipulation</b>
+• Fusionner plusieurs PDFs
+• Diviser par plage de pages
+• Réorganiser les pages (drag &amp; drop)
+• Supprimer des pages
+• Rotation des pages
+• Compresser (4 niveaux : sans perte → maximum)
+
+<b>Sécurité</b>
+• Protéger par mot de passe (AES-256)
+• Déchiffrer un PDF protégé (avec le mot de passe)
+• Signature manuscrite ou texte
+• Tampon (CONFIDENTIEL, APPROUVÉ, BROUILLON…)
+• Filigrane texte rotatif
+
+<b>Création &amp; conversion</b>
+• Créer un PDF depuis du texte enrichi
+• Images (JPG/PNG) → PDF
+• Exporter pages → PNG / JPEG
+• Extraire les images intégrées du PDF
+
+<b>Annotations avancées</b>
+• Numéros de page personnalisables
+• En-tête / pied de page
+• Métadonnées (titre, auteur, sujet, mots-clés)
+• Comparer deux PDFs côte à côte
+• OCR multipage (ML Kit on-device, latin)
+• Remplir un formulaire et l'aplatir
+
+<b>Cloud optionnel — Google Drive</b>
+• OAuth 2.0 scope minimal `drive.file` (révocable)
+• Aucun upload silencieux : action utilisateur obligatoire
+
+<b>Confidentialité radicale</b>
+• Aucune télémétrie, aucun tracker, aucune publicité
+• `MANAGE_EXTERNAL_STORAGE` justifiée pour le scan global de PDFs (pas de READ_MEDIA_IMAGES)
+• `INTERNET` uniquement pour vérification updates GitHub Releases + Google Drive optionnel
+• Modèle ML Kit OCR bundlé localement (zéro réseau)
+• Mode `data_extraction_rules` strict (cloud-backup OFF, device-transfer OFF)
+
+<b>Open source Apache 2.0</b>
+Code intégral et vérifiable : https://github.com/gitubpatrice/PDF-TECH
+
+Pour pros (avocats, médecins, comptables), étudiants, journalistes, et toute personne qui veut un gestionnaire PDF complet sans cloud forcé.

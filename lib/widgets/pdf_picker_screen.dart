@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../screens/pdf_folder_screen.dart';
+import '../utils/snack_utils.dart';
 
 /// Picker PDF custom avec deux onglets :
 /// - **Récents** : liste des PDFs récemment ouverts
@@ -156,8 +158,8 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
           );
       if (!mounted) return;
       setState(() => _allFolders = folders);
-    } catch (_) {
-      /* perm refusée — silent */
+    } catch (e) {
+      if (kDebugMode) debugPrint('[PdfPickerScreen._loadAllFolders] $e');
     }
   }
 
@@ -251,18 +253,17 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       if (label == 'PDF Tech') {
         try {
           await dir.create(recursive: true);
-        } catch (_) {
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('[PdfPickerScreen._browseFolder create] $e');
+          }
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Dossier "$label" introuvable')),
-          );
+          showInfoSnack(context, 'Dossier "$label" introuvable');
           return;
         }
       } else {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Dossier "$label" introuvable')));
+        showInfoSnack(context, 'Dossier "$label" introuvable');
         return;
       }
     }

@@ -10,6 +10,11 @@ class GoogleDriveService {
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   );
 
+  // Client http partagé pour toutes les requêtes Drive. Audit failles
+  // P1 : un `http.Client()` non closé maintient un keep-alive socket et
+  // peut fuiter sur de longues sessions. Closé via `dispose()`.
+  final _GoogleAuthClient _authClient = _GoogleAuthClient();
+
   GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
 
   Future<bool> isSignedIn() => _googleSignIn.isSignedIn();
@@ -18,14 +23,35 @@ class GoogleDriveService {
 
   Future<void> signOut() => _googleSignIn.signOut();
 
+  /// Déconnexion complète : signOut local + révocation des tokens
+  /// OAuth côté Google (refresh token inclus). Audit failles P1 :
+  /// `signOut()` seul ne révoque PAS le refresh token, ce qui laisse
+  /// l'app capable de re-signer silencieusement après reset.
+  Future<void> disconnect() async {
+    try {
+      await _googleSignIn.disconnect();
+    } catch (_) {
+      // disconnect() lève si l'utilisateur n'est pas connecté — ignorer.
+    }
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
+  }
+
+  /// Libère le client http sous-jacent. À appeler dans le `dispose()`
+  /// du State qui a instancié ce service.
+  void dispose() {
+    _authClient.close();
+  }
+
   Future<drive.DriveApi> _getApi() async {
     GoogleSignInAccount? account = _googleSignIn.currentUser;
     account ??= await _googleSignIn.signInSilently();
     account ??= await _googleSignIn.signIn();
     if (account == null) throw Exception('Connexion Google annulée');
     final headers = await account.authHeaders;
-    final client = _GoogleAuthClient(headers);
-    return drive.DriveApi(client);
+    _authClient.updateHeaders(headers);
+    return drive.DriveApi(_authClient);
   }
 
   /// Uploads a local PDF file to Google Drive. Returns the file ID.
@@ -88,14 +114,24 @@ class GoogleDriveService {
 // ── Auth client ───────────────────────────────────────────────────────────────
 
 class _GoogleAuthClient extends http.BaseClient {
-  final Map<String, String> _headers;
+  Map<String, String> _headers = const {};
   final http.Client _inner = http.Client();
 
-  _GoogleAuthClient(this._headers);
+  _GoogleAuthClient();
+
+  void updateHeaders(Map<String, String> headers) {
+    _headers = headers;
+  }
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) {
     request.headers.addAll(_headers);
     return _inner.send(request);
+  }
+
+  @override
+  void close() {
+    _inner.close();
+    super.close();
   }
 }

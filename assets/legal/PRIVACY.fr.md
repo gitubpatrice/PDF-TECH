@@ -63,6 +63,7 @@ Les fichiers ou contenus ne sont transmis à un tiers que dans les cas suivants 
 
 - Les fonctions de signature ou d'annotation facilitent le travail documentaire, mais l'utilisateur doit vérifier la portée juridique de ses documents signés.
 - La vérification de mises à jour interroge l'API GitHub Releases publique (HTTPS, sans authentification, sans cookie). Aucun identifiant utilisateur n'est transmis.
+- L'intégration Google Drive est **optionnelle** et déclenchée par l'utilisateur. Elle s'appuie sur Google Sign-In (OAuth 2.0). Le jeton OAuth est stocké localement sur l'appareil et n'est utilisé que pour les opérations d'upload, de téléchargement ou de partage demandées par l'utilisateur. La révocation s'effectue depuis le compte Google de l'utilisateur.
 
 ## 7. Conservation et suppression
 
@@ -78,9 +79,20 @@ Voir [SECURITY.md](./SECURITY.md) pour la politique de signalement.
 
 | Permission / accès                          | Raison                                                                                              |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `INTERNET`                                  | Vérification de mises à jour via API GitHub Releases. Pas d'autre usage réseau.                    |
-| `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs (Téléchargements, Documents, etc.).      |
+| `INTERNET`                                  | Vérification de mises à jour via l'API GitHub Releases publique. Également utilisée si l'utilisateur active Google Drive (optionnel). Pas d'autre usage réseau. |
+| `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs **n'importe où sur l'appareil** — y compris dans les emplacements hors du sandbox de l'app et hors de la portée fichier-par-fichier du Storage Access Framework : `Download/`, `Documents/`, dossiers de documents WhatsApp / Telegram, et le scan récursif global "Trouver mes PDFs". |
 | ML Kit Latin (groupé)                       | OCR sur les pages PDF, à partir de fichiers choisis par l'utilisateur. Modèle local.                |
+
+`READ_MEDIA_IMAGES` n'est **pas** demandée. La sélection d'images (outil Images → PDF) passe par le Storage Access Framework (`file_picker`) qui octroie l'accès via une URI éphémère, sans permission runtime.
+
+### Pourquoi MANAGE_EXTERNAL_STORAGE plutôt que le Storage Access Framework seul
+
+Le Storage Access Framework (SAF, exposé via `file_picker`) ne donne accès qu'à **un fichier ou un arbre à la fois**, après un choix explicite de l'utilisateur. PDF Tech a aussi besoin de :
+
+- lister les PDFs présents dans `Download/`, `Documents/`, `Android/media/com.whatsapp/...` et `Android/media/org.telegram.messenger/...` **sans** forcer l'utilisateur à passer par le picker SAF à chaque fois ;
+- effectuer un **scan récursif** du stockage de l'appareil (« Trouver mes PDFs ») pour retrouver des PDFs dont l'utilisateur a oublié l'emplacement.
+
+Ces parcours ne sont techniquement pas couvrables par le seul SAF. `MANAGE_EXTERNAL_STORAGE` est donc demandée avec un dialog explicatif. Cette permission est **utilisée uniquement en local pour lister et lire les PDFs** — aucun fichier n'est uploadé, aucun chemin n'est transmis hors de l'appareil. L'utilisateur peut la révoquer à tout moment depuis les Réglages Android, et l'app continue de fonctionner via le picker SAF de secours (tuile « Choisir… » / bouton flottant).
 
 ## 10. Enfants
 

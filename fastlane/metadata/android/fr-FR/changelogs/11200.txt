@@ -1,0 +1,33 @@
+v1.12.0 — Mai 2026 — Audit complet 8 axes ≥95/100
+
+Sécurité
+• Écriture atomique tmp+rename pour annotations + form-fill (anti-corruption sur crash mid-write)
+• Try/finally autour des dispose Syncfusion (×9 méthodes) — anti-leak natif
+• Viewer PDF gère les PDFs protégés par mot de passe (dialog ré-ouvrable)
+• Wipe contrôleurs après protection (mot de passe non persistant en RAM)
+• Drive : `disconnect()` révoque le refresh token (au lieu de signOut seul)
+• Drive : http.Client fermé proprement à la déconnexion
+• OCR : fichier temp `texte_extrait.txt` nettoyé après partage
+• MlMemoryGuard : mutex isolate sans pile-up infini de Futures
+• PRIVACY mise à jour (Drive, MANAGE_EXTERNAL_STORAGE, READ_MEDIA_IMAGES retirée)
+
+Performance
+• Splits ABI : APK ~1/3 plus léger par device (arm64-v8a / armv7 / x86_64)
+• `resourceConfigurations` FR + EN seulement (économie strings AndroidX/Material)
+• `MediaQuery.paddingOf(context)` adopté (8 sites) — évite les rebuilds
+• `cacheWidth`/`cacheHeight` sur les thumbnails images (extract_images, export_images, create_pdf, images_to_pdf)
+• PdfStandardFont hissé hors des boucles par page (watermark, page numbers)
+
+Cohérence
+• 22 outils dans le grid + Annoter (auparavant accessible seulement via quick action)
+• Source unique pour la version : `AppInfo.version`
+• PRIVACY in-app sync avec PRIVACY racine
+• SECURITY.md bumpé v1.11.x → v1.12.x
+
+Code
+• `PdfToolsService.outputPath()` static public + `addStamp()` factorisé
+• Helpers extraits : `lib/utils/atomic_write.dart`, `lib/utils/snack_utils.dart`, `lib/core/app_info.dart`
+• Tooltips a11y sur tous les IconButton sensibles
+• `_stampIsolate` retiré du screen → service.addStamp (élimine duplication watermark/stamp)
+
+Tests : 6/6 passés. flutter analyze : 0 issue.

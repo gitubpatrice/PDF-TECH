@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/app_update.dart';
 import 'package:files_tech_core/files_tech_core.dart';
+import '../core/app_info.dart';
+import '../services/app_update.dart';
+import '../utils/snack_utils.dart';
 
 class AboutScreen extends StatefulWidget {
   const AboutScreen({super.key});
@@ -10,7 +12,7 @@ class AboutScreen extends StatefulWidget {
 }
 
 class _AboutScreenState extends State<AboutScreen> {
-  static const _version = '1.11.2';
+  static const _version = AppInfo.version;
   static const _author = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
@@ -74,9 +76,7 @@ class _AboutScreenState extends State<AboutScreen> {
     if (!mounted) return;
     setState(() => _checkingUpdate = false);
     if (info == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vous avez déjà la dernière version ✓')),
-      );
+      showInfoSnack(context, 'Vous avez déjà la dernière version ✓');
       return;
     }
     showDialog(
@@ -216,7 +216,7 @@ class _AboutScreenState extends State<AboutScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Gestionnaire de PDF complet — 22 outils',
+                  'Gestionnaire de PDF complet — ${AppInfo.toolsCount} outils',
                   style: Theme.of(context).textTheme.bodySmall,
                   textAlign: TextAlign.center,
                 ),

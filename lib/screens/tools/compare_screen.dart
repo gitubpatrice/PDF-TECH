@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -51,9 +52,7 @@ class _CompareScreenState extends State<CompareScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -276,6 +275,7 @@ class _CompareScreenState extends State<CompareScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
+            tooltip: 'Page précédente',
             iconSize: 20,
             onPressed: _currentPage > 0 ? () => _goTo(_currentPage - 1) : null,
             icon: const Icon(Icons.chevron_left),
@@ -285,6 +285,7 @@ class _CompareScreenState extends State<CompareScreen> {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
           IconButton(
+            tooltip: 'Page suivante',
             iconSize: 20,
             onPressed: _currentPage < _maxPages - 1
                 ? () => _goTo(_currentPage + 1)

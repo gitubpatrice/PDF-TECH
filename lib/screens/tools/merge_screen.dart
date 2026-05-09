@@ -1,7 +1,9 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -36,7 +38,8 @@ class _MergeScreenState extends State<MergeScreen> {
         newPaths.add(p);
         try {
           _fileSizes[p] = await File(p).length();
-        } catch (_) {
+        } catch (e) {
+          if (kDebugMode) debugPrint('[MergeScreen._addFiles size] $e');
           _fileSizes[p] = 0;
         }
       }
@@ -49,9 +52,7 @@ class _MergeScreenState extends State<MergeScreen> {
 
   Future<void> _merge() async {
     if (_files.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sélectionnez au moins 2 PDFs')),
-      );
+      showInfoSnack(context, 'Sélectionnez au moins 2 PDFs');
       return;
     }
     setState(() => _processing = true);
@@ -65,9 +66,7 @@ class _MergeScreenState extends State<MergeScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -153,6 +152,7 @@ class _MergeScreenState extends State<MergeScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
+                            tooltip: 'Retirer',
                             icon: const Icon(
                               Icons.delete_outline,
                               color: Colors.red,
@@ -176,7 +176,7 @@ class _MergeScreenState extends State<MergeScreen> {
               16,
               8,
               16,
-              MediaQuery.of(context).padding.bottom + 12,
+              MediaQuery.paddingOf(context).bottom + 12,
             ),
             child: SizedBox(
               width: double.infinity,

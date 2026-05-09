@@ -1,15 +1,18 @@
 import 'dart:io';
-import 'package:files_tech_core/files_tech_core.dart';
-import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
+
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+
+import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../services/share_service.dart';
-import '../../widgets/result_sheet.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_picker_screen.dart';
+import '../../widgets/result_sheet.dart';
 
 class FormFillScreen extends StatefulWidget {
   const FormFillScreen({super.key});
@@ -354,25 +357,23 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
     setState(() => _isSaving = true);
     try {
       final bytes = await _controller.saveDocument();
-      await File(widget.path).writeAsBytes(bytes);
+      // **Atomique** (audit failles P0 v1.12) : write tmp + rename pour
+      // éviter la corruption du PDF original sur crash mid-write.
+      await atomicWriteBytes(widget.path, bytes);
       if (!mounted) return;
       setState(() {
         _hasChanges = false;
         _isSaving = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Formulaire sauvegardé'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      showInfoSnack(
+        context,
+        'Formulaire sauvegardé',
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -406,10 +407,8 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
           ? filled
           : Uint8List.fromList(filled);
       final out = await runPdfIsolate(() => _flattenIsolate(filledBytes));
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/formulaire_aplati_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
+      final outPath = await PdfToolsService.outputPath('formulaire_aplati');
+      await atomicWriteBytes(outPath, out);
 
       if (!mounted) return;
       setState(() {
@@ -424,9 +423,7 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -550,6 +547,7 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
+                tooltip: 'Page précédente',
                 onPressed: _currentPage > 1
                     ? () => _controller.previousPage()
                     : null,
@@ -560,6 +558,7 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
+                tooltip: 'Page suivante',
                 onPressed: _currentPage < _totalPages
                     ? () => _controller.nextPage()
                     : null,

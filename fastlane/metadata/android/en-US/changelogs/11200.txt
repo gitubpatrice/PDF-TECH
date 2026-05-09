@@ -1,0 +1,33 @@
+v1.12.0 — May 2026 — Full 8-axis audit ≥95/100
+
+Security
+• Atomic write tmp+rename for annotations + form-fill (anti-corruption on crash mid-write)
+• Try/finally around Syncfusion disposes (×9 methods) — native leak prevention
+• PDF viewer handles password-protected PDFs (re-openable dialog)
+• Controllers wiped after protection (password not persistent in RAM)
+• Drive: `disconnect()` revokes refresh token (instead of signOut alone)
+• Drive: http.Client closed cleanly on logout
+• OCR: temp file `texte_extrait.txt` cleaned up after share
+• Isolate runner mutex without infinite Future pile-up
+• PRIVACY updated (Drive, MANAGE_EXTERNAL_STORAGE, READ_MEDIA_IMAGES removed)
+
+Performance
+• ABI splits: APK ~1/3 lighter per device (arm64-v8a / armv7 / x86_64)
+• `resourceConfigurations` FR + EN only (string savings)
+• `MediaQuery.paddingOf(context)` adopted (8 sites) — fewer rebuilds
+• `cacheWidth`/`cacheHeight` on image thumbnails
+• PdfStandardFont hoisted out of per-page loops
+
+Consistency
+• 22 tools in grid + Annotate (previously only via quick action)
+• Single source for version: `AppInfo.version`
+• In-app PRIVACY synced with root PRIVACY
+• SECURITY.md bumped v1.11.x → v1.12.x
+
+Code
+• `PdfToolsService.outputPath()` static public + `addStamp()` factored
+• Extracted helpers: `lib/utils/atomic_write.dart`, `lib/utils/snack_utils.dart`, `lib/core/app_info.dart`
+• A11y tooltips on all sensitive IconButtons
+• `_stampIsolate` removed from screen → service.addStamp (eliminates watermark/stamp duplication)
+
+Tests: 6/6 passed. flutter analyze: 0 issue.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -38,20 +39,14 @@ class _SplitScreenState extends State<SplitScreen> {
       });
     } on PdfValidationException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      showInfoSnack(context, e.message);
     }
   }
 
   Future<void> _split() async {
     if (_filePath == null) return;
     if (_fromPage > _toPage) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('La page de début doit être ≤ à la page de fin'),
-        ),
-      );
+      showInfoSnack(context, 'La page de début doit être ≤ à la page de fin');
       return;
     }
     setState(() => _processing = true);
@@ -69,9 +64,7 @@ class _SplitScreenState extends State<SplitScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -147,7 +140,7 @@ class _SplitScreenState extends State<SplitScreen> {
                 onPressed: (_processing || _filePath == null) ? null : _split,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

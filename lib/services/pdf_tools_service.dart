@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../utils/atomic_write.dart';
 import 'isolate_runner.dart';
 
 /// Thrown when the input file is too big or not a valid PDF.
@@ -63,10 +64,26 @@ class PdfToolsService {
     return bytes;
   }
 
-  Future<String> _savePath(String name) async {
+  /// Génère un chemin de sortie horodaté dans `getApplicationDocumentsDirectory`.
+  ///
+  /// **API publique statique** (audit dup v1.12) : avant cette refonte,
+  /// 9 écrans `tool_*_screen.dart` réimplémentaient ce triplet
+  /// `getApplicationDocumentsDirectory + ts + path` à la main. Ils peuvent
+  /// désormais l'appeler directement, gardant la cohérence du naming des
+  /// fichiers de sortie (`<base>_<timestamp_ms>.pdf`).
+  static Future<String> outputPath(String name) async {
     final dir = await getApplicationDocumentsDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
     return '${dir.path}/${name}_$ts.pdf';
+  }
+
+  /// Écrit [bytes] de manière atomique (write tmp + rename) et renvoie le
+  /// chemin final. Déduplique le pattern `outputPath` + `atomicWriteBytes`
+  /// utilisé dans toutes les méthodes du service.
+  static Future<String> _saveAtomic(String name, Uint8List bytes) async {
+    final path = await outputPath(name);
+    await atomicWriteBytes(path, bytes);
+    return path;
   }
 
   /// Generates a cryptographically-strong random owner password.
@@ -86,27 +103,34 @@ class PdfToolsService {
       allBytes.add(await _safeReadPdf(path));
     }
     final out = await runPdfIsolate(() => _mergeIsolate(allBytes));
-    final path = await _savePath('fusion');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('fusion', out);
   }
 
   static Uint8List _mergeIsolate(List<Uint8List> allBytes) {
     final merged = PdfDocument();
     merged.pageSettings.margins.all = 0;
-    for (final bytes in allBytes) {
-      final source = PdfDocument(inputBytes: bytes);
-      for (int i = 0; i < source.pages.count; i++) {
-        final srcPage = source.pages[i];
-        merged.pageSettings.size = srcPage.size;
-        final newPage = merged.pages.add();
-        newPage.graphics.drawPdfTemplate(srcPage.createTemplate(), Offset.zero);
+    PdfDocument? source;
+    try {
+      for (final bytes in allBytes) {
+        source = PdfDocument(inputBytes: bytes);
+        for (int i = 0; i < source.pages.count; i++) {
+          final srcPage = source.pages[i];
+          merged.pageSettings.size = srcPage.size;
+          final newPage = merged.pages.add();
+          newPage.graphics.drawPdfTemplate(
+            srcPage.createTemplate(),
+            Offset.zero,
+          );
+        }
+        source.dispose();
+        source = null;
       }
-      source.dispose();
+      return _toBytes(merged.saveSync());
+    } finally {
+      source
+          ?.dispose(); // au cas où le throw est entre PdfDocument() et dispose
+      merged.dispose();
     }
-    final out = _toBytes(merged.saveSync());
-    merged.dispose();
-    return out;
   }
 
   // ── Split ─────────────────────────────────────────────────────────────────
@@ -116,28 +140,28 @@ class PdfToolsService {
     final out = await runPdfIsolate(
       () => _splitIsolate(bytes, fromPage, toPage),
     );
-    final path = await _savePath('extrait_p${fromPage}_$toPage');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('extrait_p${fromPage}_$toPage', out);
   }
 
   static Uint8List _splitIsolate(Uint8List bytes, int fromPage, int toPage) {
     final source = PdfDocument(inputBytes: bytes);
-    final total = source.pages.count;
     final result = PdfDocument();
-    result.pageSettings.margins.all = 0;
-    final from = fromPage.clamp(1, total) - 1;
-    final to = toPage.clamp(1, total) - 1;
-    for (int i = from; i <= to; i++) {
-      final srcPage = source.pages[i];
-      result.pageSettings.size = srcPage.size;
-      final newPage = result.pages.add();
-      newPage.graphics.drawPdfTemplate(srcPage.createTemplate(), Offset.zero);
+    try {
+      final total = source.pages.count;
+      result.pageSettings.margins.all = 0;
+      final from = fromPage.clamp(1, total) - 1;
+      final to = toPage.clamp(1, total) - 1;
+      for (int i = from; i <= to; i++) {
+        final srcPage = source.pages[i];
+        result.pageSettings.size = srcPage.size;
+        final newPage = result.pages.add();
+        newPage.graphics.drawPdfTemplate(srcPage.createTemplate(), Offset.zero);
+      }
+      return _toBytes(result.saveSync());
+    } finally {
+      source.dispose();
+      result.dispose();
     }
-    source.dispose();
-    final out = _toBytes(result.saveSync());
-    result.dispose();
-    return out;
   }
 
   // ── Protect ───────────────────────────────────────────────────────────────
@@ -148,9 +172,7 @@ class PdfToolsService {
     final out = await runPdfIsolate(
       () => _protectIsolate(bytes, userPassword, ownerPwd),
     );
-    final path = await _savePath('protege');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('protege', out);
   }
 
   static Uint8List _protectIsolate(
@@ -159,12 +181,14 @@ class PdfToolsService {
     String ownerPassword,
   ) {
     final document = PdfDocument(inputBytes: bytes);
-    document.security.userPassword = userPassword;
-    document.security.ownerPassword = ownerPassword;
-    document.security.algorithm = PdfEncryptionAlgorithm.aesx256Bit;
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
+    try {
+      document.security.userPassword = userPassword;
+      document.security.ownerPassword = ownerPassword;
+      document.security.algorithm = PdfEncryptionAlgorithm.aesx256Bit;
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
+    }
   }
 
   // ── Rotate ────────────────────────────────────────────────────────────────
@@ -173,19 +197,19 @@ class PdfToolsService {
     final bytes = await _safeReadPdf(inputPath);
     // Le angle est un enum, sendable sans souci.
     final out = await runPdfIsolate(() => _rotateIsolate(bytes, angle));
-    final path = await _savePath('rotation');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('rotation', out);
   }
 
   static Uint8List _rotateIsolate(Uint8List bytes, PdfPageRotateAngle angle) {
     final document = PdfDocument(inputBytes: bytes);
-    for (int i = 0; i < document.pages.count; i++) {
-      document.pages[i].rotation = angle;
+    try {
+      for (int i = 0; i < document.pages.count; i++) {
+        document.pages[i].rotation = angle;
+      }
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
     }
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
   }
 
   // ── Watermark ─────────────────────────────────────────────────────────────
@@ -203,9 +227,7 @@ class PdfToolsService {
     final out = await runPdfIsolate(
       () => _watermarkIsolate(bytes, text, opacity, r, g, b),
     );
-    final path = await _savePath('filigrane');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('filigrane', out);
   }
 
   static Uint8List _watermarkIsolate(
@@ -217,35 +239,105 @@ class PdfToolsService {
     int b,
   ) {
     final document = PdfDocument(inputBytes: bytes);
-    final font = PdfStandardFont(
-      PdfFontFamily.helvetica,
-      52,
-      style: PdfFontStyle.bold,
-    );
-    final brush = PdfSolidBrush(PdfColor(r, g, b));
-    for (int i = 0; i < document.pages.count; i++) {
-      final page = document.pages[i];
-      final size = page.getClientSize();
-      final gfx = page.graphics;
-      gfx.save();
-      gfx.setTransparency(opacity);
-      gfx.translateTransform(size.width / 2, size.height / 2);
-      gfx.rotateTransform(-45);
-      gfx.drawString(
-        text,
-        font,
-        brush: brush,
-        bounds: Rect.fromCenter(center: Offset.zero, width: 500, height: 120),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.center,
-          lineAlignment: PdfVerticalAlignment.middle,
-        ),
+    try {
+      // Hisser hors boucle (audit perf v1.12) : éviter N allocations.
+      final font = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        52,
+        style: PdfFontStyle.bold,
       );
-      gfx.restore();
+      final brush = PdfSolidBrush(PdfColor(r, g, b));
+      for (int i = 0; i < document.pages.count; i++) {
+        final page = document.pages[i];
+        final size = page.getClientSize();
+        final gfx = page.graphics;
+        gfx.save();
+        gfx.setTransparency(opacity);
+        gfx.translateTransform(size.width / 2, size.height / 2);
+        gfx.rotateTransform(-45);
+        gfx.drawString(
+          text,
+          font,
+          brush: brush,
+          bounds: Rect.fromCenter(center: Offset.zero, width: 500, height: 120),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+        gfx.restore();
+      }
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
     }
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
+  }
+
+  // ── Stamp (timbre, similaire à watermark mais option première-page) ──────
+
+  /// Ajoute un texte type "tampon" sur le PDF.
+  /// [firstOnly] : si vrai, le tampon n'est posé que sur la première page.
+  /// Centralise le pattern qui était auparavant dupliqué dans
+  /// `stamp_screen._stampIsolate` (audit dup v1.12).
+  Future<String> addStamp(
+    String inputPath,
+    String text, {
+    double opacity = 0.5,
+    Color color = Colors.red,
+    bool firstOnly = false,
+  }) async {
+    final bytes = await _safeReadPdf(inputPath);
+    final r = (color.r * 255).round();
+    final g = (color.g * 255).round();
+    final b = (color.b * 255).round();
+    final out = await runPdfIsolate(
+      () => _stampIsolate(bytes, text, opacity, r, g, b, firstOnly),
+    );
+    return _saveAtomic('tampon', out);
+  }
+
+  static Uint8List _stampIsolate(
+    Uint8List bytes,
+    String text,
+    double opacity,
+    int r,
+    int g,
+    int b,
+    bool firstOnly,
+  ) {
+    final document = PdfDocument(inputBytes: bytes);
+    try {
+      final font = PdfStandardFont(
+        PdfFontFamily.helvetica,
+        54,
+        style: PdfFontStyle.bold,
+      );
+      final brush = PdfSolidBrush(PdfColor(r, g, b));
+      final pageCount = firstOnly ? 1 : document.pages.count;
+      for (int i = 0; i < pageCount; i++) {
+        final page = document.pages[i];
+        final size = page.getClientSize();
+        final gfx = page.graphics;
+        gfx.save();
+        gfx.setTransparency(opacity);
+        gfx.translateTransform(size.width / 2, size.height / 2);
+        gfx.rotateTransform(-45);
+        gfx.drawString(
+          text,
+          font,
+          brush: brush,
+          bounds: Rect.fromCenter(center: Offset.zero, width: 500, height: 120),
+          format: PdfStringFormat(
+            alignment: PdfTextAlignment.center,
+            lineAlignment: PdfVerticalAlignment.middle,
+          ),
+        );
+        gfx.restore();
+      }
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
+    }
   }
 
   // ── Create ────────────────────────────────────────────────────────────────
@@ -261,23 +353,21 @@ class PdfToolsService {
     final safeName = title
         .replaceAll(RegExp(r'[^\w\s-]'), '')
         .replaceAll(' ', '_');
-    final path = await _savePath(
-      safeName.isEmpty ? 'nouveau_document' : safeName,
-    );
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic(safeName.isEmpty ? 'nouveau_document' : safeName, out);
   }
 
   static Uint8List _createIsolate(String title, String content, String author) {
     final document = PdfDocument();
-    document.documentInformation.title = title;
-    document.documentInformation.author = author;
-    final page = document.pages.add();
-    _drawPage(page, title, content, 0);
-    _addPageNumbers(document);
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
+    try {
+      document.documentInformation.title = title;
+      document.documentInformation.author = author;
+      final page = document.pages.add();
+      _drawPage(page, title, content, 0);
+      _addPageNumbers(document);
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
+    }
   }
 
   static void _drawPage(
@@ -317,6 +407,8 @@ class PdfToolsService {
   }
 
   static void _addPageNumbers(PdfDocument document) {
+    // Hisser hors de la boucle (audit perf v1.12) : N allocations
+    // PdfStandardFont/PdfSolidBrush évitées.
     final font = PdfStandardFont(PdfFontFamily.helvetica, 9);
     final brush = PdfSolidBrush(PdfColor(150, 150, 150));
     final total = document.pages.count;
@@ -342,9 +434,7 @@ class PdfToolsService {
   ) async {
     final bytes = await _safeReadPdf(inputPath);
     final out = await runPdfIsolate(() => _compressIsolate(bytes, level));
-    final path = await _savePath('compresse');
-    await File(path).writeAsBytes(out);
-    return path;
+    return _saveAtomic('compresse', out);
   }
 
   static Uint8List _compressIsolate(
@@ -352,10 +442,12 @@ class PdfToolsService {
     PdfCompressionLevel level,
   ) {
     final document = PdfDocument(inputBytes: bytes);
-    document.compressionLevel = level;
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
+    try {
+      document.compressionLevel = level;
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
+    }
   }
 
   // ── Decrypt ───────────────────────────────────────────────────────────────
@@ -364,26 +456,47 @@ class PdfToolsService {
   /// avertir l'utilisateur que le fichier de sortie est non protégé.
   Future<String> decryptPdf(String inputPath, String password) async {
     final bytes = await _safeReadPdf(inputPath);
+    Uint8List? plaintextRef;
     try {
-      final out = await runPdfIsolate(() => _decryptIsolate(bytes, password));
-      final path = await _savePath('dechiffre');
-      await File(path).writeAsBytes(out);
-      return path;
+      final plaintext = await runPdfIsolate(
+        () => _decryptIsolate(bytes, password),
+      );
+      plaintextRef = plaintext;
+      return await _saveAtomic('dechiffre', plaintext);
     } finally {
-      // Best-effort wipe du buffer source (le password est toujours en clair
-      // dans le String, mais au moins on n'aggrave pas en gardant le PDF
-      // chiffré + clés résiduelles en RAM tampon process).
-      bytes.fillRange(0, bytes.length, 0);
+      // Best-effort wipe : le buffer source (PDF chiffré + clés
+      // dérivées tampon Syncfusion) ET le buffer de sortie déchiffré
+      // (post-écriture disque, plus utile en RAM). Try/catch silencieux
+      // car certains views Uint8List sont unmodifiable selon la
+      // provenance (bug connu ; cf. memory `secretbytes_wipe_unmodifiable`).
+      // Note : la `String password` reste immutable en heap Dart jusqu'au
+      // GC — wipe impossible côté Dart pur (dette assumée, documentée
+      // dans PRIVACY).
+      try {
+        bytes.fillRange(0, bytes.length, 0);
+      } catch (_) {
+        /* unmodifiable view possible */
+      }
+      final pt = plaintextRef;
+      if (pt != null) {
+        try {
+          pt.fillRange(0, pt.length, 0);
+        } catch (_) {
+          /* idem */
+        }
+      }
     }
   }
 
   static Uint8List _decryptIsolate(Uint8List bytes, String password) {
     final document = PdfDocument(inputBytes: bytes, password: password);
-    document.security.userPassword = '';
-    document.security.ownerPassword = '';
-    final out = _toBytes(document.saveSync());
-    document.dispose();
-    return out;
+    try {
+      document.security.userPassword = '';
+      document.security.ownerPassword = '';
+      return _toBytes(document.saveSync());
+    } finally {
+      document.dispose();
+    }
   }
 
   // ── Utils ─────────────────────────────────────────────────────────────────
@@ -392,9 +505,11 @@ class PdfToolsService {
     final bytes = await _safeReadPdf(path);
     return runPdfIsolate(() {
       final doc = PdfDocument(inputBytes: bytes);
-      final count = doc.pages.count;
-      doc.dispose();
-      return count;
+      try {
+        return doc.pages.count;
+      } finally {
+        doc.dispose();
+      }
     });
   }
 }

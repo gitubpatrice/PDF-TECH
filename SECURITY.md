@@ -6,8 +6,9 @@ Seule la dernière version publiée sur GitHub Releases est activement maintenue
 
 | Version       | Supportée  |
 | ------------- | ---------- |
-| 1.9.x         | ✅          |
-| < 1.9.0       | ❌          |
+| 1.12.x        | ✅          |
+| 1.11.x        | ⚠️ best-effort |
+| < 1.11.0      | ❌          |
 
 ## Signaler une vulnérabilité
 

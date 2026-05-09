@@ -1,10 +1,10 @@
-import 'dart:io';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -47,9 +47,7 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -81,10 +79,8 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
         ),
       );
 
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/numerotes_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
+      final outPath = await PdfToolsService.outputPath('numerotes');
+      await atomicWriteBytes(outPath, out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -96,9 +92,7 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -204,6 +198,7 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
           Row(
             children: [
               IconButton(
+                tooltip: 'Diminuer',
                 onPressed: _startNum > 1
                     ? () => setState(() => _startNum--)
                     : null,
@@ -221,6 +216,7 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
                 ),
               ),
               IconButton(
+                tooltip: 'Augmenter',
                 onPressed: () => setState(() => _startNum++),
                 icon: const Icon(Icons.add_circle_outline),
               ),

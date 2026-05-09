@@ -1,10 +1,10 @@
-import 'dart:io';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -41,9 +41,7 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -58,11 +56,7 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
   Future<void> _process() async {
     if (_path == null || _selected.isEmpty) return;
     if (_selected.length >= _totalPages) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Impossible de supprimer toutes les pages'),
-        ),
-      );
+      showInfoSnack(context, 'Impossible de supprimer toutes les pages');
       return;
     }
     setState(() => _isProcessing = true);
@@ -73,10 +67,8 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
         () => _deletePagesIsolate(bytes, toRemove),
       );
 
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/pages_supprimees_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
+      final outPath = await PdfToolsService.outputPath('pages_supprimees');
+      await atomicWriteBytes(outPath, out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -88,9 +80,7 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 

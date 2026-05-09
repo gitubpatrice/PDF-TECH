@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -43,15 +44,11 @@ class _ProtectScreenState extends State<ProtectScreen> {
   Future<void> _protect() async {
     if (_filePath == null) return;
     if (_passwordCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Entrez un mot de passe')));
+      showInfoSnack(context, 'Entrez un mot de passe');
       return;
     }
     if (_passwordCtrl.text != _confirmCtrl.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Les mots de passe ne correspondent pas')),
-      );
+      showInfoSnack(context, 'Les mots de passe ne correspondent pas');
       return;
     }
     setState(() => _processing = true);
@@ -60,6 +57,12 @@ class _ProtectScreenState extends State<ProtectScreen> {
         _filePath!,
         _passwordCtrl.text,
       );
+      // Audit failles P1 : effacer immédiatement les mots de passe des
+      // controllers après usage (decrypt_screen.dart fait déjà pareil).
+      // Évite qu'un screenshot, un dump heap ou un retour arrière ne
+      // ré-expose le mot de passe en clair.
+      _passwordCtrl.clear();
+      _confirmCtrl.clear();
       if (!mounted) return;
       await showResultSheet(
         context,
@@ -68,9 +71,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -106,6 +107,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
+                    tooltip: 'Afficher / masquer',
                     icon: Icon(
                       _obscure1 ? Icons.visibility : Icons.visibility_off,
                     ),
@@ -128,6 +130,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                     icon: Icon(
                       _obscure2 ? Icons.visibility : Icons.visibility_off,
                     ),
+                    tooltip: _obscure2 ? 'Afficher' : 'Masquer',
                     onPressed: () => setState(() => _obscure2 = !_obscure2),
                   ),
                 ),
@@ -158,7 +161,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 onPressed: (_processing || _filePath == null) ? null : _protect,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

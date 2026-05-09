@@ -1,10 +1,10 @@
-import 'dart:io';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -53,9 +53,7 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -71,9 +69,7 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
     final header = _headerCtrl.text.trim();
     final footer = _footerCtrl.text.trim();
     if (header.isEmpty && footer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrez un en-tête ou un pied de page')),
-      );
+      showInfoSnack(context, 'Entrez un en-tête ou un pied de page');
       return;
     }
     setState(() => _isProcessing = true);
@@ -97,10 +93,8 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
         ),
       );
 
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/entete_pied_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
+      final outPath = await PdfToolsService.outputPath('entete_pied');
+      await atomicWriteBytes(outPath, out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -112,9 +106,7 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 

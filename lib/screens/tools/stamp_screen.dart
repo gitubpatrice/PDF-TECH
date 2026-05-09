@@ -1,14 +1,10 @@
-import 'dart:io';
-import '../../services/isolate_runner.dart';
-import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
-import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
+import '../../widgets/result_sheet.dart';
 
 class StampScreen extends StatefulWidget {
   const StampScreen({super.key});
@@ -58,29 +54,25 @@ class _StampScreenState extends State<StampScreen> {
         ? _customText.trim()
         : _presets[_selectedPreset].text;
     if (text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrez un texte de tampon')),
-      );
+      showInfoSnack(context, 'Entrez un texte de tampon');
       return;
     }
     setState(() => _isProcessing = true);
     try {
       final color = _useCustom ? _customColor : _presets[_selectedPreset].color;
-      final r = (color.r * 255.0).round().clamp(0, 255);
-      final g = (color.g * 255.0).round().clamp(0, 255);
-      final b = (color.b * 255.0).round().clamp(0, 255);
       final firstOnly = _pages == 'first';
-      final opacity = _opacity;
 
-      final bytes = await PdfToolsService.safeReadPdf(_path!);
-      final out = await runPdfIsolate(
-        () => _stampIsolate(bytes, text, r, g, b, opacity, firstOnly),
+      // Délégué à `PdfToolsService.addStamp` (audit dup v1.12) — auparavant
+      // `_stampIsolate` quasi-identique à `_watermarkIsolate` était
+      // dupliqué inline ici. Le service garantit aussi l'écriture
+      // atomique tmp+rename + try/finally dispose Syncfusion.
+      final outPath = await PdfToolsService().addStamp(
+        _path!,
+        text,
+        opacity: _opacity,
+        color: color,
+        firstOnly: firstOnly,
       );
-
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/tampon_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -92,52 +84,8 @@ class _StampScreenState extends State<StampScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
-  }
-
-  static Uint8List _stampIsolate(
-    Uint8List bytes,
-    String text,
-    int r,
-    int g,
-    int b,
-    double opacity,
-    bool firstOnly,
-  ) {
-    final doc = PdfDocument(inputBytes: bytes);
-    final pdfColor = PdfColor(r, g, b);
-    final font = PdfStandardFont(
-      PdfFontFamily.helvetica,
-      54,
-      style: PdfFontStyle.bold,
-    );
-    final pageCount = firstOnly ? 1 : doc.pages.count;
-    for (int i = 0; i < pageCount; i++) {
-      final page = doc.pages[i];
-      final w = page.getClientSize().width;
-      final h = page.getClientSize().height;
-      page.graphics.save();
-      page.graphics.setTransparency(opacity);
-      page.graphics.translateTransform(w / 2, h / 2);
-      page.graphics.rotateTransform(-45 * math.pi / 180);
-      page.graphics.drawString(
-        text,
-        font,
-        brush: PdfSolidBrush(pdfColor),
-        bounds: Rect.fromLTWH(-220, -35, 440, 70),
-        format: PdfStringFormat(
-          alignment: PdfTextAlignment.center,
-          lineAlignment: PdfVerticalAlignment.middle,
-        ),
-      );
-      page.graphics.restore();
-    }
-    final saved = doc.saveSync();
-    doc.dispose();
-    return saved is Uint8List ? saved : Uint8List.fromList(saved);
   }
 
   @override

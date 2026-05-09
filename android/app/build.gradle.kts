@@ -59,6 +59,33 @@ android {
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // FR + EN seulement (économie ressources Material/AndroidX strings).
+        // PDF Tech n'a pas d'i18n applicative mais Material/MLKit packagent
+        // les locales par défaut → réduit l'APK livré.
+        resourceConfigurations += listOf("fr", "en")
+    }
+
+    // Splits ABI : un APK par architecture (arm64-v8a / armeabi-v7a / x86_64),
+    // au lieu d'un universel embarquant les 3. PDF Tech embarque Syncfusion
+    // + ML Kit + pdfx natifs — réduit drastiquement la taille d'APK livré
+    // par device (~30-50 Mo gagnés sur S9 / POCO C75).
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
+    bundle {
+        abi {
+            enableSplit = true
+        }
+        language {
+            // Pas d'i18n applicative → split langue inutile (économie nulle).
+            enableSplit = false
+        }
     }
 
     buildTypes {

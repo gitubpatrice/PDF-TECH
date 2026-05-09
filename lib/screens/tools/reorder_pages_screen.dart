@@ -1,14 +1,14 @@
-import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:async';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/result_sheet.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -48,9 +48,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
       return;
     }
     if (!mounted) return;
@@ -114,10 +112,8 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
       final order = List<int>.from(_order);
       final out = await runPdfIsolate(() => _reorderIsolate(bytes, order));
 
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/pages_reordonnees_$ts.pdf';
-      await File(outPath).writeAsBytes(out);
+      final outPath = await PdfToolsService.outputPath('pages_reordonnees');
+      await atomicWriteBytes(outPath, out);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
@@ -129,9 +125,7 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 

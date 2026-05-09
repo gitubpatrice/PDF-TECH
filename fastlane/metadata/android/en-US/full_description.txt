@@ -1,0 +1,51 @@
+PDF Tech: 23 complete tools to manage your PDFs, **100% locally**, no telemetry, no advertising.
+
+<b>Reading &amp; navigation</b>
+• Syncfusion viewer: zoom, search, bookmarks, night mode, page resume
+• Annotations: highlight, underline, strikethrough, notes, drawing
+• Auto-resume of last read page
+
+<b>Edit &amp; manipulate</b>
+• Merge multiple PDFs
+• Split by page range
+• Reorder pages (drag &amp; drop)
+• Delete pages
+• Rotate pages
+• Compress (4 levels: lossless → maximum)
+
+<b>Security</b>
+• Protect with password (AES-256)
+• Decrypt a protected PDF (with the password)
+• Handwritten or text signature
+• Stamp (CONFIDENTIAL, APPROVED, DRAFT…)
+• Rotated text watermark
+
+<b>Create &amp; convert</b>
+• Create a PDF from rich text
+• Images (JPG/PNG) → PDF
+• Export pages → PNG / JPEG
+• Extract embedded images from PDF
+
+<b>Advanced annotations</b>
+• Customizable page numbers
+• Header / footer
+• Metadata (title, author, subject, keywords)
+• Compare two PDFs side by side
+• Multipage OCR (on-device ML Kit, Latin)
+• Fill a form and flatten it
+
+<b>Optional cloud — Google Drive</b>
+• OAuth 2.0 minimal `drive.file` scope (revocable)
+• No silent upload: explicit user action required
+
+<b>Radical privacy</b>
+• No telemetry, no tracker, no advertising
+• `MANAGE_EXTERNAL_STORAGE` justified for global PDF scan (no READ_MEDIA_IMAGES)
+• `INTERNET` only for GitHub Releases update check + optional Google Drive
+• ML Kit OCR model bundled locally (zero network)
+• Strict `data_extraction_rules` (cloud-backup OFF, device-transfer OFF)
+
+<b>Open source Apache 2.0</b>
+Full and verifiable code: https://github.com/gitubpatrice/PDF-TECH
+
+For pros (lawyers, doctors, accountants), students, journalists, and anyone who wants a complete PDF manager without forced cloud.

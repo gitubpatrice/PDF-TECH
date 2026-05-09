@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../all_pdfs_screen.dart';
 import '../pdf_folder_screen.dart';
@@ -122,7 +124,9 @@ class _HomeTabState extends State<HomeTab> {
     try {
       final dir = Directory('/storage/emulated/0/Documents/PDF Tech');
       if (!await dir.exists()) await dir.create(recursive: true);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) debugPrint('[HomeTab._ensurePdfTechFolder] $e');
+    }
   }
 
   Future<void> _loadStorage() async {
@@ -134,7 +138,9 @@ class _HomeTabState extends State<HomeTab> {
           _freeBytes = (res['free'] as num).toInt();
         });
       }
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) debugPrint('[HomeTab._loadStorage] $e');
+    }
   }
 
   String _formatBytes(int bytes) => FormatUtils.bytesStorage(bytes);
@@ -261,19 +267,14 @@ class _HomeTabState extends State<HomeTab> {
           await dir.create(recursive: true);
         } catch (e) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Impossible de créer le dossier PDF Tech : $e'),
-            ),
+          showInfoSnack(
+            context,
+            'Impossible de créer le dossier PDF Tech : $e',
           );
           return;
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Dossier "$label" introuvable sur ce téléphone'),
-          ),
-        );
+        showInfoSnack(context, 'Dossier "$label" introuvable sur ce téléphone');
         return;
       }
     }
@@ -331,8 +332,8 @@ class _HomeTabState extends State<HomeTab> {
         () => scanned++,
         canceller,
       );
-    } catch (_) {
-      /* perm denied — on continue avec ce qu'on a */
+    } catch (e) {
+      if (kDebugMode) debugPrint('[HomeTab._scanAllPdfs walk] $e');
     }
 
     final wasCancelled = canceller.isCompleted;
@@ -341,13 +342,11 @@ class _HomeTabState extends State<HomeTab> {
     navigator.pop(); // ferme le dialog progress
 
     if (wasCancelled && found.isEmpty) {
-      messenger.showSnackBar(const SnackBar(content: Text('Scan annulé')));
+      messenger.showInfoSnack('Scan annulé');
       return;
     }
     if (found.isEmpty) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Aucun PDF trouvé sur ce téléphone')),
-      );
+      messenger.showInfoSnack('Aucun PDF trouvé sur ce téléphone');
       return;
     }
     // Pré-calcule les FileStat une seule fois en parallèle async (évite
@@ -399,8 +398,8 @@ class _HomeTabState extends State<HomeTab> {
           await _walk(e, out, onTick, canceller, depth: depth + 1);
         }
       }
-    } catch (_) {
-      /* dossier inaccessible */
+    } catch (e) {
+      if (kDebugMode) debugPrint('[HomeTab._walk] $e');
     }
   }
 

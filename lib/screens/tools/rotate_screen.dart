@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -42,9 +43,7 @@ class _RotateScreenState extends State<RotateScreen> {
       });
     } on PdfValidationException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.message)));
+      showInfoSnack(context, e.message);
     }
   }
 
@@ -62,9 +61,7 @@ class _RotateScreenState extends State<RotateScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -148,7 +145,7 @@ class _RotateScreenState extends State<RotateScreen> {
                 onPressed: (_processing || _filePath == null) ? null : _rotate,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

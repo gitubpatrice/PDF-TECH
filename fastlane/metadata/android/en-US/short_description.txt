@@ -1,0 +1,1 @@
+23 fully local PDF tools: read, merge, OCR, sign, protect, no cloud.

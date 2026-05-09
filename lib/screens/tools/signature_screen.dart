@@ -4,12 +4,12 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
-import 'dart:io';
 
 import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -62,10 +62,8 @@ class _SignatureScreenState extends State<SignatureScreen> {
       );
 
       // Save to new file
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outputPath = '${dir.path}/signature_$ts.pdf';
-      await File(outputPath).writeAsBytes(out);
+      final outputPath = await PdfToolsService.outputPath('signature');
+      await atomicWriteBytes(outputPath, out);
 
       if (!mounted) return;
       await showResultSheet(
@@ -75,9 +73,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -238,7 +234,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
                     : _insertSignature,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

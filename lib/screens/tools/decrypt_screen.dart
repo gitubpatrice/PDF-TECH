@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -101,15 +102,11 @@ class _DecryptScreenState extends State<DecryptScreen> {
     } on PdfValidationException catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      messenger.showInfoSnack(e.message);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Mot de passe incorrect ou PDF non chiffré'),
-        ),
-      );
+      messenger.showInfoSnack('Mot de passe incorrect ou PDF non chiffré');
     }
   }
 
@@ -171,6 +168,7 @@ class _DecryptScreenState extends State<DecryptScreen> {
                 hintText: 'Entrez le mot de passe du PDF',
                 prefixIcon: const Icon(Icons.key_outlined),
                 suffixIcon: IconButton(
+                  tooltip: 'Afficher / masquer',
                   icon: Icon(
                     _obscure ? Icons.visibility : Icons.visibility_off,
                   ),

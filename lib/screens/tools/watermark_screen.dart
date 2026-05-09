@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -49,9 +50,7 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
   Future<void> _addWatermark() async {
     if (_filePath == null) return;
     if (_textCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Entrez un texte de filigrane')),
-      );
+      showInfoSnack(context, 'Entrez un texte de filigrane');
       return;
     }
     setState(() => _processing = true);
@@ -70,9 +69,7 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -214,7 +211,7 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
                     : _addWatermark,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

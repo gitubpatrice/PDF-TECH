@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +11,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -138,7 +140,9 @@ class _OcrScreenState extends State<OcrScreen> {
             }
             try {
               await tmpFile.delete();
-            } catch (_) {}
+            } catch (e) {
+              if (kDebugMode) debugPrint('[OcrScreen.deleteTmpFile] $e');
+            }
           }
 
           setState(() => _processedPages = i);
@@ -152,7 +156,9 @@ class _OcrScreenState extends State<OcrScreen> {
         // Purge garantie même en cas d'exception au milieu de la boucle.
         try {
           if (await ocrTmp.exists()) await ocrTmp.delete(recursive: true);
-        } catch (_) {}
+        } catch (e) {
+          if (kDebugMode) debugPrint('[OcrScreen.purgeOcrTmp] $e');
+        }
       }
 
       setState(() {
@@ -163,9 +169,7 @@ class _OcrScreenState extends State<OcrScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -187,12 +191,10 @@ class _OcrScreenState extends State<OcrScreen> {
   Future<void> _copyText() async {
     await Clipboard.setData(ClipboardData(text: _extractedText));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Texte copié dans le presse-papiers'),
-        behavior: SnackBarBehavior.floating,
-        duration: Duration(seconds: 2),
-      ),
+    showInfoSnack(
+      context,
+      'Texte copié dans le presse-papiers',
+      duration: const Duration(seconds: 2),
     );
   }
 
@@ -203,21 +205,28 @@ class _OcrScreenState extends State<OcrScreen> {
     final outPath = '${dir.path}/${base}_ocr_$ts.txt';
     await File(outPath).writeAsString(_extractedText);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Sauvegardé : ${PathUtils.fileName(outPath)}'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    showInfoSnack(context, 'Sauvegardé : ${PathUtils.fileName(outPath)}');
   }
 
   Future<void> _share() async {
     final dir = await getTemporaryDirectory();
     final outPath = '${dir.path}/texte_extrait.txt';
-    await File(outPath).writeAsString(_extractedText);
-    await Share.shareXFiles([
-      XFile(outPath, mimeType: 'text/plain'),
-    ], subject: 'Texte extrait de ${_name ?? "PDF"}');
+    final tempFile = File(outPath);
+    await tempFile.writeAsString(_extractedText);
+    try {
+      await Share.shareXFiles([
+        XFile(outPath, mimeType: 'text/plain'),
+      ], subject: 'Texte extrait de ${_name ?? "PDF"}');
+    } finally {
+      // Audit failles P1 : purge le .txt temporaire qui contient le
+      // contenu OCR (potentiellement sensible) en clair dans le cache
+      // de l'app, sinon il y reste indéfiniment après partage.
+      try {
+        await tempFile.delete();
+      } catch (e) {
+        if (kDebugMode) debugPrint('[OcrScreen._share deleteTemp] $e');
+      }
+    }
   }
 
   @override

@@ -1,11 +1,13 @@
 import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/isolate_runner.dart';
-import 'dart:typed_data';
+import '../../services/pdf_tools_service.dart';
+import '../../utils/atomic_write.dart';
+import '../../utils/snack_utils.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Construit un PDF à partir d'une liste d'images dans un Isolate.
@@ -88,20 +90,12 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
       }
     });
     if (capReached) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Limite atteinte : 500 Mo cumulés. Conversion à effectuer avant d\'en ajouter d\'autres.',
-          ),
-        ),
+      messenger.showInfoSnack(
+        'Limite atteinte : 500 Mo cumulés. Conversion à effectuer avant d\'en ajouter d\'autres.',
       );
     } else if (skipped > 0) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            '$skipped image${skipped > 1 ? 's' : ''} ignorée${skipped > 1 ? 's' : ''} (>20 Mo)',
-          ),
-        ),
+      messenger.showInfoSnack(
+        '$skipped image${skipped > 1 ? 's' : ''} ignorée${skipped > 1 ? 's' : ''} (>20 Mo)',
       );
     }
   }
@@ -114,22 +108,17 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
       // Build PDF dans un isolate : decode bitmap + drawImage + save sont
       // CPU-lourds, restaient sur thread UI → gel sur 50+ photos haute-rés.
       final pdfBytes = await _buildPdfFromImagesInIsolate(List.of(_images));
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final outPath = '${dir.path}/images_$ts.pdf';
-      await File(outPath).writeAsBytes(pdfBytes);
+      final outPath = await PdfToolsService.outputPath('images');
+      await atomicWriteBytes(outPath, pdfBytes);
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'PDF créé : ${_images.length} page${_images.length > 1 ? 's' : ''}',
-          ),
-          action: SnackBarAction(
-            label: 'Partager',
-            onPressed: () => Share.shareXFiles([XFile(outPath)]),
-          ),
+      showInfoSnack(
+        context,
+        'PDF créé : ${_images.length} page${_images.length > 1 ? 's' : ''}',
+        action: SnackBarAction(
+          label: 'Partager',
+          onPressed: () => Share.shareXFiles([XFile(outPath)]),
         ),
       );
       setState(() {
@@ -139,7 +128,7 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      messenger.showErrorSnack(e);
     }
   }
 
@@ -257,6 +246,8 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
                     width: 48,
                     height: 48,
                     fit: BoxFit.cover,
+                    cacheWidth: 96,
+                    cacheHeight: 96,
                   ),
                 ),
                 title: Text(
@@ -274,13 +265,18 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
                     const Icon(Icons.drag_handle, color: Colors.grey),
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
+                      tooltip: 'Retirer cette image',
                       onPressed: () async {
                         // Re-stat à la suppression : évite de tracker un Map
                         // path→size en parallèle. Acceptable (1 IO par tap).
                         var size = 0;
                         try {
                           size = await File(path).length();
-                        } catch (_) {}
+                        } catch (e) {
+                          if (kDebugMode) {
+                            debugPrint('[ImagesToPdfScreen.removeItem] $e');
+                          }
+                        }
                         if (!mounted) return;
                         setState(() {
                           _images.removeAt(i);

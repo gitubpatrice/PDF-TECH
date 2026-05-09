@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../../widgets/result_sheet.dart';
@@ -34,7 +36,9 @@ class _CompressScreenState extends State<CompressScreen> {
     int size = 0;
     try {
       size = await File(path).length();
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) debugPrint('[CompressScreen._pickFile size] $e');
+    }
     if (!mounted) return;
     setState(() {
       _filePath = path;
@@ -57,15 +61,11 @@ class _CompressScreenState extends State<CompressScreen> {
       final ratio = (_originalSize! > 0)
           ? (saved / _originalSize! * 100).toStringAsFixed(1)
           : '0';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Original : ${_formatSize(_originalSize!)}  →  '
-            'Compressé : ${_formatSize(compressedSize)}  '
-            '(−$ratio%)',
-          ),
-          duration: const Duration(seconds: 4),
-        ),
+      showInfoSnack(
+        context,
+        'Original : ${_formatSize(_originalSize!)}  →  '
+        'Compressé : ${_formatSize(compressedSize)}  '
+        '(−$ratio%)',
       );
       await showResultSheet(
         context,
@@ -74,9 +74,7 @@ class _CompressScreenState extends State<CompressScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -191,7 +189,7 @@ class _CompressScreenState extends State<CompressScreen> {
                     : _compress,
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.paddingOf(context).bottom),
           ],
         ),
       ),

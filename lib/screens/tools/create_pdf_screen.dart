@@ -1,8 +1,11 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+
+import '../../utils/snack_utils.dart';
 import '../../widgets/result_sheet.dart';
 
 /// Éditeur de PDF par blocs : chaque bloc est un paragraphe de texte avec
@@ -192,9 +195,7 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _processing = false);
     }
@@ -605,6 +606,7 @@ class _BlockCardState extends State<_BlockCard> {
                     size: 18,
                     color: Colors.red,
                   ),
+                  tooltip: 'Supprimer ce bloc',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: widget.onRemove,
@@ -618,6 +620,7 @@ class _BlockCardState extends State<_BlockCard> {
                       File(b.imagePath!),
                       height: 100,
                       fit: BoxFit.contain,
+                      cacheHeight: 200,
                     )
                   : const Text('—', style: TextStyle(color: Colors.grey))
             else
@@ -743,13 +746,19 @@ class _BlockCardState extends State<_BlockCard> {
     );
   }
 
-  Widget _fmtBtn(IconData icon, bool active, VoidCallback onTap) {
+  Widget _fmtBtn(
+    IconData icon,
+    bool active,
+    VoidCallback onTap, {
+    String? tooltip,
+  }) {
     return IconButton(
       icon: Icon(
         icon,
         size: 18,
         color: active ? Theme.of(context).colorScheme.primary : null,
       ),
+      tooltip: tooltip ?? 'Formatage',
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints.tightFor(width: 32, height: 32),
       onPressed: onTap,

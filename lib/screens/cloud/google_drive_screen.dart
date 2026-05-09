@@ -1,9 +1,11 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
 
 import '../../services/google_drive_service.dart';
+import '../../utils/snack_utils.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../pdf_viewer_screen.dart';
 
@@ -34,6 +36,14 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     _checkSignIn();
   }
 
+  @override
+  void dispose() {
+    // Audit failles P1 : libère le client http persistant du service
+    // Drive (sinon socket keep-alive maintenu sur la durée du process).
+    _service.dispose();
+    super.dispose();
+  }
+
   Future<void> _checkSignIn() async {
     setState(() => _checkingAuth = true);
     try {
@@ -47,7 +57,8 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       } else {
         setState(() => _signedIn = false);
       }
-    } catch (_) {
+    } catch (e) {
+      if (kDebugMode) debugPrint('[GoogleDriveScreen._checkSignIn] $e');
       setState(() => _signedIn = false);
     } finally {
       if (mounted) setState(() => _checkingAuth = false);
@@ -71,14 +82,16 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _checkingAuth = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur de connexion : $e')));
+      showErrorSnack(context, 'connexion : $e');
     }
   }
 
   Future<void> _signOut() async {
-    await _service.signOut();
+    // Audit failles P1 : `disconnect()` révoque AUSSI le refresh token
+    // côté Google (vs `signOut()` qui ne fait que vider le cache local
+    // et laisse l'app re-signer silencieusement).
+    await _service.disconnect();
+    if (!mounted) return;
     setState(() {
       _signedIn = false;
       _userEmail = null;
@@ -93,9 +106,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       if (mounted) setState(() => _files = files);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur chargement : $e')));
+      showErrorSnack(context, 'chargement : $e');
     } finally {
       if (mounted) setState(() => _loadingFiles = false);
     }
@@ -112,15 +123,11 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     try {
       await _service.uploadFile(path);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Fichier envoyé sur Google Drive')),
-      );
+      showInfoSnack(context, 'Fichier envoyé sur Google Drive');
       await _loadFiles();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur upload : $e')));
+      showErrorSnack(context, 'upload : $e');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -135,9 +142,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       final recentList = await _recents.load();
       await _recents.addOrUpdate(recentList, localPath);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Téléchargement terminé')));
+      showInfoSnack(context, 'Téléchargement terminé');
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -149,9 +154,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur téléchargement : $e')));
+      showErrorSnack(context, 'téléchargement : $e');
     } finally {
       if (mounted) setState(() => _downloadingId = null);
     }

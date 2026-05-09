@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
 
@@ -72,9 +73,7 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur : $e')));
+      showErrorSnack(context, e);
     }
   }
 
@@ -305,7 +304,11 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
               ], subject: 'Image ${i + 1}'),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.file(File(_imagePaths[i]), fit: BoxFit.cover),
+                child: Image.file(
+                  File(_imagePaths[i]),
+                  fit: BoxFit.cover,
+                  cacheWidth: 240,
+                ),
               ),
             ),
           ),

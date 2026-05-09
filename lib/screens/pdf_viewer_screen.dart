@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/share_service.dart';
+import '../utils/atomic_write.dart';
+import '../utils/snack_utils.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final String path;
@@ -28,6 +30,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   int _savedPage = 1;
   final TextEditingController _searchController = TextEditingController();
   PdfTextSearchResult _searchResult = PdfTextSearchResult();
+
+  // Password handling for protected PDFs (audit P1) :
+  // - `_password` est passé à `SfPdfViewer.file(... password: _password)`.
+  // - Sur `onDocumentLoadFailed` (mauvais mot de passe ou PDF chiffré),
+  //   un dialog demande la saisie puis on rebuild le viewer via
+  //   `key: ValueKey(_passwordAttempt)` pour forcer Syncfusion à
+  //   relancer le décodage avec le nouveau password.
+  // - Le mot de passe n'est JAMAIS logué.
+  String? _password;
+  int _passwordAttempt = 0;
+  bool _passwordDialogOpen = false;
 
   String get _prefKey => 'last_page_${widget.path.hashCode}';
   String get _nightKey => 'night_mode_pdf';
@@ -91,21 +104,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     setState(() => _isSaving = true);
     try {
       final bytes = await _controller.saveDocument();
-      await File(widget.path).writeAsBytes(bytes);
+      // **Atomique** (audit failles P0 v1.12) : write tmp + rename pour
+      // garantir qu'un crash / batterie HS pendant l'écriture ne
+      // tronque pas le PDF original. Sans ça, sur 200 Mo l'utilisateur
+      // peut perdre un PDF complet.
+      await atomicWriteBytes(widget.path, bytes);
       setState(() => _hasUnsavedChanges = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Annotations sauvegardées'),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
-        ),
+      showInfoSnack(
+        context,
+        'Annotations sauvegardées',
+        duration: const Duration(seconds: 2),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erreur de sauvegarde : $e')));
+      showErrorSnack(context, e);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -175,15 +188,105 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     );
   }
 
+  Future<void> _promptPassword({required bool isWrong}) async {
+    if (_passwordDialogOpen || !mounted) return;
+    _passwordDialogOpen = true;
+    final ctrl = TextEditingController();
+    bool obscure = true;
+    try {
+      final entered = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('PDF protégé'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isWrong
+                      ? 'Mot de passe incorrect. Réessayez :'
+                      : 'Ce PDF est protégé. Entrez le mot de passe :',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ctrl,
+                  obscureText: obscure,
+                  autofocus: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  keyboardType: TextInputType.visiblePassword,
+                  decoration: InputDecoration(
+                    labelText: 'Mot de passe',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscure ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () => setLocal(() => obscure = !obscure),
+                    ),
+                  ),
+                  onSubmitted: (v) => Navigator.pop(ctx, v),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text('Annuler'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, ctrl.text),
+                child: const Text('Ouvrir'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!mounted) return;
+      if (entered == null || entered.isEmpty) {
+        // L'utilisateur a annulé : on ferme le viewer.
+        Navigator.of(context).maybePop();
+        return;
+      }
+      setState(() {
+        _password = entered;
+        _passwordAttempt++;
+      });
+    } finally {
+      _passwordDialogOpen = false;
+      // Le controller TextEditing du dialog est local, on le libère.
+      ctrl.dispose();
+    }
+  }
+
   Widget _buildViewer() {
     return SfPdfViewer.file(
       File(widget.path),
       key: _viewerKey,
       controller: _controller,
+      password: _password,
       enableDoubleTapZooming: true,
       enableTextSelection: true,
       canShowScrollHead: true,
       canShowScrollStatus: true,
+      onDocumentLoadFailed: (details) {
+        // Capte les erreurs de chargement, en particulier les PDF
+        // protégés. Ne PAS loguer `_password` ni le contenu de
+        // `details.description` qui peut le contenir.
+        if (!mounted) return;
+        final desc = details.description.toLowerCase();
+        final isPwd =
+            desc.contains('password') ||
+            desc.contains('encrypt') ||
+            desc.contains('mot de passe');
+        if (isPwd) {
+          _promptPassword(isWrong: _password != null);
+        } else {
+          showErrorSnack(context, 'Impossible d\'ouvrir le PDF');
+        }
+      },
       onDocumentLoaded: (d) {
         // Le callback peut tomber après dispose si l'utilisateur ferme
         // pendant le chargement → mounted check obligatoire avant
@@ -362,33 +465,39 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             Expanded(
               child: GestureDetector(
                 onTap: _toggleBars,
-                child: _nightMode
-                    ? ColorFiltered(
-                        colorFilter: const ColorFilter.matrix([
-                          -1,
-                          0,
-                          0,
-                          0,
-                          255,
-                          0,
-                          -1,
-                          0,
-                          0,
-                          255,
-                          0,
-                          0,
-                          -1,
-                          0,
-                          255,
-                          0,
-                          0,
-                          0,
-                          1,
-                          0,
-                        ]),
-                        child: _buildViewer(),
-                      )
-                    : _buildViewer(),
+                // Force la reconstruction du sous-arbre quand
+                // l'utilisateur saisit un nouveau password — sinon
+                // Syncfusion garde le document en échec.
+                child: KeyedSubtree(
+                  key: ValueKey('pdf_attempt_$_passwordAttempt'),
+                  child: _nightMode
+                      ? ColorFiltered(
+                          colorFilter: const ColorFilter.matrix([
+                            -1,
+                            0,
+                            0,
+                            0,
+                            255,
+                            0,
+                            -1,
+                            0,
+                            0,
+                            255,
+                            0,
+                            0,
+                            -1,
+                            0,
+                            255,
+                            0,
+                            0,
+                            0,
+                            1,
+                            0,
+                          ]),
+                          child: _buildViewer(),
+                        )
+                      : _buildViewer(),
+                ),
               ),
             ),
           ],
