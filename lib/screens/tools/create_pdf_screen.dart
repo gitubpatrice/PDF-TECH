@@ -168,20 +168,14 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
 
   Future<void> _create() async {
     if (_titleCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Entrez un titre')));
+      showInfoSnack(context, 'Entrez un titre');
       return;
     }
     final hasContent = _blocks.any(
       (b) => b.text.trim().isNotEmpty || b.imagePath != null,
     );
     if (!hasContent) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Ajoutez au moins un bloc avec du contenu'),
-        ),
-      );
+      showInfoSnack(context, 'Ajoutez au moins un bloc avec du contenu');
       return;
     }
     setState(() => _processing = true);

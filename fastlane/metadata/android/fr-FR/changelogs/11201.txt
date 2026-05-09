@@ -1,0 +1,9 @@
+v1.12.1 — Mai 2026 — Polish post-audit
+
+- 3 SnackBars résiduels migrés vers showInfoSnack (pdf_viewer reprise page,
+  create_pdf validations, home_tab permission denied).
+- 3 isolates screens enveloppés dans try/finally hygiène
+  (delete_pages, reorder_pages, signature). Aligne avec les 9 isolates
+  service déjà couverts en v1.12.0.
+
+Aucun changement fonctionnel. Score audit : ≥95/100 sur tous les axes.

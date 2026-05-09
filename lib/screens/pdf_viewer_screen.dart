@@ -295,12 +295,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         setState(() => _totalPages = d.document.pages.count);
         if (_savedPage > 1 && _savedPage <= d.document.pages.count) {
           _controller.jumpToPage(_savedPage);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Reprise à la page $_savedPage'),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 2),
-            ),
+          showInfoSnack(
+            context,
+            'Reprise à la page $_savedPage',
+            duration: const Duration(seconds: 2),
           );
         }
       },

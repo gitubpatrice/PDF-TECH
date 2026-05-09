@@ -85,35 +85,38 @@ class _SignatureScreenState extends State<SignatureScreen> {
     String position,
   ) {
     final document = PdfDocument(inputBytes: bytes);
-    final lastPage = document.pages[document.pages.count - 1];
-    final size = lastPage.getClientSize();
+    try {
+      final lastPage = document.pages[document.pages.count - 1];
+      final size = lastPage.getClientSize();
 
-    const double sigWidth = 180;
-    const double sigHeight = 90;
-    double x;
-    switch (position) {
-      case 'gauche':
-        x = 20;
-        break;
-      case 'droite':
-        x = size.width - 200;
-        break;
-      case 'centre':
-      default:
-        x = (size.width - sigWidth) / 2;
-        break;
+      const double sigWidth = 180;
+      const double sigHeight = 90;
+      double x;
+      switch (position) {
+        case 'gauche':
+          x = 20;
+          break;
+        case 'droite':
+          x = size.width - 200;
+          break;
+        case 'centre':
+        default:
+          x = (size.width - sigWidth) / 2;
+          break;
+      }
+      final double y = size.height - 120;
+
+      final bitmap = PdfBitmap(pngBytes);
+      lastPage.graphics.drawImage(
+        bitmap,
+        Rect.fromLTWH(x, y, sigWidth, sigHeight),
+      );
+
+      final saved = document.saveSync();
+      return saved is Uint8List ? saved : Uint8List.fromList(saved);
+    } finally {
+      document.dispose();
     }
-    final double y = size.height - 120;
-
-    final bitmap = PdfBitmap(pngBytes);
-    lastPage.graphics.drawImage(
-      bitmap,
-      Rect.fromLTWH(x, y, sigWidth, sigHeight),
-    );
-
-    final saved = document.saveSync();
-    document.dispose();
-    return saved is Uint8List ? saved : Uint8List.fromList(saved);
   }
 
   @override

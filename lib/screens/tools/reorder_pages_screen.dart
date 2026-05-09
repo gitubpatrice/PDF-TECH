@@ -303,17 +303,20 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
 Uint8List _reorderIsolate(Uint8List bytes, List<int> order) {
   final source = PdfDocument(inputBytes: bytes);
   final output = PdfDocument();
-  output.pageSettings.margins.all = 0;
-  for (final origIndex in order) {
-    final page = source.pages[origIndex];
-    output.pageSettings.size = page.size;
-    final newPage = output.pages.add();
-    newPage.graphics.drawPdfTemplate(page.createTemplate(), Offset.zero);
+  try {
+    output.pageSettings.margins.all = 0;
+    for (final origIndex in order) {
+      final page = source.pages[origIndex];
+      output.pageSettings.size = page.size;
+      final newPage = output.pages.add();
+      newPage.graphics.drawPdfTemplate(page.createTemplate(), Offset.zero);
+    }
+    final saved = output.saveSync();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  } finally {
+    source.dispose();
+    output.dispose();
   }
-  source.dispose();
-  final saved = output.saveSync();
-  output.dispose();
-  return saved is Uint8List ? saved : Uint8List.fromList(saved);
 }
 
 class _Thumb {

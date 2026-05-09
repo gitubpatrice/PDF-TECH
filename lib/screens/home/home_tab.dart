@@ -234,16 +234,13 @@ class _HomeTabState extends State<HomeTab> {
     if (status.isGranted) return true;
 
     if (!mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(
-          'Permission refusée — activez "Tous les fichiers" dans Réglages',
-        ),
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Réglages',
-          onPressed: () => openAppSettings(),
-        ),
+    showInfoSnack(
+      context,
+      'Permission refusée — activez "Tous les fichiers" dans Réglages',
+      duration: const Duration(seconds: 5),
+      action: SnackBarAction(
+        label: 'Réglages',
+        onPressed: () => openAppSettings(),
       ),
     );
     return false;
