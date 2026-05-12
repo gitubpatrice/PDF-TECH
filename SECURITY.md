@@ -1,5 +1,21 @@
 # Politique de sécurité — PDF Tech
 
+## Historique des durcissements
+
+- **v1.12.3** (2026-05-12) — Audit expert zéro-vuln/zéro-faille G1-G16 :
+  OCR/export_images/form_fill `try/finally` (anti leak FD natif), signature
+  null-guard, `ImageBounds` étendu aux écrans Annoter + Créer (anti
+  image-bomb 50000×50000), cap cumulatif `extract_images` (500 Mo),
+  `export_images` clamp 1..6000 + close DANS finally, `decrypt_screen`
+  → `showResultSheet` (corrige régression v1.12.2 où "Partager" pointait
+  vers fichier purgé), guard try/catch sur `_checkUpdate` au boot.
+  Dead code retiré (`flutter_markdown`, `ImageAnnoSentinel`,
+  `pdfIsolatePendingCount`). `dart analyze` 0 issue, 6/6 tests.
+- **v1.12.2** (2026-05-09) — F1-F17 : SecureWindow MethodChannel câblé,
+  PDFs déchiffrés routés vers `cache/decrypted/` purgé au boot + lifecycle,
+  atomic write 10 sites, cap 500 Mo merge, ImageBounds (probe IHDR/SOF),
+  OCR close/finally, OCR nom unique horodaté.
+
 ## Versions supportées
 
 Seule la dernière version publiée sur GitHub Releases est activement maintenue côté sécurité.

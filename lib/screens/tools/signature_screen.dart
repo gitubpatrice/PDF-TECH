@@ -58,10 +58,14 @@ class _SignatureScreenState extends State<SignatureScreen> {
 
   Future<void> _insertSignature() async {
     if (_filePath == null) return;
+    // G4 v1.12.3 — guard race : pad pas encore monté (startup) ou disposé
+    // pendant async ; null-bang `!` aurait crashé le framework.
+    final padState = _signatureKey.currentState;
+    if (padState == null) return;
     setState(() => _processing = true);
     try {
       // Export signature image from pad
-      final image = await _signatureKey.currentState!.toImage(pixelRatio: 3.0);
+      final image = await padState.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) {
         throw Exception('Impossible d\'exporter la signature');
@@ -186,7 +190,7 @@ class _SignatureScreenState extends State<SignatureScreen> {
                 TextButton.icon(
                   icon: const Icon(Icons.clear, size: 18),
                   label: const Text('Effacer'),
-                  onPressed: () => _signatureKey.currentState!.clear(),
+                  onPressed: () => _signatureKey.currentState?.clear(),
                 ),
               ],
             ),

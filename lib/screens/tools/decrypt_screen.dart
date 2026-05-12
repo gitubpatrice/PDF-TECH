@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
-import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../services/secure_window.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
+import '../../widgets/result_sheet.dart';
 
 class DecryptScreen extends StatefulWidget {
   const DecryptScreen({super.key});
@@ -98,14 +98,15 @@ class _DecryptScreenState extends State<DecryptScreen> {
         _path = null;
         _name = null;
       });
-      messenger.showSnackBar(
-        SnackBar(
-          content: const Text('PDF déchiffré avec succès'),
-          action: SnackBarAction(
-            label: 'Partager',
-            onPressed: () => Share.shareXFiles([XFile(outPath)]),
-          ),
-        ),
+      // G15 v1.12.3 — remplace SnackBarAction "Partager" qui pointait vers
+      // `decrypted/` purgé au lifecycle (F2 v1.12.2) → tap "Partager" après
+      // backgrounding produisait une erreur silencieuse share_plus.
+      // showResultSheet expose le partage immédiatement (modal) + copie le
+      // fichier vers `cache/share/` (FileProvider) via PdfToolsService.
+      await showResultSheet(
+        context,
+        outputPath: outPath,
+        operationLabel: 'PDF déchiffré avec succès',
       );
     } on PdfValidationException catch (e) {
       if (!mounted) return;

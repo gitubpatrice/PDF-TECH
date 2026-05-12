@@ -60,23 +60,28 @@ class _FormFillScreenState extends State<FormFillScreen> {
   Future<List<_FieldInfo>> _analyzeFields(String path) async {
     final bytes = await PdfToolsService.safeReadPdf(path);
     final doc = PdfDocument(inputBytes: bytes);
-    final result = <_FieldInfo>[];
-    for (int i = 0; i < doc.form.fields.count; i++) {
-      final f = doc.form.fields[i];
-      final rawName = f.name;
-      result.add(
-        _FieldInfo(
-          name: (rawName == null || rawName.isEmpty)
-              ? 'Champ ${i + 1}'
-              : rawName,
-          type: _typeName(f),
-          value: _fieldValue(f),
-          icon: _typeIcon(f),
-        ),
-      );
+    try {
+      final result = <_FieldInfo>[];
+      for (int i = 0; i < doc.form.fields.count; i++) {
+        final f = doc.form.fields[i];
+        final rawName = f.name;
+        result.add(
+          _FieldInfo(
+            name: (rawName == null || rawName.isEmpty)
+                ? 'Champ ${i + 1}'
+                : rawName,
+            type: _typeName(f),
+            value: _fieldValue(f),
+            icon: _typeIcon(f),
+          ),
+        );
+      }
+      return result;
+    } finally {
+      // G16 v1.12.3 — dispose() garanti même si parse Syncfusion throw sur
+      // PDF malformé. Avant : leak FD natif sur exceptions.
+      doc.dispose();
     }
-    doc.dispose();
-    return result;
   }
 
   String _typeName(PdfField f) {

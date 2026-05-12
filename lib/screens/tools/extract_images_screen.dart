@@ -14,6 +14,12 @@ import '../../widgets/pdf_picker_screen.dart';
 /// pathologique ne sature la RAM/le stockage.
 const int _maxExtractedJpegs = 1000;
 
+/// G9 v1.12.3 — cap cumulatif sur les octets extraits. Aligné sur
+/// `_maxMergeCumulativeBytes` (F4 v1.12.2). Sans ce garde, un PDF
+/// malveillant annonçant 1000 × 50 Mo de "JPEG" saturerait l'isolate
+/// avant l'écriture disque.
+const int _maxExtractedCumulativeBytes = 500 * 1024 * 1024;
+
 class ExtractImagesScreen extends StatefulWidget {
   const ExtractImagesScreen({super.key});
 
@@ -83,6 +89,7 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
   // éviter de saturer la RAM sur des PDFs pathologiques.
   static List<Uint8List> _extractJpegs(Uint8List data) {
     final results = <Uint8List>[];
+    int cumulative = 0;
     int i = 0;
     while (i < data.length - 3) {
       if (data[i] == 0xFF && data[i + 1] == 0xD8 && data[i + 2] == 0xFF) {
@@ -97,7 +104,12 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
           j++;
         }
         if (endAt != null) {
+          final segLen = endAt - start;
+          // G9 v1.12.3 — cap cumulatif bytes (cohérence F4 merge). Évite
+          // qu'un PDF malveillant n'alloue >> RAM device dans l'isolate.
+          if (cumulative + segLen > _maxExtractedCumulativeBytes) break;
           results.add(data.sublist(start, endAt));
+          cumulative += segLen;
           if (results.length >= _maxExtractedJpegs) break;
           i = endAt;
         } else {

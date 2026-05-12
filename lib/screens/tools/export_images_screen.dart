@@ -70,56 +70,78 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
     });
     try {
       final pdfDoc = await pdfx.PdfDocument.openFile(_path!);
-      final dir = await getApplicationDocumentsDirectory();
-      final ts = DateTime.now().millisecondsSinceEpoch;
-      final base = (_name ?? 'document').replaceAll('.pdf', '');
-      final outDir = Directory('${dir.path}/${base}_images_$ts');
-      await outDir.create(recursive: true);
+      try {
+        final dir = await getApplicationDocumentsDirectory();
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final base = (_name ?? 'document').replaceAll('.pdf', '');
+        final outDir = Directory('${dir.path}/${base}_images_$ts');
+        await outDir.create(recursive: true);
 
-      final paths = <String>[];
+        final paths = <String>[];
 
-      for (int i = 1; i <= pdfDoc.pagesCount; i++) {
-        final page = await pdfDoc.getPage(i);
-        final pageImage = await page.render(
-          width: page.width * _scale,
-          height: page.height * _scale,
-          format: _format == 'png'
-              ? pdfx.PdfPageImageFormat.png
-              : pdfx.PdfPageImageFormat.jpeg,
-          backgroundColor: '#ffffff',
-        );
-        await page.close();
-
-        if (pageImage?.bytes != null) {
-          Uint8List finalBytes;
-          if (_format == 'png') {
-            finalBytes = await _rawToPng(
-              pageImage!.bytes,
-              pageImage.width ?? (page.width * _scale).toInt(),
-              pageImage.height ?? (page.height * _scale).toInt(),
+        for (int i = 1; i <= pdfDoc.pagesCount; i++) {
+          final page = await pdfDoc.getPage(i);
+          try {
+            // G13 v1.12.3 — clamp dimensions de sortie (1..6000) pour
+            // protéger contre les PDFs aux pages UserSpace pathologiques :
+            // une page 14400×14400 × scale=3 = 43200² ≈ 7 Go RAM.
+            final renderW = (page.width * _scale).toInt().clamp(1, 6000);
+            final renderH = (page.height * _scale).toInt().clamp(1, 6000);
+            final pageImage = await page.render(
+              width: renderW.toDouble(),
+              height: renderH.toDouble(),
+              format: _format == 'png'
+                  ? pdfx.PdfPageImageFormat.png
+                  : pdfx.PdfPageImageFormat.jpeg,
+              backgroundColor: '#ffffff',
             );
-          } else {
-            finalBytes = pageImage!.bytes;
+
+            if (pageImage?.bytes != null) {
+              Uint8List finalBytes;
+              if (_format == 'png') {
+                finalBytes = await _rawToPng(
+                  pageImage!.bytes,
+                  pageImage.width ?? renderW,
+                  pageImage.height ?? renderH,
+                );
+              } else {
+                finalBytes = pageImage!.bytes;
+              }
+              final pageNum = i.toString().padLeft(3, '0');
+              final outPath = '${outDir.path}/page_$pageNum.$_format';
+              await atomicWriteBytes(outPath, finalBytes);
+              paths.add(outPath);
+            }
+          } finally {
+            // G12 v1.12.3 — page.close() garanti même si render/write throw,
+            // sinon leak FD natif sur exceptions au milieu de la boucle.
+            try {
+              await page.close();
+            } catch (_) {
+              /* best-effort */
+            }
           }
-          final pageNum = i.toString().padLeft(3, '0');
-          final outPath = '${outDir.path}/page_$pageNum.$_format';
-          await atomicWriteBytes(outPath, finalBytes);
-          paths.add(outPath);
+
+          if (mounted) setState(() => _processedPages = i);
+          // Yield au framework pour rafraîchir la barre de progression.
+          await Future<void>.delayed(Duration.zero);
         }
 
-        if (mounted) setState(() => _processedPages = i);
-        // Yield au framework pour rafraîchir la barre de progression.
-        await Future<void>.delayed(Duration.zero);
+        if (!mounted) return;
+        setState(() {
+          _outputPaths = paths;
+          _isDone = true;
+          _isProcessing = false;
+        });
+      } finally {
+        // G12 v1.12.3 — close pdfDoc DANS finally (avant : leak FD si render
+        // ou atomicWrite throw au milieu de la boucle).
+        try {
+          await pdfDoc.close();
+        } catch (_) {
+          /* best-effort */
+        }
       }
-
-      await pdfDoc.close();
-
-      if (!mounted) return;
-      setState(() {
-        _outputPaths = paths;
-        _isDone = true;
-        _isProcessing = false;
-      });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);

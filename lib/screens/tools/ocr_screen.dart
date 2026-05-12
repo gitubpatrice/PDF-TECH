@@ -64,24 +64,32 @@ class _OcrScreenState extends State<OcrScreen> {
       // ── Étape 1 : extraction de texte native (rapide) ───────────────────────
       final bytes = await PdfToolsService.safeReadPdf(_path!);
       final sfDoc = PdfDocument(inputBytes: bytes);
-      final total = sfDoc.pages.count;
-      setState(() {
-        _totalPages = total;
-        _mode = 'text';
-      });
+      final String nativeText;
+      final int total;
+      try {
+        total = sfDoc.pages.count;
+        setState(() {
+          _totalPages = total;
+          _mode = 'text';
+        });
 
-      final extractor = PdfTextExtractor(sfDoc);
-      final textBuffer = StringBuffer();
-      for (int i = 0; i < total; i++) {
-        final t = extractor.extractText(startPageIndex: i, endPageIndex: i);
-        textBuffer.writeln(t);
-        setState(() => _processedPages = i + 1);
-        // Yield au loop d'event pour ne pas bloquer l'UI sur de gros PDFs.
-        await Future<void>.delayed(Duration.zero);
+        final extractor = PdfTextExtractor(sfDoc);
+        final textBuffer = StringBuffer();
+        for (int i = 0; i < total; i++) {
+          final t = extractor.extractText(startPageIndex: i, endPageIndex: i);
+          textBuffer.writeln(t);
+          setState(() => _processedPages = i + 1);
+          // Yield au loop d'event pour ne pas bloquer l'UI sur de gros PDFs.
+          await Future<void>.delayed(Duration.zero);
+        }
+        nativeText = textBuffer.toString().trim();
+      } finally {
+        // G1 v1.12.3 — symétrie avec étape 2 (F6) : dispose() garanti même si
+        // extractText throw sur une page corrompue (avant : leak FD natif +
+        // RAM modèle Syncfusion, ~5 échecs successifs = process kill).
+        sfDoc.dispose();
       }
-      sfDoc.dispose();
 
-      final nativeText = textBuffer.toString().trim();
       final avgChars = nativeText.length / total.clamp(1, total);
 
       if (avgChars >= 50) {

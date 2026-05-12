@@ -27,52 +27,38 @@ import 'dart:isolate';
 /// chaîne permanente — 1000 ops = 1000 closures vivantes).
 Completer<void>? _currentOp;
 
-/// Nombre d'opérations en attente (informatif, exposable à l'UI pour
-/// afficher "X ops en file" si besoin futur). Pas de cap dur — l'UX
-/// doit empêcher les taps multiples côté écran.
-int _pendingCount = 0;
-
-/// Snapshot du nombre d'opérations en attente (incluant celle en cours).
-int get pdfIsolatePendingCount => _pendingCount;
-
 Future<T> runPdfIsolate<T>(
   FutureOr<T> Function() task, {
   Duration timeout = const Duration(minutes: 2),
 }) async {
-  _pendingCount++;
-  try {
-    // Acquire : si une op est déjà en cours, on attend qu'elle se
-    // termine (succès ou échec) avant de prendre le verrou. Pattern
-    // mutex sériel sans chaîne `then` infinie.
-    while (_currentOp != null) {
-      try {
-        await _currentOp!.future;
-      } catch (_) {
-        // L'op précédente a échoué — on s'en fiche, on prend le verrou.
-      }
-    }
-    final mySlot = Completer<void>();
-    _currentOp = mySlot;
+  // Acquire : si une op est déjà en cours, on attend qu'elle se
+  // termine (succès ou échec) avant de prendre le verrou. Pattern
+  // mutex sériel sans chaîne `then` infinie.
+  while (_currentOp != null) {
     try {
-      final result = await Isolate.run(task).timeout(
-        timeout,
-        onTimeout: () {
-          throw TimeoutException('PDF parsing dépasse ${timeout.inSeconds}s');
-        },
-      );
-      mySlot.complete();
-      return result;
-    } catch (e, st) {
-      mySlot.completeError(e, st);
-      rethrow;
-    } finally {
-      // Release : libère le slot si on est encore le détenteur (peut
-      // déjà avoir été remplacé en cas de logique future).
-      if (identical(_currentOp, mySlot)) {
-        _currentOp = null;
-      }
+      await _currentOp!.future;
+    } catch (_) {
+      // L'op précédente a échoué — on s'en fiche, on prend le verrou.
     }
+  }
+  final mySlot = Completer<void>();
+  _currentOp = mySlot;
+  try {
+    final result = await Isolate.run(task).timeout(
+      timeout,
+      onTimeout: () {
+        throw TimeoutException('PDF parsing dépasse ${timeout.inSeconds}s');
+      },
+    );
+    mySlot.complete();
+    return result;
+  } catch (e, st) {
+    mySlot.completeError(e, st);
+    rethrow;
   } finally {
-    _pendingCount--;
+    // Release : libère le slot si on est encore le détenteur.
+    if (identical(_currentOp, mySlot)) {
+      _currentOp = null;
+    }
   }
 }

@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 import '../../utils/atomic_write.dart';
+import '../../utils/image_bounds.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -224,7 +225,17 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
       for (final b in _blocks) {
         if (b.type == _BlockType.image && b.imagePath != null) {
           try {
-            final bytes = await File(b.imagePath!).readAsBytes();
+            final imgFile = File(b.imagePath!);
+            // G8 v1.12.3 — cap taille fichier (cohérence avec images_to_pdf
+            // 20 Mo) avant lecture en RAM.
+            if (await imgFile.length() > 20 * 1024 * 1024) {
+              continue; // skip silencieux : image trop volumineuse
+            }
+            final bytes = await imgFile.readAsBytes();
+            // G8 v1.12.3 — probe IHDR/SOF anti image-bomb avant PdfBitmap.
+            if (ImageBounds.assertSafeBounds(bytes) != null) {
+              continue; // skip silencieux : dimensions suspectes
+            }
             final bitmap = PdfBitmap(bytes);
             final maxW = page.getClientSize().width - _kPdfMargin * 2;
             final scale = bitmap.width > maxW ? maxW / bitmap.width : 1.0;

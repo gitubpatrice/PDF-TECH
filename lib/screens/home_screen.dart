@@ -45,25 +45,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkUpdate() async {
-    final info = await appUpdateService.checkForUpdate();
+    // H2 v1.12.3 — guard try/catch : checkForUpdate peut throw (timeout
+    // réseau, JSON malformé). Sans guard, l'exception remontait dans
+    // FlutterError.onError au boot via addPostFrameCallback.
+    UpdateInfo? info;
+    try {
+      info = await appUpdateService.checkForUpdate();
+    } catch (e) {
+      debugPrint('[HomeScreen._checkUpdate] $e');
+      return;
+    }
     if (info == null || !mounted) return;
+    final updateInfo = info;
     showDialog(
       context: context,
       builder: (ctx) {
         final cs = Theme.of(ctx).colorScheme;
         return AlertDialog(
-          title: Text('Mise à jour v${info.version} disponible'),
+          title: Text('Mise à jour v${updateInfo.version} disponible'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  info.body.isNotEmpty
-                      ? info.body
+                  updateInfo.body.isNotEmpty
+                      ? updateInfo.body
                       : 'Une nouvelle version de PDF Tech est disponible.',
                 ),
-                if (info.expectedSha256 != null) ...[
+                if (updateInfo.expectedSha256 != null) ...[
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(10),
@@ -94,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 6),
                         SelectableText(
-                          info.expectedSha256!,
+                          updateInfo.expectedSha256!,
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 10,

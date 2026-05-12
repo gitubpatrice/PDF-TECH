@@ -12,6 +12,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart' as pv;
 import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../utils/atomic_write.dart';
+import '../../utils/image_bounds.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/result_sheet.dart';
 
@@ -146,6 +147,14 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     }
     final bytes = await imgFile.readAsBytes();
     if (bytes.isEmpty) return;
+    // G7 v1.12.3 — anti image-bomb : probe IHDR/SOF avant tout décodage.
+    // Une PNG 8 Ko déclarant 50000×50000 ferait OOM crash sur PdfBitmap
+    // (alignement F5 v1.12.2 sur images_to_pdf, étendu ici).
+    final dimErr = ImageBounds.assertSafeBounds(bytes);
+    if (dimErr != null) {
+      messenger.showInfoSnack(dimErr);
+      return;
+    }
     // Validation : on tente de décoder via PdfBitmap pour détecter les
     // images non supportées (HEIC sans codec, fichiers corrompus, etc.)
     // avant d'ajouter l'annotation. Évite un échec silencieux à l'export.
@@ -692,14 +701,6 @@ class _AnnoPainter extends CustomPainter {
         old.rectStart != rectStart ||
         old.rectCurrent != rectCurrent;
   }
-}
-
-/// Helper pour afficher un Uint8List en image (utilisé par le picker image
-/// si on étend l'éditeur). Réservé pour future extension.
-@visibleForTesting
-class ImageAnnoSentinel {
-  final Uint8List bytes;
-  ImageAnnoSentinel(this.bytes);
 }
 
 /// Exécute en isolate : lecture sécurisée du PDF, parse Syncfusion, dessin
