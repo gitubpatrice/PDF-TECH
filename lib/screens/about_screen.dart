@@ -175,17 +175,13 @@ class _AboutScreenState extends State<AboutScreen> {
           Center(
             child: Column(
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFC62828).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.picture_as_pdf,
-                    size: 44,
-                    color: Color(0xFFC62828),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/icon/app_icon.png',
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
                   ),
                 ),
                 const SizedBox(height: 14),
