@@ -335,44 +335,48 @@ Uint8List _pageNumbersIsolate(
   double fontSize,
   bool skipFirst,
 ) {
+  // P1.3 v1.12.4 — try/finally autour des opérations PDF.
   final doc = PdfDocument(inputBytes: bytes);
-  final total = doc.pages.count;
-  final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
-  final brush = PdfSolidBrush(PdfColor(80, 80, 80));
-  final isTop = position.startsWith('top');
-  final align = position.endsWith('left')
-      ? PdfTextAlignment.left
-      : position.endsWith('right')
-      ? PdfTextAlignment.right
-      : PdfTextAlignment.center;
+  try {
+    final total = doc.pages.count;
+    final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
+    final brush = PdfSolidBrush(PdfColor(80, 80, 80));
+    final isTop = position.startsWith('top');
+    final align = position.endsWith('left')
+        ? PdfTextAlignment.left
+        : position.endsWith('right')
+        ? PdfTextAlignment.right
+        : PdfTextAlignment.center;
 
-  String buildText(int pageIndex) {
-    final n = startNum + pageIndex;
-    switch (format) {
-      case 'n-total':
-        return '$n / $total';
-      case 'n':
-        return '$n';
-      default:
-        return 'Page $n';
+    String buildText(int pageIndex) {
+      final n = startNum + pageIndex;
+      switch (format) {
+        case 'n-total':
+          return '$n / $total';
+        case 'n':
+          return '$n';
+        default:
+          return 'Page $n';
+      }
     }
-  }
 
-  for (int i = 0; i < total; i++) {
-    if (skipFirst && i == 0) continue;
-    final page = doc.pages[i];
-    final w = page.getClientSize().width;
-    final h = page.getClientSize().height;
-    final y = isTop ? 6.0 : h - 18.0;
-    page.graphics.drawString(
-      buildText(i),
-      font,
-      brush: brush,
-      bounds: Rect.fromLTWH(12, y, w - 24, 16),
-      format: PdfStringFormat(alignment: align),
-    );
+    for (int i = 0; i < total; i++) {
+      if (skipFirst && i == 0) continue;
+      final page = doc.pages[i];
+      final w = page.getClientSize().width;
+      final h = page.getClientSize().height;
+      final y = isTop ? 6.0 : h - 18.0;
+      page.graphics.drawString(
+        buildText(i),
+        font,
+        brush: brush,
+        bounds: Rect.fromLTWH(12, y, w - 24, 16),
+        format: PdfStringFormat(alignment: align),
+      );
+    }
+    final saved = doc.saveSync();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  } finally {
+    doc.dispose();
   }
-  final saved = doc.saveSync();
-  doc.dispose();
-  return saved is Uint8List ? saved : Uint8List.fromList(saved);
 }

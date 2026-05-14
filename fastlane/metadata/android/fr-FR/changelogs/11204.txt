@@ -1,0 +1,57 @@
+v1.12.4 — Audit expert : sécurité, performance, accessibilité
+
+Sécurité :
+* F1 — `MainActivity.kt` : retrait de `/storage` de la whitelist + blacklist
+  explicite `/Android/data/<autre-pkg>/` (anti confused-deputy : Dart ne
+  peut plus envoyer un path forgé pointant vers les données d'une autre app).
+* F2 — Cap LRU 200 entrées sur les clés `last_page_*` (avant : scanner
+  5000 PDFs gonflait SharedPreferences à plusieurs Mo, jamais purgées).
+* F3 — `sendToPackage` : whitelist Kotlin du package cible (kDrive /
+  Drive / Proton uniquement) + `clipData` lié à l'URI (grant strictement
+  limité). `<queries>` du manifest n'était plus la seule contrainte.
+* F5 — Le dialog mot de passe PDF active désormais `FLAG_SECURE` AVANT
+  l'affichage (avant : fenêtre 0-200 ms pendant la saisie où une capture
+  Recents / MediaProjection pouvait intercepter le mot de passe).
+* F10 — `ImageBounds.assertSafeBounds` ajouté avant `PdfBitmap` dans le
+  module signature (cohérence avec F5 v1.12.2 sur les autres chemins).
+* F11 — `catch (NameNotFoundException)` précis au lieu d'Exception large
+  (avant : `SecurityException` se faisait avaler avec message trompeur
+  "NOT_INSTALLED").
+* F12 — `_saveLastPage` débouncé 500 ms (avant : 1 setInt par page traversée
+  sur scroll rapide → pression IO XML SharedPreferences).
+* F13/F14 — `try/finally` autour de `pdfx.PdfDocument.openFile` dans
+  `compare_screen` et `reorder_pages_screen` (anti leak FD natif sur throw).
+* F15 — `debugPrint` dans `home_screen._checkUpdate` gardé par `kDebugMode`
+  (anti leak path/URL dans logcat release).
+* U4 — Champs mot de passe (3 sites : viewer, protect, decrypt) :
+  `autofillHints: const []` désactive Samsung Pass / Google Autofill +
+  `enableInteractiveSelection: !obscure` bloque sélection/copie quand masqué.
+
+Performance :
+* P1.3 — `try/finally` autour des 4 isolates PDF (metadata, header/footer,
+  page numbers, form flatten) — anti leak FD Syncfusion sur `saveSync` throw.
+* P2.1 — `DateFormat` hissé en `static final` dans `home_screen`.
+* P3.1 — Icône À propos `cacheWidth: 240` (avant : PNG 1024×1024 décodé
+  sans borne pour afficher 80 dp → ~3-4 Mo RAM permanent inutile).
+
+UX / a11y :
+* U1 — `showErrorSnack` désormais affiché en `cs.errorContainer` /
+  `cs.onErrorContainer` (avant : visuellement identique à info, problème
+  daltonien + lecture rapide).
+* U2 — Light theme : `snackBarTheme.behavior = floating` posé (avant : le
+  helper `snack_utils` mentait en light mode, snack non floating) +
+  `cardTheme`/`inputDecorationTheme` cohérents.
+* U3 — Dialog destructif "PDF en clair" : `autofocus` sur Annuler (safe
+  default Enter clavier physique) + bouton confirme en `cs.errorContainer`
+  au lieu de `Colors.amber` hardcoded.
+* U5 — Tooltips ajoutés sur les `PopupMenuButton` (zoom viewer, actions
+  fichier home).
+* U7 — `Semantics(liveRegion: true, value: 'Page X sur Y (Z%)')` sur le
+  progress OCR (avant : 30s+ de silence TalkBack).
+* U8 — `HapticFeedback.selectionClick()` sur save annotation (pattern
+  AI Tech v0.9.1 U4).
+* U18 — "Retirer" → "Retirer de la liste" (plus de confusion avec une
+  suppression disque).
+
+Aucun changement de format fichier. `flutter analyze` 0 issue, 6/6 tests
+verts.

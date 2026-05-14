@@ -10,6 +10,7 @@ import 'package:syncfusion_flutter_signaturepad/signaturepad.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../services/secure_window.dart';
 import '../../utils/atomic_write.dart';
+import '../../utils/image_bounds.dart';
 import '../../utils/snack_utils.dart';
 import '../../widgets/pdf_file_header.dart';
 import '../../widgets/pdf_picker_screen.dart';
@@ -124,6 +125,14 @@ class _SignatureScreenState extends State<SignatureScreen> {
       }
       final double y = size.height - 120;
 
+      // F10 v1.12.4 — Probe IHDR/SOF avant `PdfBitmap` pour cohérence avec
+      // F5 v1.12.2 (autres chemins image). En pratique le PNG vient ici de
+      // `_signatureKey.currentState.toImage(pixelRatio: 3.0)` (~1000×500
+      // max), donc safe par construction — mais defense-in-depth uniforme.
+      final dimsErr = ImageBounds.assertSafeBounds(pngBytes);
+      if (dimsErr != null) {
+        throw FormatException(dimsErr);
+      }
       final bitmap = PdfBitmap(pngBytes);
       lastPage.graphics.drawImage(
         bitmap,

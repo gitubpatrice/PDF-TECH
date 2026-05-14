@@ -240,12 +240,19 @@ Uint8List _metadataIsolate(
   String subject,
   String keywords,
 ) {
+  // P1.3 v1.12.4 — try/finally symétrique au pattern pdf_tools_service /
+  // compress_isolate. Sans ça, un throw sur `saveSync()` (rare mais
+  // possible si le PDF est corrompu) laissait `doc` non disposé → leak
+  // FD natif côté Syncfusion jusqu'au GC parent.
   final doc = PdfDocument(inputBytes: bytes);
-  doc.documentInformation.title = title;
-  doc.documentInformation.author = author;
-  doc.documentInformation.subject = subject;
-  doc.documentInformation.keywords = keywords;
-  final saved = doc.saveSync();
-  doc.dispose();
-  return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  try {
+    doc.documentInformation.title = title;
+    doc.documentInformation.author = author;
+    doc.documentInformation.subject = subject;
+    doc.documentInformation.keywords = keywords;
+    final saved = doc.saveSync();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  } finally {
+    doc.dispose();
+  }
 }

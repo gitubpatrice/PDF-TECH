@@ -395,9 +395,21 @@ class _OcrScreenState extends State<OcrScreen> {
               ),
               if (_totalPages > 0) ...[
                 const SizedBox(height: 12),
-                Text(
-                  'Page $_processedPages / $_totalPages',
-                  style: const TextStyle(color: Colors.grey),
+                // U7 v1.12.4 — `Semantics(liveRegion: true)` annonce
+                // l'avancement à TalkBack (la progression peut durer
+                // 30s+ sur PDF long ; sans liveRegion, le user aveugle
+                // n'a aucun feedback).
+                Semantics(
+                  liveRegion: true,
+                  value:
+                      'Page $_processedPages sur $_totalPages '
+                      '(${(_totalPages > 0 ? _processedPages / _totalPages * 100 : 0).round()}%)',
+                  child: Text(
+                    'Page $_processedPages / $_totalPages',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 LinearProgressIndicator(

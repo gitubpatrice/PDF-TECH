@@ -1,0 +1,51 @@
+v1.12.4 — Expert audit: security, performance, accessibility
+
+Security:
+* F1 — `MainActivity.kt`: removed `/storage` from whitelist + explicit
+  blacklist of `/Android/data/<other-pkg>/` (anti confused-deputy: Dart
+  can no longer send a forged path pointing to another app's data).
+* F2 — LRU cap of 200 entries on `last_page_*` keys (before: scanning
+  5000 PDFs swelled SharedPreferences to several MB, never purged).
+* F3 — `sendToPackage`: Kotlin whitelist of target packages (kDrive /
+  Drive / Proton only) + `clipData` bound to URI (grant strictly limited).
+* F5 — PDF password dialog now sets `FLAG_SECURE` BEFORE display
+  (before: 0-200 ms window during input where Recents capture /
+  MediaProjection could intercept the password).
+* F10 — `ImageBounds.assertSafeBounds` added before `PdfBitmap` in the
+  signature module (consistency with F5 v1.12.2 on other image paths).
+* F11 — Precise `catch (NameNotFoundException)` (before: `SecurityException`
+  was swallowed with misleading "NOT_INSTALLED" message).
+* F12 — `_saveLastPage` debounced 500 ms (before: 1 setInt per page on
+  fast scroll → SharedPreferences XML IO pressure).
+* F13/F14 — `try/finally` around `pdfx.PdfDocument.openFile` in
+  compare_screen and reorder_pages_screen (anti native FD leak on throw).
+* F15 — `debugPrint` in `home_screen._checkUpdate` guarded by `kDebugMode`
+  (anti path/URL leak in release logcat).
+* U4 — Password fields (3 sites: viewer, protect, decrypt): `autofillHints:
+  const []` disables Samsung Pass / Google Autofill + `enableInteractiveSelection:
+  !obscure` blocks selection/copy while obscured.
+
+Performance:
+* P1.3 — `try/finally` around 4 PDF isolates (metadata, header/footer,
+  page numbers, form flatten) — anti Syncfusion FD leak on `saveSync` throw.
+* P2.1 — `DateFormat` hoisted to `static final` in `home_screen`.
+* P3.1 — About icon `cacheWidth: 240` (before: 1024×1024 PNG decoded
+  unbounded for 80 dp display → ~3-4 MB permanent RAM waste).
+
+UX / a11y:
+* U1 — `showErrorSnack` now rendered in `cs.errorContainer` /
+  `cs.onErrorContainer` (before: visually identical to info).
+* U2 — Light theme: `snackBarTheme.behavior = floating` (before: the
+  `snack_utils` helper was lying in light mode) + consistent
+  `cardTheme`/`inputDecorationTheme`.
+* U3 — "PDF in clear" destructive dialog: `autofocus` on Cancel (safe
+  default for keyboard Enter) + confirm button in `cs.errorContainer`
+  instead of hardcoded `Colors.amber`.
+* U5 — Tooltips added on `PopupMenuButton` (viewer zoom, home file actions).
+* U7 — `Semantics(liveRegion: true, value: 'Page X of Y (Z%)')` on OCR
+  progress (before: 30s+ TalkBack silence).
+* U8 — `HapticFeedback.selectionClick()` on annotation save.
+* U18 — "Retirer" → "Retirer de la liste" (no more confusion with disk
+  deletion).
+
+No file format change. `flutter analyze` 0 issue, 6/6 tests green.

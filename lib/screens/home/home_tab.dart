@@ -648,6 +648,8 @@ class _HomeTabState extends State<HomeTab> {
           style: const TextStyle(fontSize: 11),
         ),
         trailing: PopupMenuButton<String>(
+          // U5 v1.12.4 — tooltip TalkBack pour le menu fichier.
+          tooltip: 'Actions du fichier',
           onSelected: (v) {
             if (v == 'favorite') widget.onToggleFavorite(file);
             if (v == 'share') widget.onShare(file);
@@ -679,7 +681,11 @@ class _HomeTabState extends State<HomeTab> {
               value: 'remove',
               child: ListTile(
                 leading: Icon(Icons.delete_outline),
-                title: Text('Retirer'),
+                // U18 v1.12.4 — précise que c'est la liste qui est affectée,
+                // pas le fichier (icône delete + label "Retirer" était
+                // ambigu, l'utilisateur pouvait croire à une suppression
+                // disque).
+                title: Text('Retirer de la liste'),
               ),
             ),
           ],

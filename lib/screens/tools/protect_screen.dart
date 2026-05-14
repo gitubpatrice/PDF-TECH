@@ -111,6 +111,10 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 obscureText: _obscure1,
                 enableSuggestions: false,
                 autocorrect: false,
+                // U4 v1.12.4 — anti Autofill Android + anti copy clipboard
+                // manager quand masqué.
+                autofillHints: const <String>[],
+                enableInteractiveSelection: !_obscure1,
                 keyboardType: TextInputType.visiblePassword,
                 decoration: InputDecoration(
                   labelText: 'Mot de passe',
@@ -131,6 +135,8 @@ class _ProtectScreenState extends State<ProtectScreen> {
                 obscureText: _obscure2,
                 enableSuggestions: false,
                 autocorrect: false,
+                autofillHints: const <String>[],
+                enableInteractiveSelection: !_obscure2,
                 keyboardType: TextInputType.visiblePassword,
                 decoration: InputDecoration(
                   labelText: 'Confirmer le mot de passe',

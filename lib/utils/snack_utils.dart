@@ -20,12 +20,22 @@ import 'package:flutter/material.dart';
 /// automatiquement (pattern dupliqué dans 28 sites de l'app avant
 /// extraction). [error] peut être une Exception, un String, etc. —
 /// `toString()` est appelé.
+///
+/// U1 v1.12.4 — Fond `cs.errorContainer` + texte `cs.onErrorContainer`
+/// (contraste WCAG AA dark + light) + bouton fermer via `actionTextColor`.
+/// Avant : snack neutre visuellement identique à `showInfoSnack`,
+/// problème daltonien + lecture rapide.
 void showErrorSnack(BuildContext context, Object error, {Duration? duration}) {
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) return;
+  final cs = Theme.of(context).colorScheme;
   messenger.showSnackBar(
     SnackBar(
-      content: Text('Erreur : $error'),
+      content: Text(
+        'Erreur : $error',
+        style: TextStyle(color: cs.onErrorContainer),
+      ),
+      backgroundColor: cs.errorContainer,
       duration: duration ?? const Duration(seconds: 4),
     ),
   );

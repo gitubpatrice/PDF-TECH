@@ -64,29 +64,38 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
   }
 
   Future<void> _loadThumbnails(String path, int count) async {
+    // F14 v1.12.4 — try/finally symétrique : un throw sur `getPage`,
+    // `render` ou `_rawToPng` au milieu de la boucle laissait pdfDoc
+    // ouvert (et la page courante non close).
     final pdfDoc = await pdfx.PdfDocument.openFile(path);
-    for (int i = 1; i <= count; i++) {
-      if (!mounted) break;
-      final page = await pdfDoc.getPage(i);
-      final img = await page.render(
-        width: page.width,
-        height: page.height,
-        format: pdfx.PdfPageImageFormat.png,
-        backgroundColor: '#ffffff',
-      );
-      await page.close();
-      if (img?.bytes != null) {
-        final png = await _rawToPng(
-          img!.bytes,
-          img.width ?? page.width.toInt(),
-          img.height ?? page.height.toInt(),
-        );
-        if (mounted) {
-          setState(() => _thumbs[i - 1] = _Thumb(png));
+    try {
+      for (int i = 1; i <= count; i++) {
+        if (!mounted) break;
+        final page = await pdfDoc.getPage(i);
+        try {
+          final img = await page.render(
+            width: page.width,
+            height: page.height,
+            format: pdfx.PdfPageImageFormat.png,
+            backgroundColor: '#ffffff',
+          );
+          if (img?.bytes != null) {
+            final png = await _rawToPng(
+              img!.bytes,
+              img.width ?? page.width.toInt(),
+              img.height ?? page.height.toInt(),
+            );
+            if (mounted) {
+              setState(() => _thumbs[i - 1] = _Thumb(png));
+            }
+          }
+        } finally {
+          await page.close();
         }
       }
+    } finally {
+      await pdfDoc.close();
     }
-    await pdfDoc.close();
     if (mounted) setState(() => _isLoadingThumbs = false);
   }
 

@@ -181,6 +181,11 @@ class _AboutScreenState extends State<AboutScreen> {
                     'assets/icon/app_icon.png',
                     width: 80,
                     height: 80,
+                    // P3.1/U9 v1.12.4 — `cacheWidth` borné à 2× DPI :
+                    // évite de décoder l'icône 1024×1024 à pleine résolution
+                    // pour afficher 80 dp (~3-4 Mo RAM gaspillés).
+                    cacheWidth: 240,
+                    cacheHeight: 240,
                     fit: BoxFit.cover,
                   ),
                 ),

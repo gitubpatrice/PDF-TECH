@@ -315,13 +315,34 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'PDF Tech',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
-        useMaterial3: true,
-      ),
+      theme: _lightTheme,
       darkTheme: _githubDarkTheme(),
       themeMode: _themeMode,
       home: HomeScreen(themeMode: _themeMode, onThemeChanged: _setTheme),
     );
   }
 }
+
+/// U2 v1.12.4 — Light theme désormais cohérent avec le dark theme :
+/// `snackBarTheme.behavior = floating` (sans ça, `snack_utils` mentait
+/// en light mode), `cardTheme`/`inputDecorationTheme` Material 3
+/// uniformes. Calculé 1 fois au démarrage (static final).
+final ThemeData _lightTheme = (() {
+  final scheme = ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0));
+  return ThemeData(
+    colorScheme: scheme,
+    useMaterial3: true,
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+    cardTheme: CardThemeData(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+    ),
+    inputDecorationTheme: const InputDecorationTheme(
+      filled: true,
+      border: OutlineInputBorder(),
+    ),
+  );
+})();

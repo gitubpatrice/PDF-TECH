@@ -1,4 +1,5 @@
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -52,7 +53,9 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       info = await appUpdateService.checkForUpdate();
     } catch (e) {
-      debugPrint('[HomeScreen._checkUpdate] $e');
+      // F15 v1.12.4 — gate kDebugMode pour ne pas leak l'erreur dans
+      // logcat release (peut contenir path utilisateur / URL).
+      if (kDebugMode) debugPrint('[HomeScreen._checkUpdate] $e');
       return;
     }
     if (info == null || !mounted) return;
@@ -187,13 +190,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _recentFiles = updated);
   }
 
+  // P2.1 v1.12.4 — DateFormat hissé en `static final` (avant : alloué à
+  // chaque appel `_formatDate`, invoqué par chaque carte récent/favori au
+  // rebuild parent).
+  static final _dfDMY = DateFormat('dd/MM/yyyy');
+
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
     if (diff.inDays == 0) return "Aujourd'hui";
     if (diff.inDays == 1) return 'Hier';
     if (diff.inDays < 7) return 'Il y a ${diff.inDays} jours';
-    return DateFormat('dd/MM/yyyy').format(date);
+    return _dfDMY.format(date);
   }
 
   @override

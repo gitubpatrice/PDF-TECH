@@ -1,6 +1,8 @@
 package com.pdftech.pdf_tech
 
+import android.content.ClipData
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
@@ -14,13 +16,30 @@ import java.io.File
 
 class MainActivity : FlutterActivity() {
 
+    companion object {
+        /// F3 v1.12.4 — Whitelist explicite des packages cibles autorisés
+        /// pour `sendToPackage`. Avant : Dart pouvait envoyer N'IMPORTE
+        /// quel pkg. Désormais on impose la liste connue (apps cloud déclarées
+        /// dans `<queries>` du manifest).
+        private val ALLOWED_SHARE_PACKAGES = setOf(
+            "com.infomaniak.drive",
+            "me.proton.android.drive",
+            "com.google.android.apps.docs",
+        )
+    }
+
     /// Racines autorisées pour sendToPackage. Le path passé par Dart est
     /// canonicalisé (suit symlinks) puis comparé. Empêche un path forgé de
     /// pointer vers /data/data/<other-app>/ ou /etc/passwd.
     private val allowedRoots: List<File> by lazy {
+        // F1 v1.12.4 — Retrait de `File("/storage")` : couvrait toute SD/OTG +
+        // /storage/emulated/0/Android/data/<autre-pkg>/, ce qui rendait
+        // possible un confused-deputy (Dart envoie un path forgé pointant
+        // vers les données d'une autre app → FileProvider partage l'URI vers
+        // app cloud). On garde uniquement les racines légitimement
+        // accessibles à PDF Tech.
         listOfNotNull(
             Environment.getExternalStorageDirectory().canonicalFile,
-            File("/storage").canonicalFile,
             filesDir.canonicalFile,
             cacheDir.canonicalFile,
             getExternalFilesDir(null)?.canonicalFile,
@@ -30,9 +49,18 @@ class MainActivity : FlutterActivity() {
     private fun isAllowedPath(path: String): Boolean {
         return try {
             val canonical = File(path).canonicalFile
+            val abs = canonical.absolutePath
+            // F1 v1.12.4 — Blacklist explicite des dossiers data/obb d'autres
+            // apps via SD card (paths qui passeraient l'allowedRoots
+            // `externalStorageDirectory` mais qui ne sont pas légitimement à
+            // nous). Cohérent avec RFT v2.13.1 / RFT v2.12.0 F5.
+            val pkgFiles = "/Android/data/$packageName"
+            val pkgObb = "/Android/obb/$packageName"
+            if (abs.contains("/Android/data/") && !abs.contains(pkgFiles)) return false
+            if (abs.contains("/Android/obb/") && !abs.contains(pkgObb)) return false
             allowedRoots.any { root ->
-                canonical.absolutePath == root.absolutePath ||
-                canonical.absolutePath.startsWith(root.absolutePath + File.separator)
+                abs == root.absolutePath ||
+                abs.startsWith(root.absolutePath + File.separator)
             }
         } catch (_: Exception) {
             false
@@ -75,10 +103,20 @@ class MainActivity : FlutterActivity() {
                         result.error("FORBIDDEN", "Chemin hors zone autorisée", null)
                         return@setMethodCallHandler
                     }
+                    // F3 v1.12.4 — Whitelist Kotlin du package cible. Avant :
+                    // Dart pouvait envoyer n'importe quel pkg, le `<queries>`
+                    // du manifest restait la seule contrainte.
+                    if (pkg !in ALLOWED_SHARE_PACKAGES) {
+                        result.error("FORBIDDEN_PKG", "Package non autorisé", null)
+                        return@setMethodCallHandler
+                    }
                     try {
+                        // F11 v1.12.4 — catch précis NameNotFoundException
+                        // au lieu d'Exception large (qui avalait aussi des
+                        // SecurityException avec message trompeur).
                         val installed = try {
                             packageManager.getPackageInfo(pkg, 0); true
-                        } catch (_: Exception) { false }
+                        } catch (_: PackageManager.NameNotFoundException) { false }
                         if (!installed) {
                             result.error("NOT_INSTALLED",
                                 "Application non installée : $pkg", null)
@@ -90,6 +128,10 @@ class MainActivity : FlutterActivity() {
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = mime
                             putExtra(Intent.EXTRA_STREAM, uri)
+                            // F3 v1.12.4 — `clipData` lié à l'URI : limite
+                            // strictement le grant aux URIs déclarées, même
+                            // si l'app cible introduit un component supplant.
+                            clipData = ClipData.newRawUri("pdf", uri)
                             setPackage(pkg)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

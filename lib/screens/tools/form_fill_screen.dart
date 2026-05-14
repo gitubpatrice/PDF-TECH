@@ -582,11 +582,15 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
 }
 
 Uint8List _flattenIsolate(Uint8List filledBytes) {
+  // P1.3 v1.12.4 — try/finally autour des opérations PDF.
   final doc = PdfDocument(inputBytes: filledBytes);
-  doc.form.flattenAllFields();
-  final saved = doc.saveSync();
-  doc.dispose();
-  return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  try {
+    doc.form.flattenAllFields();
+    final saved = doc.saveSync();
+    return saved is Uint8List ? saved : Uint8List.fromList(saved);
+  } finally {
+    doc.dispose();
+  }
 }
 
 class _FieldInfo {

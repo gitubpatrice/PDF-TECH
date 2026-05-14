@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/secure_window.dart';
@@ -46,6 +48,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   String get _prefKey => 'last_page_${widget.path.hashCode}';
   String get _nightKey => 'night_mode_pdf';
 
+  /// F2 v1.12.4 — Cap LRU sur les clés `last_page_*` : sans purge, scanner
+  /// 5000 PDFs (recursive `/storage`) gonflait SharedPreferences à plusieurs
+  /// Mo. La clé `_idxKey` mémoire l'ordre LRU (path.hashCode) ; au-delà de
+  /// `_lastPageMaxEntries`, on évince les plus anciennes.
+  static const _idxKey = 'last_page_lru_v1';
+  static const _lastPageMaxEntries = 200;
+
+  /// F12 v1.12.4 — Debounce du `_saveLastPage` (avant : un setInt par page
+  /// traversée sur scroll rapide → pression IO sur SharedPreferences XML).
+  Timer? _saveLastPageDebounce;
+  int? _pendingPageToSave;
+
   @override
   void initState() {
     super.initState();
@@ -61,9 +75,32 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     });
   }
 
+  /// F2 v1.12.4 — Maintient un index LRU des hashCodes path. Au-delà de
+  /// `_lastPageMaxEntries`, évince les plus anciennes entrées `last_page_*`.
+  Future<void> _bumpLruAndCap(SharedPreferences prefs, int currentHash) async {
+    final raw = prefs.getStringList(_idxKey) ?? const <String>[];
+    // Retire le hash courant s'il existe déjà, puis le remet en queue.
+    final updated = raw.where((h) => h != '$currentHash').toList()
+      ..add('$currentHash');
+    while (updated.length > _lastPageMaxEntries) {
+      final evicted = updated.removeAt(0);
+      await prefs.remove('last_page_$evicted');
+    }
+    await prefs.setStringList(_idxKey, updated);
+  }
+
   Future<void> _saveLastPage(int page) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_prefKey, page);
+    // Debounce : on stocke la page en attente, le timer flush dans 500 ms.
+    _pendingPageToSave = page;
+    _saveLastPageDebounce?.cancel();
+    _saveLastPageDebounce = Timer(const Duration(milliseconds: 500), () async {
+      final p = _pendingPageToSave;
+      if (p == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_prefKey, p);
+      await _bumpLruAndCap(prefs, widget.path.hashCode);
+      _pendingPageToSave = null;
+    });
   }
 
   Future<void> _toggleNightMode() async {
@@ -74,6 +111,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   void dispose() {
+    // F12 v1.12.4 — flush final si une page en attente n'a pas encore été
+    // persistée (debounce 500 ms). Best-effort, fire-and-forget.
+    _saveLastPageDebounce?.cancel();
+    final p = _pendingPageToSave;
+    if (p != null) {
+      unawaited(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt(_prefKey, p);
+        await _bumpLruAndCap(prefs, widget.path.hashCode);
+      }());
+    }
     // F1 v1.12.2 — relâche SecureWindow si le PDF était password-protected.
     if (_password != null) {
       SecureWindow.disable();
@@ -114,6 +162,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       // tronque pas le PDF original. Sans ça, sur 200 Mo l'utilisateur
       // peut perdre un PDF complet.
       await atomicWriteBytes(widget.path, bytes);
+      // U8 v1.12.4 — feedback haptique sur save réussi (sinon l'utilisateur
+      // ne sait pas distinguer un tap qui a fonctionné d'un tap raté).
+      HapticFeedback.selectionClick();
       setState(() => _hasUnsavedChanges = false);
       if (!mounted) return;
       showInfoSnack(
@@ -196,6 +247,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   Future<void> _promptPassword({required bool isWrong}) async {
     if (_passwordDialogOpen || !mounted) return;
     _passwordDialogOpen = true;
+    // F5 v1.12.4 — Active FLAG_SECURE AVANT le `showDialog`. Avant : le
+    // dialog password était affiché en clair pendant la saisie (le flag
+    // n'était posé qu'après `Navigator.pop`). Une capture Recents /
+    // MediaProjection pouvait intercepter le mot de passe dans cette
+    // fenêtre. Cohérent avec Notes Tech F8 v1.0.9.
+    final secureWasActive = _password != null;
+    if (!secureWasActive) {
+      SecureWindow.enable();
+    }
     final ctrl = TextEditingController();
     bool obscure = true;
     try {
@@ -221,6 +281,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   autofocus: true,
                   enableSuggestions: false,
                   autocorrect: false,
+                  // U4 v1.12.4 — désactive Samsung Pass / Google Autofill
+                  // (anti capture cross-app du password PDF).
+                  autofillHints: const <String>[],
+                  // U4 v1.12.4 — bloque sélection/copie quand masqué (anti
+                  // clipboard manager tiers).
+                  enableInteractiveSelection: !obscure,
                   keyboardType: TextInputType.visiblePassword,
                   decoration: InputDecoration(
                     labelText: 'Mot de passe',
@@ -251,6 +317,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
       if (!mounted) return;
       if (entered == null || entered.isEmpty) {
+        // F5 v1.12.4 — Annulation : on relâche le FLAG_SECURE posé en
+        // amont (sinon il restait actif sur l'écran parent jusqu'à
+        // dispose).
+        if (!secureWasActive) SecureWindow.disable();
         // L'utilisateur a annulé : on ferme le viewer.
         Navigator.of(context).maybePop();
         return;
@@ -259,10 +329,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         _password = entered;
         _passwordAttempt++;
       });
-      // F1 v1.12.2 — PDF password-protected en cours d'ouverture : active
-      // FLAG_SECURE pour bloquer screenshots / aperçu task switcher
-      // pendant la consultation.
-      SecureWindow.enable();
+      // F1 v1.12.2 — FLAG_SECURE déjà actif (posé avant showDialog, F5
+      // v1.12.4), on n'incrémente PAS le refcount une 2e fois.
     } finally {
       _passwordDialogOpen = false;
       // Le controller TextEditing du dialog est local, on le libère.
@@ -395,6 +463,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     onPressed: _share,
                   ),
                   PopupMenuButton<String>(
+                    // U5 v1.12.4 — tooltip TalkBack.
+                    tooltip: 'Plus d\'options',
                     onSelected: (v) {
                       switch (v) {
                         case 'zoom_in':

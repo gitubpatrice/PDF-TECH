@@ -118,42 +118,46 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
     double fontSize,
     bool skipFirst,
   ) {
+    // P1.3 v1.12.4 — try/finally autour des opérations PDF.
     final doc = PdfDocument(inputBytes: bytes);
-    final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
-    final brush = PdfSolidBrush(PdfColor(80, 80, 80));
-    final align = alignIdx == 0
-        ? PdfTextAlignment.left
-        : alignIdx == 2
-        ? PdfTextAlignment.right
-        : PdfTextAlignment.center;
-    for (int i = 0; i < doc.pages.count; i++) {
-      if (skipFirst && i == 0) continue;
-      final page = doc.pages[i];
-      final w = page.getClientSize().width;
-      final h = page.getClientSize().height;
-      final fmt = PdfStringFormat(alignment: align);
-      if (header.isNotEmpty) {
-        page.graphics.drawString(
-          header,
-          font,
-          brush: brush,
-          bounds: Rect.fromLTWH(16, 6, w - 32, 18),
-          format: fmt,
-        );
+    try {
+      final font = PdfStandardFont(PdfFontFamily.helvetica, fontSize);
+      final brush = PdfSolidBrush(PdfColor(80, 80, 80));
+      final align = alignIdx == 0
+          ? PdfTextAlignment.left
+          : alignIdx == 2
+          ? PdfTextAlignment.right
+          : PdfTextAlignment.center;
+      for (int i = 0; i < doc.pages.count; i++) {
+        if (skipFirst && i == 0) continue;
+        final page = doc.pages[i];
+        final w = page.getClientSize().width;
+        final h = page.getClientSize().height;
+        final fmt = PdfStringFormat(alignment: align);
+        if (header.isNotEmpty) {
+          page.graphics.drawString(
+            header,
+            font,
+            brush: brush,
+            bounds: Rect.fromLTWH(16, 6, w - 32, 18),
+            format: fmt,
+          );
+        }
+        if (footer.isNotEmpty) {
+          page.graphics.drawString(
+            footer,
+            font,
+            brush: brush,
+            bounds: Rect.fromLTWH(16, h - 20, w - 32, 18),
+            format: fmt,
+          );
+        }
       }
-      if (footer.isNotEmpty) {
-        page.graphics.drawString(
-          footer,
-          font,
-          brush: brush,
-          bounds: Rect.fromLTWH(16, h - 20, w - 32, 18),
-          format: fmt,
-        );
-      }
+      final saved = doc.saveSync();
+      return saved is Uint8List ? saved : Uint8List.fromList(saved);
+    } finally {
+      doc.dispose();
     }
-    final saved = doc.saveSync();
-    doc.dispose();
-    return saved is Uint8List ? saved : Uint8List.fromList(saved);
   }
 
   @override

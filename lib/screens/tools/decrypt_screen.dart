@@ -53,33 +53,40 @@ class _DecryptScreenState extends State<DecryptScreen> {
 
     // Avertissement explicite : le fichier de sortie sera EN CLAIR et persistant
     // sur le téléphone — l'utilisateur doit en être conscient.
+    // U3 v1.12.4 — dialog destructif : `autofocus` sur Annuler (safe
+    // default Enter clavier physique / TalkBack), icône + bouton confirme
+    // en `cs.error` plutôt que `Colors.amber` (daltonien + dark mode).
     final go = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(
-          Icons.warning_amber_rounded,
-          color: Colors.amber,
-          size: 36,
-        ),
-        title: const Text('Le PDF déchiffré sera en clair'),
-        content: const Text(
-          'Le fichier de sortie ne sera plus protégé par mot de passe. '
-          'Il sera enregistré dans le stockage de l\'app et restera accessible '
-          'jusqu\'à ce que vous le supprimiez.\n\n'
-          'Pensez à le supprimer après usage si le contenu est sensible.',
-          style: TextStyle(fontSize: 12),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.warning_amber_rounded, color: cs.error, size: 36),
+          title: const Text('Le PDF déchiffré sera en clair'),
+          content: const Text(
+            'Le fichier de sortie ne sera plus protégé par mot de passe. '
+            'Il sera enregistré dans le stockage de l\'app et restera accessible '
+            'jusqu\'à ce que vous le supprimiez.\n\n'
+            'Pensez à le supprimer après usage si le contenu est sensible.',
+            style: TextStyle(fontSize: 12),
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('J\'ai compris'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              autofocus: true,
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler'),
+            ),
+            FilledButton.tonal(
+              style: FilledButton.styleFrom(
+                backgroundColor: cs.errorContainer,
+                foregroundColor: cs.onErrorContainer,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('J\'ai compris'),
+            ),
+          ],
+        );
+      },
     );
     if (go != true || !mounted) return;
 
@@ -172,6 +179,9 @@ class _DecryptScreenState extends State<DecryptScreen> {
               obscureText: _obscure,
               enableSuggestions: false,
               autocorrect: false,
+              // U4 v1.12.4 — anti Autofill + anti copy clipboard masqué.
+              autofillHints: const <String>[],
+              enableInteractiveSelection: !_obscure,
               keyboardType: TextInputType.visiblePassword,
               decoration: InputDecoration(
                 hintText: 'Entrez le mot de passe du PDF',

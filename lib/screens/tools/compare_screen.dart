@@ -93,23 +93,32 @@ class _CompareScreenState extends State<CompareScreen> {
     int total,
   ) async {
     if (cache.containsKey(index) || index >= total) return;
+    // F13 v1.12.4 — try/finally symétrique au pattern G12 export_images :
+    // un throw sur `page.render` ou `_rawToPng` laissait pdfDoc/page non
+    // libérés → leak FD natif pdfx jusqu'au prochain GC.
     final pdfDoc = await pdfx.PdfDocument.openFile(path);
-    final page = await pdfDoc.getPage(index + 1);
-    final img = await page.render(
-      width: page.width * 1.5,
-      height: page.height * 1.5,
-      format: pdfx.PdfPageImageFormat.png,
-      backgroundColor: '#ffffff',
-    );
-    await page.close();
-    await pdfDoc.close();
-    if (img?.bytes != null) {
-      final png = await _rawToPng(
-        img!.bytes,
-        img.width ?? (page.width * 1.5).toInt(),
-        img.height ?? (page.height * 1.5).toInt(),
-      );
-      cache[index] = png;
+    try {
+      final page = await pdfDoc.getPage(index + 1);
+      try {
+        final img = await page.render(
+          width: page.width * 1.5,
+          height: page.height * 1.5,
+          format: pdfx.PdfPageImageFormat.png,
+          backgroundColor: '#ffffff',
+        );
+        if (img?.bytes != null) {
+          final png = await _rawToPng(
+            img!.bytes,
+            img.width ?? (page.width * 1.5).toInt(),
+            img.height ?? (page.height * 1.5).toInt(),
+          );
+          cache[index] = png;
+        }
+      } finally {
+        await page.close();
+      }
+    } finally {
+      await pdfDoc.close();
     }
   }
 
