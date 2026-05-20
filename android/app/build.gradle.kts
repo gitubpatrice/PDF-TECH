@@ -70,22 +70,22 @@ android {
         resourceConfigurations += listOf("fr", "en")
     }
 
-    // Splits ABI : un APK par architecture (arm64-v8a / armeabi-v7a / x86_64),
-    // au lieu d'un universel embarquant les 3. PDF Tech embarque Syncfusion
-    // + ML Kit + pdfx natifs — réduit drastiquement la taille d'APK livré
-    // par device (~30-50 Mo gagnés sur S9 / POCO C75).
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            // v1.12.5 — passé à `false` (audit cohérence portfolio Files Tech) :
-            // l'APK universel embarquait les 3 .so natifs Syncfusion+pdfx+ML Kit
-            // (~100 Mo) en plus des 3 splits, gonflait la release sans être
-            // distribué. Aligné sur Pass Tech / Notes Tech / SMS Tech.
-            isUniversalApk = false
-        }
-    }
+    // Splits ABI : bloc retiré v1.12.5.1 hotfix CI.
+    //
+    // Cause : depuis Flutter 3.41+, le SDK pose `ndk.abiFilters` auto.
+    // Avoir aussi `splits.abi { include(...) }` déclenche au build :
+    //   "Conflicting configuration : '...' in ndk abiFilters cannot be
+    //    present when splits abi filters are set"
+    //
+    // Le workflow GH Actions Release utilise `flutter build apk --release`
+    // (sans `--split-per-abi`) → besoin d'un APK universal → conflit.
+    //
+    // Pattern : passer par `flutter build apk --release --split-per-abi`
+    // (flag explicite) pour obtenir 3 APKs splits côté local. Sans flag :
+    // `flutter build apk --release` génère 1 APK universal (CI Release).
+    //
+    // Aligné RFT v2.13.1 hotfix CI et Pass / Notes Tech (qui n'ont jamais
+    // eu ce bloc).
 
     bundle {
         abi {
