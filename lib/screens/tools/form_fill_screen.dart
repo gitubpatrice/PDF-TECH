@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
@@ -365,6 +366,10 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
       // **Atomique** (audit failles P0 v1.12) : write tmp + rename pour
       // éviter la corruption du PDF original sur crash mid-write.
       await atomicWriteBytes(widget.path, bytes);
+      // v1.12.5 (U4) — HapticFeedback sur save formulaire (selectionClick
+      // = confirmation tactile). Aligné avec save annotations viewer
+      // v1.12.4 (U8) et Pass Tech U9.
+      await HapticFeedback.selectionClick();
       if (!mounted) return;
       setState(() {
         _hasChanges = false;
@@ -383,6 +388,11 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
   }
 
   Future<void> _flatten() async {
+    // v1.12.5 (U3) — aligné sur le pattern U3 v1.12.4 (DecryptScreen) :
+    // action destructive irréversible → autofocus Cancel + bouton confirme
+    // en cs.errorContainer. Avant : focus par défaut sur le bouton confirme,
+    // risque de clic réflexe.
+    final cs = Theme.of(context).colorScheme;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -393,10 +403,15 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
         ),
         actions: [
           TextButton(
+            autofocus: true,
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
-          FilledButton(
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: cs.errorContainer,
+              foregroundColor: cs.onErrorContainer,
+            ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Aplatir'),
           ),

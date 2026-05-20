@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
@@ -41,9 +42,15 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
     final int count;
     try {
       final bytes = await PdfToolsService.safeReadPdf(path);
+      // v1.12.5 (P2) — try/finally autour de doc.pages.count : si la
+      // lecture lève (PDF corrompu), doc.dispose() n'était jamais appelé
+      // → leak FD natif Syncfusion. Aligné sur le pattern P1.3 v1.12.4.
       final doc = PdfDocument(inputBytes: bytes);
-      count = doc.pages.count;
-      doc.dispose();
+      try {
+        count = doc.pages.count;
+      } finally {
+        doc.dispose();
+      }
     } catch (e) {
       if (!mounted) return;
       showErrorSnack(context, e);
@@ -52,7 +59,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
     if (!mounted) return;
     setState(() {
       _path = path;
-      _name = fileNameOf(path);
+      _name = PathUtils.fileName(path);
       _totalPages = count;
       _outputPaths = [];
       _isDone = false;

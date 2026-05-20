@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 
+import '../utils/date_utils.dart';
+
 /// Liste tous les PDFs d'un dossier (et un niveau de sous-dossiers max)
 /// pour que l'utilisateur puisse en choisir un rapidement, sans passer
 /// par le file picker système.
@@ -127,14 +129,11 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
   // v1.10.1 — délégué à FormatUtils.bytesStorage (files_tech_core).
   String _formatSize(int bytes) => FormatUtils.bytesStorage(bytes);
 
-  String _formatDate(DateTime d) {
-    final now = DateTime.now();
-    final diff = now.difference(d);
-    if (diff.inDays == 0) return 'Aujourd\'hui';
-    if (diff.inDays == 1) return 'Hier';
-    if (diff.inDays < 7) return 'Il y a ${diff.inDays}j';
-    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
-  }
+  // v1.12.5 (D3) — délégué à DateFormatUtils.relative (utils/date_utils.dart).
+  // Aligne le format sur home_screen ("Il y a N jours" au lieu de "Nj")
+  // et bénéficie du DateFormat static (perf P2.1 v1.12.4) — avant :
+  // padLeft inline alloué à chaque rebuild de chaque ligne de la liste.
+  String _formatDate(DateTime d) => DateFormatUtils.relative(d);
 
   @override
   Widget build(BuildContext context) {

@@ -1,9 +1,9 @@
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../services/app_update.dart';
+import '../utils/date_utils.dart';
 import '../services/share_service.dart';
 import '../widgets/pdf_picker_screen.dart';
 import 'about_screen.dart';
@@ -190,19 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) setState(() => _recentFiles = updated);
   }
 
-  // P2.1 v1.12.4 — DateFormat hissé en `static final` (avant : alloué à
-  // chaque appel `_formatDate`, invoqué par chaque carte récent/favori au
-  // rebuild parent).
-  static final _dfDMY = DateFormat('dd/MM/yyyy');
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inDays == 0) return "Aujourd'hui";
-    if (diff.inDays == 1) return 'Hier';
-    if (diff.inDays < 7) return 'Il y a ${diff.inDays} jours';
-    return _dfDMY.format(date);
-  }
+  // v1.12.5 (D3) — délégué à DateFormatUtils.relative (extrait dans
+  // utils/date_utils.dart) pour partager l'implémentation avec
+  // pdf_folder_screen. Pattern P2.1 v1.12.4 (DateFormat static) préservé.
+  String _formatDate(DateTime date) => DateFormatUtils.relative(date);
 
   @override
   Widget build(BuildContext context) {

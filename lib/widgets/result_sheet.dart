@@ -22,7 +22,13 @@ Future<void> showResultSheet(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.green[600], size: 48),
+            // v1.12.5 (D4) — token M3 au lieu de Colors.green[600] hardcodé
+            // (icône sémantique succès non adaptive dark mode).
+            Icon(
+              Icons.check_circle,
+              color: Theme.of(context).colorScheme.primary,
+              size: 48,
+            ),
             const SizedBox(height: 10),
             Text(
               operationLabel,

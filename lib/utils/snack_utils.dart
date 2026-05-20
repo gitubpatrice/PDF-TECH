@@ -62,11 +62,25 @@ void showInfoSnack(
 /// Variante pour les flux async où l'appelant a capturé
 /// [ScaffoldMessenger] AVANT un `await` afin de ne pas dépendre du
 /// `BuildContext` après la frontière asynchrone.
+///
+/// v1.12.5 (Q1/D1) — [cs] (ColorScheme) ajouté en paramètre **requis** :
+/// l'extension dégradée ne posait pas `errorContainer`, régression
+/// silencieuse du fix U1 v1.12.4 sur les sites async. Le caller capture
+/// `cs = Theme.of(context).colorScheme` AVANT l'await en même temps que
+/// `messenger = ScaffoldMessenger.of(context)`.
 extension SnackbarMessengerExt on ScaffoldMessengerState {
-  void showErrorSnack(Object error, {Duration? duration}) {
+  void showErrorSnack(
+    Object error, {
+    required ColorScheme cs,
+    Duration? duration,
+  }) {
     showSnackBar(
       SnackBar(
-        content: Text('Erreur : $error'),
+        content: Text(
+          'Erreur : $error',
+          style: TextStyle(color: cs.onErrorContainer),
+        ),
+        backgroundColor: cs.errorContainer,
         duration: duration ?? const Duration(seconds: 4),
       ),
     );

@@ -42,7 +42,7 @@ class _OcrScreenState extends State<OcrScreen> {
     if (path == null) return;
     setState(() {
       _path = path;
-      _name = fileNameOf(path);
+      _name = PathUtils.fileName(path);
       _extractedText = '';
       _isDone = false;
       _mode = '';
@@ -208,6 +208,10 @@ class _OcrScreenState extends State<OcrScreen> {
   }
 
   Future<void> _copyText() async {
+    // v1.12.5 (U4) — HapticFeedback sur copy texte OCR (selectionClick =
+    // confirmation tactile de l'action utilisateur). Aligné Pass Tech U9 /
+    // Notes Tech F4 / pattern HapticFeedback save annotations v1.12.4 (U8).
+    await HapticFeedback.selectionClick();
     await Clipboard.setData(ClipboardData(text: _extractedText));
     if (!mounted) return;
     showInfoSnack(
@@ -425,6 +429,12 @@ class _OcrScreenState extends State<OcrScreen> {
 
   Widget _buildResult() {
     final isEmpty = _extractedText.isEmpty;
+    // v1.12.5 (U2) — tokens M3 au lieu de Colors.orange/green hardcodés.
+    // `Colors.green[600]` sur fond surface dark donnait ratio ~3.1:1 (WCAG
+    // AA exige 4.5:1). Maintenant cs.error (vide/échec) / cs.primary (succès)
+    // respectent le thème actif et garantissent le contraste.
+    final cs = Theme.of(context).colorScheme;
+    final statusColor = isEmpty ? cs.error : cs.primary;
     return Expanded(
       child: Column(
         children: [
@@ -434,7 +444,7 @@ class _OcrScreenState extends State<OcrScreen> {
               children: [
                 Icon(
                   isEmpty ? Icons.warning_amber : Icons.check_circle,
-                  color: isEmpty ? Colors.orange : Colors.green[600],
+                  color: statusColor,
                   size: 17,
                 ),
                 const SizedBox(width: 6),
@@ -444,7 +454,7 @@ class _OcrScreenState extends State<OcrScreen> {
                         ? 'Aucun texte détecté'
                         : '${_extractedText.length} caractères  ·  ${_mode == 'ocr' ? 'OCR' : 'Natif'}',
                     style: TextStyle(
-                      color: isEmpty ? Colors.orange : Colors.green[700],
+                      color: statusColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

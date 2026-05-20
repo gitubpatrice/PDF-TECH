@@ -18,11 +18,16 @@ class StorageBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final usedBytes = totalBytes - freeBytes;
     final ratio = totalBytes > 0 ? usedBytes / totalBytes : 0.0;
+    final cs = Theme.of(context).colorScheme;
+    // v1.12.5 (D4) — tokens M3 au lieu de Colors.red/orange hardcodés.
+    // `cs.error` sur seuil critique > 90% (sémantique d'urgence),
+    // `cs.tertiary` sur seuil avertissement > 75% (sémantique d'alerte),
+    // `cs.primary` en dessous. Aligné avec le ColorScheme actif (dark mode).
     final color = ratio > 0.9
-        ? Colors.red
+        ? cs.error
         : ratio > 0.75
-        ? Colors.orange
-        : Theme.of(context).colorScheme.primary;
+        ? cs.tertiary
+        : cs.primary;
 
     return Card(
       child: Padding(

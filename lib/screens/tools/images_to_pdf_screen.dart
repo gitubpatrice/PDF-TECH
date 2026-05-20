@@ -5,11 +5,11 @@ import '../../services/pdf_tools_service.dart';
 import '../../utils/atomic_write.dart';
 import '../../utils/image_bounds.dart';
 import '../../utils/snack_utils.dart';
+import '../../widgets/result_sheet.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:share_plus/share_plus.dart';
 
 /// Construit un PDF à partir d'une liste d'images dans un Isolate.
 /// Sans isolate, le UI thread freeze sur 50+ photos haute-rés
@@ -110,6 +110,9 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
   Future<void> _convert() async {
     if (_images.isEmpty) return;
     final messenger = ScaffoldMessenger.of(context);
+    // v1.12.5 Q1/D1 — capture du ColorScheme avant l'await pour permettre
+    // à `SnackbarMessengerExt.showErrorSnack` de poser cs.errorContainer.
+    final cs = Theme.of(context).colorScheme;
     setState(() => _isProcessing = true);
     try {
       // Build PDF dans un isolate : decode bitmap + drawImage + save sont
@@ -119,23 +122,25 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
       await atomicWriteBytes(outPath, pdfBytes);
 
       if (!mounted) return;
-      setState(() => _isProcessing = false);
-      showInfoSnack(
-        context,
-        'PDF créé : ${_images.length} page${_images.length > 1 ? 's' : ''}',
-        action: SnackBarAction(
-          label: 'Partager',
-          onPressed: () => Share.shareXFiles([XFile(outPath)]),
-        ),
-      );
+      final pageCount = _images.length;
       setState(() {
+        _isProcessing = false;
         _images.clear();
         _totalBytes = 0;
       });
+      // v1.12.5 (D2) — passage à showResultSheet (aligné sur les 17 autres
+      // écrans tools). Avant : snack avec SnackBarAction "Partager" — pas
+      // d'ouverture immédiate du fichier produit. Maintenant : sheet
+      // Ouvrir + Partager + Cloud cohérente.
+      await showResultSheet(
+        context,
+        outputPath: outPath,
+        operationLabel: 'PDF créé : $pageCount page${pageCount > 1 ? 's' : ''}',
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      messenger.showErrorSnack(e);
+      messenger.showErrorSnack(e, cs: cs);
     }
   }
 

@@ -406,10 +406,13 @@ class _PrivacyCard extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   '100 % privé — zéro surveillance',
+                  // v1.12.5 (Q3) — token M3 au lieu de Colors.grey.shade300
+                  // hardcodé. Avant : ratio ~1.8:1 sur fond card blanc light
+                  // (texte illisible). cs.onSurface garantit WCAG AA.
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
-                    color: Colors.grey.shade300,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],

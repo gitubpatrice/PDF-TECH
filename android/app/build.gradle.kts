@@ -18,6 +18,11 @@ fun keyProp(envName: String, propName: String): String? =
     System.getenv(envName) ?: keyProperties[propName] as String?
 
 android {
+    // v1.12.5 (S1) — `com.pdftech.pdf_tech` est le package HISTORIQUE pré-
+    // FilesTech (publié sous cet identifiant sur F-Droid + GitHub Release
+    // depuis 2024). Cert SHA-256 stable `7d2c1199…dd2a4f4` y est lié.
+    // Migrer vers `com.filestech.pdftech` serait destructive (perte
+    // historique installations utilisateurs F-Droid). On conserve.
     namespace = "com.pdftech.pdf_tech"
     // Pinné explicitement pour cohérence cross-app Files Tech et
     // reproductibilité des builds CI. 36 requis par androidx.core 1.17+.
@@ -74,7 +79,11 @@ android {
             isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
+            // v1.12.5 — passé à `false` (audit cohérence portfolio Files Tech) :
+            // l'APK universel embarquait les 3 .so natifs Syncfusion+pdfx+ML Kit
+            // (~100 Mo) en plus des 3 splits, gonflait la release sans être
+            // distribué. Aligné sur Pass Tech / Notes Tech / SMS Tech.
+            isUniversalApk = false
         }
     }
 

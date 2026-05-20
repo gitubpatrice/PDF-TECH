@@ -275,6 +275,22 @@ class _HomeTabState extends State<HomeTab> {
         return;
       }
     }
+    // v1.12.5 (S2) — defense-in-depth : valide que le path canonique résolu
+    // reste sous /storage/. Protège contre un symlink pathologique qui
+    // pointerait vers /data/data/<autre-pkg>/ ou hors-périmètre. Sur Android
+    // shared storage les symlinks sont rares, mais la validation est rapide.
+    try {
+      final canonical = await dir.resolveSymbolicLinks();
+      if (!canonical.startsWith('/storage/') &&
+          !canonical.startsWith('/sdcard/')) {
+        if (!mounted) return;
+        showInfoSnack(context, 'Dossier "$label" — chemin invalide');
+        return;
+      }
+    } catch (_) {
+      // resolveSymbolicLinks peut throw sur permission denied ; on continue
+      // car le path est dans la whitelist statique du widget.
+    }
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(

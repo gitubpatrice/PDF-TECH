@@ -1,0 +1,17 @@
+v1.12.5 — Consistency + quality audit (15 fixes)
+
+Build: isUniversalApk=false (~100 MB saving).
+
+UI/a11y: M3 tokens everywhere (WCAG AA),
+Semantics + Tooltip TalkBack, Flatten dialog
+destructive pattern, HapticFeedback OCR copy
++ form save.
+
+Security: error snack to cs.errorContainer,
+_browseFolder canonical anti-symlink,
+try/finally PdfDocument anti FD-leak.
+
+Consistency: showResultSheet, shared
+DateFormatUtils.
+
+100% local. No format change.

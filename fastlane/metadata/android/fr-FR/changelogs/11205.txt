@@ -1,0 +1,16 @@
+v1.12.5 — Audit cohérence + qualité (15 fixes)
+
+Build : isUniversalApk=false (~100 Mo gain).
+
+UI/a11y : tokens M3 partout (WCAG AA), Semantics
++ Tooltip TalkBack, dialog Aplatir destructif
+aligné, HapticFeedback OCR copy + save.
+
+Sécurité : Snackbar erreur en cs.errorContainer,
+_browseFolder canonique anti-symlink, try/finally
+PdfDocument anti-leak FD.
+
+Cohérence : showResultSheet, DateFormatUtils
+partagé.
+
+100 % local. Aucun changement de format.

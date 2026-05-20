@@ -743,24 +743,37 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: active
-              ? BoxDecoration(
-                  color: activeColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: activeColor.withValues(alpha: 0.5)),
-                )
-              : null,
-          child: Icon(
-            icon,
-            color: active ? activeColor : Colors.grey,
-            size: 22,
+    // v1.12.5 (U5) — Semantics avec `selected: active` pour TalkBack.
+    // Avant : Tooltip seul → l'annonceur disait juste le label, sans
+    // indiquer si le mode était activé ou non. `excludeSemantics` évite
+    // que les enfants (Icon) annoncent à nouveau.
+    return Semantics(
+      label: label,
+      selected: active,
+      button: true,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(6),
+            decoration: active
+                ? BoxDecoration(
+                    color: activeColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: activeColor.withValues(alpha: 0.5),
+                    ),
+                  )
+                : null,
+            child: Icon(
+              icon,
+              color: active ? activeColor : Colors.grey,
+              size: 22,
+            ),
           ),
         ),
       ),

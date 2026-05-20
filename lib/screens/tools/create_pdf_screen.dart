@@ -104,56 +104,64 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
   Future<void> _addLink() async {
     final urlCtrl = TextEditingController();
     final textCtrl = TextEditingController();
-    final url = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Insérer un lien'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: textCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Texte affiché',
-                border: OutlineInputBorder(),
+    // v1.12.5 (D7) — dispose explicite via try/finally pour éviter les leaks
+    // de TextEditingController créés dans un dialog builder stateless
+    // (ils ne sont pas disposés automatiquement avec le dialog).
+    try {
+      final url = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Insérer un lien'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: textCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Texte affiché',
+                  border: OutlineInputBorder(),
+                ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: urlCtrl,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: 'URL (https://…)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: urlCtrl,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                labelText: 'URL (https://…)',
-                border: OutlineInputBorder(),
-              ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, urlCtrl.text.trim()),
+              child: const Text('Insérer'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
+      );
+      if (url == null || url.isEmpty) return;
+      final display = textCtrl.text.trim().isEmpty ? url : textCtrl.text.trim();
+      setState(
+        () => _blocks.add(
+          _Block(
+            type: _BlockType.link,
+            text: display,
+            linkUrl: url,
+            color: Colors.blue,
+            underline: true,
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, urlCtrl.text.trim()),
-            child: const Text('Insérer'),
-          ),
-        ],
-      ),
-    );
-    if (url == null || url.isEmpty) return;
-    final display = textCtrl.text.trim().isEmpty ? url : textCtrl.text.trim();
-    setState(
-      () => _blocks.add(
-        _Block(
-          type: _BlockType.link,
-          text: display,
-          linkUrl: url,
-          color: Colors.blue,
-          underline: true,
         ),
-      ),
-    );
+      );
+    } finally {
+      urlCtrl.dispose();
+      textCtrl.dispose();
+    }
   }
 
   void _removeBlock(int i) {
