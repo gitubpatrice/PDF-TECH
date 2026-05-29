@@ -1,0 +1,13 @@
+v1.13.0 — Ouvrir un PDF depuis une autre app
+
+Vous pouvez désormais ouvrir un PDF directement
+depuis votre boîte mail (Infomaniak, etc.), un
+gestionnaire de fichiers ou toute app qui partage
+un PDF : « Visualiser » / « Ouvrir avec » → PDF
+Tech l'affiche aussitôt.
+
+Le fichier est copié dans un cache privé (nom
+durci, taille max 200 Mo, purge 24 h). Aucune
+permission de stockage requise : lecture via
+l'autorisation temporaire de l'app source.
+100 % local.

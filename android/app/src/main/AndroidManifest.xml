@@ -38,9 +38,17 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Permet d'ouvrir des PDFs depuis d'autres apps -->
+            <!-- Ouvrir un PDF depuis une autre app (mail « Visualiser »,
+                 gestionnaire de fichiers…) → ACTION_VIEW + data content:// -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/pdf"/>
+            </intent-filter>
+            <!-- Recevoir un PDF partagé → ACTION_SEND + EXTRA_STREAM
+                 (apps mail/chat qui partagent au lieu d'ouvrir). -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>

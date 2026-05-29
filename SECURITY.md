@@ -2,6 +2,28 @@
 
 ## Historique des durcissements
 
+- **v1.13.0** (2026-05-29) — Réception des PDFs entrants (`ACTION_VIEW` /
+  `ACTION_SEND`) depuis une autre app (mail Infomaniak « Visualiser »,
+  gestionnaire de fichiers). Surface d'entrée nouvelle, durcie par
+  conception :
+  - **Anti path-traversal** — `resolveSafePdfName` dépouille toute
+    composante de chemin (`File(name).name`), restreint à `[A-Za-z0-9._-]`
+    et force l'extension `.pdf`. Un `DISPLAY_NAME` forgé (`../../x`)
+    devient `x.pdf`.
+  - **Plafond taille 200 Mo** — flux `content://` lu par buffer 64 Ko avec
+    compteur ; au-delà, fichier partiel supprimé et import abandonné
+    (anti-saturation du cache).
+  - **Isolation** — copie dans un sous-dossier horodaté unique de
+    `cacheDir/incoming` (aucun écrasement d'un fichier en lecture) +
+    purge best-effort des imports > 24 h.
+  - **Permissions** — aucune permission de stockage requise : lecture via
+    le grant transitoire de l'URI fourni par l'app source. La surface de
+    permissions de l'app est inchangée (`MANAGE_EXTERNAL_STORAGE` reste
+    réservé au scan « Parcourir »).
+  - **Sens entrant non ré-exfiltré** — les PDFs reçus sont uniquement
+    affichés ; le durcissement confused-deputy existant de `sendToPackage`
+    (sens sortant, F1/F3 v1.12.4) reste intact.
+
 - **v1.12.4** (2026-05-13) — Audit expert post-v1.12.3 : 24 corrections
   (F1-F3 + F5 + F10-F15 sécu / U1-U5 + U7 + U8 + U18 UX / P1.3 + P2.1 + P3.1 perf).
   Tous tests verts (6/6), `flutter analyze` 0 issue.

@@ -1,6 +1,7 @@
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 
 import '../services/app_update.dart';
 import '../utils/date_utils.dart';
@@ -38,11 +39,63 @@ class _HomeScreenState extends State<HomeScreen> {
   int _navIndex = 0;
   bool _isLoading = true;
 
+  /// Réception des PDFs ouverts depuis une autre app (Infomaniak Mail
+  /// « Visualiser », gestionnaire de fichiers…). Le natif copie le flux
+  /// content:// dans le cache et expose le path via ce channel.
+  static const _incomingChannel = MethodChannel(
+    'com.pdftech.pdf_tech/incoming',
+  );
+
   @override
   void initState() {
     super.initState();
     _loadRecents();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkUpdate());
+    // Warm start : le natif pousse le path quand l'app est déjà vivante.
+    _incomingChannel.setMethodCallHandler(_onIncomingCall);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUpdate();
+      _consumeInitialPdf();
+    });
+  }
+
+  @override
+  void dispose() {
+    _incomingChannel.setMethodCallHandler(null);
+    super.dispose();
+  }
+
+  /// Cold start : tire le PDF capturé par le natif au lancement.
+  Future<void> _consumeInitialPdf() async {
+    try {
+      final path = await _incomingChannel.invokeMethod<String>('getInitialPdf');
+      if (path != null && path.isNotEmpty) await _openIncoming(path);
+    } catch (e) {
+      if (kDebugMode) debugPrint('[HomeScreen._consumeInitialPdf] $e');
+    }
+  }
+
+  Future<dynamic> _onIncomingCall(MethodCall call) async {
+    if (call.method == 'onNewPdf') {
+      final path = call.arguments as String?;
+      if (path != null && path.isNotEmpty) await _openIncoming(path);
+    }
+    return null;
+  }
+
+  /// Ouvre directement le viewer sur un PDF importé. Volontairement hors
+  /// « récents » : le fichier vit dans le cache (purgé), un raccourci récent
+  /// pointerait vers un path mort. Conception mono-déclenchement (cold start
+  /// lit le path une fois, warm start le pousse une fois) → ouvrir un nouveau
+  /// PDF pendant la lecture en empile un autre, comportement attendu.
+  Future<void> _openIncoming(String path) async {
+    if (!mounted) return;
+    final name = PathUtils.fileName(path);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(path: path, title: name),
+      ),
+    );
   }
 
   Future<void> _checkUpdate() async {

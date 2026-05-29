@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
+import android.provider.OpenableColumns
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.core.content.FileProvider
@@ -26,7 +27,27 @@ class MainActivity : FlutterActivity() {
             "me.proton.android.drive",
             "com.google.android.apps.docs",
         )
+
+        /// Channel de réception des PDFs ouverts depuis une autre app
+        /// (Infomaniak Mail « Visualiser », gestionnaire de fichiers…).
+        private const val INCOMING_CHANNEL = "com.pdftech.pdf_tech/incoming"
+
+        /// Durée de rétention des copies importées dans cacheDir/incoming.
+        /// Au-delà, purge best-effort au prochain import (évite l'accumulation
+        /// sans toucher à un fichier en cours de visualisation).
+        private const val INCOMING_TTL_MS = 24L * 60L * 60L * 1000L
+
+        /// Garde-fou taille : un mail ne devrait pas livrer un PDF > 200 Mo.
+        /// Empêche un content:// hostile de saturer le cache.
+        private const val INCOMING_MAX_BYTES = 200L * 1024L * 1024L
     }
+
+    /// Channel poussant le path du PDF importé vers Dart (warm start).
+    private var incomingChannel: MethodChannel? = null
+
+    /// Path du PDF capturé au lancement à froid (cold start), consommé par
+    /// Dart via `getInitialPdf`. Null une fois lu.
+    private var pendingPdfPath: String? = null
 
     /// Racines autorisées pour sendToPackage. Le path passé par Dart est
     /// canonicalisé (suit symlinks) puis comparé. Empêche un path forgé de
@@ -69,6 +90,26 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Réception des PDFs entrants (ACTION_VIEW / ACTION_SEND).
+        // `getInitialPdf` est tiré par Dart au démarrage (cold start) ;
+        // `onNewPdf` est poussé par le natif sur onNewIntent (warm start,
+        // app déjà lancée — launchMode singleTop).
+        incomingChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger, INCOMING_CHANNEL
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "getInitialPdf") {
+                    result.success(pendingPdfPath)
+                    pendingPdfPath = null
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
+        // Intent ayant lancé l'activity (cold start). La copie est faite
+        // maintenant, tant que le grant de lecture du content:// est vivant.
+        handleIncomingIntent(intent, warmStart = false)
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.pdftech.pdf_tech/settings")
             .setMethodCallHandler { call, result ->
@@ -192,5 +233,110 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    /// App déjà vivante (singleTop) : un nouvel « Ouvrir avec » arrive ici.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent, warmStart = true)
+    }
+
+    /// Extrait l'URI du PDF de l'intent, la copie dans le cache, puis :
+    /// - cold start → mémorise le path pour `getInitialPdf` ;
+    /// - warm start → pousse `onNewPdf` à Dart (sur le thread UI).
+    private fun handleIncomingIntent(intent: Intent?, warmStart: Boolean) {
+        if (intent == null) return
+        @Suppress("DEPRECATION")
+        val uri: Uri? = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
+            else -> null
+        }
+        if (uri == null) return
+        val path = copyIncomingToCache(uri) ?: return
+        if (warmStart) {
+            runOnUiThread { incomingChannel?.invokeMethod("onNewPdf", path) }
+        } else {
+            pendingPdfPath = path
+        }
+    }
+
+    /// Copie le flux `content://`/`file://` reçu dans un sous-dossier horodaté
+    /// de `cacheDir/incoming`. Le sous-dossier unique évite tout écrasement
+    /// d'un fichier en cours de lecture. Le nom est durci (anti path-traversal)
+    /// et la taille plafonnée. Retourne le path absolu, ou null si échec.
+    private fun copyIncomingToCache(uri: Uri): String? {
+        return try {
+            val base = File(cacheDir, "incoming").apply { mkdirs() }
+            purgeStaleIncoming(base)
+            val name = resolveSafePdfName(uri)
+            val dir = File(base, System.currentTimeMillis().toString()).apply { mkdirs() }
+            val out = File(dir, name)
+            val written = contentResolver.openInputStream(uri)?.use { input ->
+                out.outputStream().use { output ->
+                    val buf = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val read = input.read(buf)
+                        if (read < 0) break
+                        total += read
+                        if (total > INCOMING_MAX_BYTES) {
+                            output.close()
+                            out.delete()
+                            return null
+                        }
+                        output.write(buf, 0, read)
+                    }
+                    total
+                }
+            } ?: return null
+            if (written <= 0L) { out.delete(); return null }
+            out.absolutePath
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /// Supprime les imports plus vieux que [INCOMING_TTL_MS]. Best-effort :
+    /// une erreur d'I/O n'empêche pas l'import en cours.
+    private fun purgeStaleIncoming(base: File) {
+        try {
+            val cutoff = System.currentTimeMillis() - INCOMING_TTL_MS
+            base.listFiles()?.forEach { entry ->
+                if (entry.lastModified() < cutoff) entry.deleteRecursively()
+            }
+        } catch (_: Exception) {
+            // ignore — purge non critique
+        }
+    }
+
+    /// Résout un nom de fichier sûr : DISPLAY_NAME du ContentResolver (ou
+    /// dernier segment d'URI), dépouillé de toute composante de chemin,
+    /// restreint à [A-Za-z0-9._-], forcé en `.pdf`.
+    private fun resolveSafePdfName(uri: Uri): String {
+        var raw = "document.pdf"
+        try {
+            if (uri.scheme == "content") {
+                contentResolver.query(
+                    uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (idx >= 0) c.getString(idx)?.let { raw = it }
+                    }
+                }
+            } else {
+                uri.lastPathSegment?.let { raw = it }
+            }
+        } catch (_: Exception) {
+            // fallback "document.pdf"
+        }
+        // Retire toute composante de répertoire (anti path-traversal).
+        var name = File(raw).name
+        if (!name.lowercase().endsWith(".pdf")) name += ".pdf"
+        name = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        if (name.isBlank() || name == ".pdf") name = "document.pdf"
+        return name
     }
 }

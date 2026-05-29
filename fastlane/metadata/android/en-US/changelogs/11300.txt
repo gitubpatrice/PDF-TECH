@@ -1,0 +1,11 @@
+v1.13.0 — Open a PDF from another app
+
+You can now open a PDF straight from your mail
+app (Infomaniak, etc.), a file manager or any app
+that shares a PDF: "View" / "Open with" → PDF Tech
+displays it right away.
+
+The file is copied to a private cache (hardened
+name, 200 MB size cap, auto 24 h purge). No
+storage permission needed: read via the source
+app's temporary grant. 100% local.
