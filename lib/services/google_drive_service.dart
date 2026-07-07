@@ -21,8 +21,6 @@ class GoogleDriveService {
 
   Future<GoogleSignInAccount?> signIn() => _googleSignIn.signIn();
 
-  Future<void> signOut() => _googleSignIn.signOut();
-
   /// Déconnexion complète : signOut local + révocation des tokens
   /// OAuth côté Google (refresh token inclus). Audit failles P1 :
   /// `signOut()` seul ne révoque PAS le refresh token, ce qui laisse

@@ -128,9 +128,8 @@ class _MergeScreenState extends State<MergeScreen> {
               child: ReorderableListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: _files.length,
-                onReorder: (oldIndex, newIndex) {
+                onReorderItem: (oldIndex, newIndex) {
                   setState(() {
-                    if (newIndex > oldIndex) newIndex--;
                     final item = _files.removeAt(oldIndex);
                     _files.insert(newIndex, item);
                   });

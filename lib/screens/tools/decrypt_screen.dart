@@ -40,6 +40,7 @@ class _DecryptScreenState extends State<DecryptScreen> {
       title: 'Choisir le PDF à déchiffrer',
     );
     if (path == null) return;
+    if (!mounted) return;
     setState(() {
       _path = path;
       _name = PathUtils.fileName(path);
@@ -108,8 +109,10 @@ class _DecryptScreenState extends State<DecryptScreen> {
       // G15 v1.12.3 — remplace SnackBarAction "Partager" qui pointait vers
       // `decrypted/` purgé au lifecycle (F2 v1.12.2) → tap "Partager" après
       // backgrounding produisait une erreur silencieuse share_plus.
-      // showResultSheet expose le partage immédiatement (modal) + copie le
-      // fichier vers `cache/share/` (FileProvider) via PdfToolsService.
+      // showResultSheet expose le partage immédiatement (modal), tant que le
+      // fichier existe encore : « Partager » passe par share_plus (qui copie
+      // dans son propre cache) et les cibles cloud par FileProvider sur le
+      // chemin `decrypted/` — aucune copie intermédiaire côté PdfToolsService.
       await showResultSheet(
         context,
         outputPath: outPath,

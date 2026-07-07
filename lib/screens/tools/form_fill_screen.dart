@@ -9,6 +9,7 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 import '../../services/isolate_runner.dart';
 import '../../services/pdf_tools_service.dart';
+import '../../services/secure_window.dart';
 import '../../services/share_service.dart';
 import '../../utils/atomic_write.dart';
 import '../../utils/snack_utils.dart';
@@ -351,10 +352,15 @@ class _FormViewerScreenState extends State<_FormViewerScreen> {
   void initState() {
     super.initState();
     _controller = PdfViewerController();
+    // Bloque captures d'écran / aperçu Recents : un formulaire PDF contient
+    // souvent des PII (nom, adresse, données bancaires/santé). Aligné sur
+    // signature_screen (F1 v1.12.2). SecureWindow est refcount-aware.
+    SecureWindow.enable();
   }
 
   @override
   void dispose() {
+    SecureWindow.disable();
     _controller.dispose();
     super.dispose();
   }

@@ -7,12 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'services/pdf_tools_service.dart';
 
-const _settingsChannel = MethodChannel('com.pdftech.pdf_tech/settings');
-
-Future<void> _openUnknownSources() async {
-  await _settingsChannel.invokeMethod('openUnknownSources');
-}
-
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
@@ -189,6 +183,13 @@ class PdfTechApp extends StatefulWidget {
 class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.system;
 
+  // Clé du Navigator du MaterialApp : les dialogs de premier lancement sont
+  // déclenchés depuis le context de _PdfTechAppState, qui est AU-DESSUS du
+  // Navigator → `showDialog(context: context)` levait « Null check operator
+  // used on a null value » (Navigator.of introuvable) et le dialog de
+  // bienvenue ne s'affichait jamais. On passe par le context du Navigator.
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   void initState() {
     super.initState();
@@ -225,9 +226,14 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     await prefs.setBool('first_launch_done', true);
     if (!mounted) return;
 
+    // Context du Navigator (et non celui de _PdfTechAppState, au-dessus du
+    // Navigator) — sans quoi showDialog/Navigator.of throw sur un null.
+    final navContext = _navigatorKey.currentContext;
+    if (navContext == null || !navContext.mounted) return;
+
     // Étape 1 : welcome + accès aux fichiers
     final wantStorage = await showDialog<bool>(
-      context: context,
+      context: navContext,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         icon: const Icon(
@@ -258,37 +264,10 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     if (wantStorage == true) {
       await Permission.manageExternalStorage.request();
     }
-
-    if (!mounted) return;
-
-    // Étape 2 : sources inconnues (pour les mises à jour APK)
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        icon: const Icon(Icons.system_update, size: 36),
-        title: const Text('Autoriser les mises à jour'),
-        content: const Text(
-          'Pour installer les futures mises à jour de PDF Tech, '
-          'votre téléphone doit autoriser les sources inconnues.\n\n'
-          'Appuyez sur "Activer" puis cochez le bouton dans les réglages qui s\'ouvrent.',
-          style: TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Plus tard'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _openUnknownSources();
-            },
-            child: const Text('Activer'),
-          ),
-        ],
-      ),
-    );
+    // Ex-étape 2 « Autoriser les mises à jour » retirée : l'app ne s'auto-
+    // installe pas d'APK (UpdateService = check-only, « pas d'auto-download »),
+    // et sans REQUEST_INSTALL_PACKAGES le toggle système « sources inconnues »
+    // est grisé → cul-de-sac pour l'utilisateur.
   }
 
   Future<void> _loadTheme() async {
@@ -315,6 +294,7 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'PDF Tech',
       debugShowCheckedModeBanner: false,
+      navigatorKey: _navigatorKey,
       theme: _lightTheme,
       darkTheme: _githubDarkTheme(),
       themeMode: _themeMode,

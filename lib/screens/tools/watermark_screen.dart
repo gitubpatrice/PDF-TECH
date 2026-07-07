@@ -41,6 +41,7 @@ class _WatermarkScreenState extends State<WatermarkScreen> {
       title: 'Choisir le PDF à filigraner',
     );
     if (path == null) return;
+    if (!mounted) return;
     setState(() {
       _filePath = path;
       _fileName = PathUtils.fileName(path);

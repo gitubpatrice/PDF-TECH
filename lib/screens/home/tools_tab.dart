@@ -29,9 +29,7 @@ import '../tools/watermark_screen.dart';
 /// écran, soit déclencher un picker (cas Annoter). Patterns mélangés mais
 /// uniformes côté caller (`Navigator.push` ou `_pickAndAnnotate`).
 class ToolsTab extends StatelessWidget {
-  final VoidCallback onPickFile;
-
-  const ToolsTab({super.key, required this.onPickFile});
+  const ToolsTab({super.key});
 
   /// Picker dédié pour Annoter (audit branchements P0 v1.12) :
   /// l'écran d'annotation a besoin d'un PDF — on déclenche le SAF puis

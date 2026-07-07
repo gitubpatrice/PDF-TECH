@@ -31,6 +31,12 @@ class _CompareScreenState extends State<CompareScreen> {
   final Map<int, Uint8List> _thumbsA = {};
   final Map<int, Uint8List> _thumbsB = {};
 
+  // Résultat de la comparaison pixel par page (memoized) + overlay de
+  // surbrillance des zones modifiées (PNG), et bascule d'affichage.
+  final Map<int, _PageDiff> _diffCache = {};
+  final Map<int, Uint8List> _overlay = {};
+  bool _showDiff = false;
+
   bool get _ready => _pathA != null && _pathB != null;
   int get _maxPages => _pagesA > _pagesB ? _pagesA : _pagesB;
 
@@ -70,6 +76,10 @@ class _CompareScreenState extends State<CompareScreen> {
         _pagesB = count;
         _thumbsB.clear();
       }
+      // Un nouveau document invalide toute comparaison précédente.
+      _diffCache.clear();
+      _overlay.clear();
+      _showDiff = false;
       _currentPage = 0;
     });
 
@@ -78,24 +88,30 @@ class _CompareScreenState extends State<CompareScreen> {
 
   Future<void> _loadPage(int pageIndex) async {
     if (!_ready) return;
+    // Déjà rendu + comparé : rien à refaire (PNG en cache pour l'affichage).
+    if (_diffCache.containsKey(pageIndex)) return;
     setState(() => _isLoading = true);
-    await Future.wait([
-      _loadThumb(_pathA!, pageIndex, _thumbsA, _pagesA),
-      _loadThumb(_pathB!, pageIndex, _thumbsB, _pagesB),
+    final rasters = await Future.wait([
+      _renderRaster(_pathA!, pageIndex, _pagesA),
+      _renderRaster(_pathB!, pageIndex, _pagesB),
     ]);
+    if (!mounted) return;
+    final ra = rasters[0];
+    final rb = rasters[1];
+    if (ra != null) _thumbsA[pageIndex] = ra.png;
+    if (rb != null) _thumbsB[pageIndex] = rb.png;
+    await _computeDiff(pageIndex, ra, rb);
     if (mounted) setState(() => _isLoading = false);
   }
 
-  Future<void> _loadThumb(
-    String path,
-    int index,
-    Map<int, Uint8List> cache,
-    int total,
-  ) async {
-    if (cache.containsKey(index) || index >= total) return;
-    // F13 v1.12.4 — try/finally symétrique au pattern G12 export_images :
-    // un throw sur `page.render` ou `_rawToPng` laissait pdfDoc/page non
-    // libérés → leak FD natif pdfx jusqu'au prochain GC.
+  /// Rend une page en PNG (affichage) + conserve les octets bruts RGBA et les
+  /// dimensions (nécessaires à la comparaison pixel). Retourne null si la page
+  /// n'existe pas de ce côté.
+  ///
+  /// try/finally symétrique (cf. ex-F13 v1.12.4) : un throw sur `page.render`
+  /// ou `_rawToPng` ne doit pas laisser pdfDoc/page ouverts (leak FD natif).
+  Future<_Raster?> _renderRaster(String path, int index, int total) async {
+    if (index >= total) return null;
     final pdfDoc = await pdfx.PdfDocument.openFile(path);
     try {
       final page = await pdfDoc.getPage(index + 1);
@@ -106,19 +122,51 @@ class _CompareScreenState extends State<CompareScreen> {
           format: pdfx.PdfPageImageFormat.png,
           backgroundColor: '#ffffff',
         );
-        if (img?.bytes != null) {
-          final png = await _rawToPng(
-            img!.bytes,
-            img.width ?? (page.width * 1.5).toInt(),
-            img.height ?? (page.height * 1.5).toInt(),
-          );
-          cache[index] = png;
-        }
+        if (img?.bytes == null) return null;
+        final w = img!.width ?? (page.width * 1.5).toInt();
+        final h = img.height ?? (page.height * 1.5).toInt();
+        final png = await _rawToPng(img.bytes, w, h);
+        return _Raster(png: png, raw: img.bytes, w: w, h: h);
       } finally {
         await page.close();
       }
     } finally {
       await pdfDoc.close();
+    }
+  }
+
+  /// Compare les rasters bruts des deux côtés pour la page donnée. Le balayage
+  /// pixel (O(n)) tourne dans l'isolate (runPdfIsolate) pour ne pas figer l'UI
+  /// sur des pages haute résolution.
+  Future<void> _computeDiff(int page, _Raster? ra, _Raster? rb) async {
+    if (ra == null || rb == null) {
+      _diffCache[page] = const _PageDiff(_DiffKind.missing, 0);
+      return;
+    }
+    if (ra.w != rb.w || ra.h != rb.h) {
+      // Formats différents : comparaison pixel non pertinente (le simple fait
+      // que les dimensions divergent est déjà un signal de différence).
+      _diffCache[page] = const _PageDiff(_DiffKind.dimMismatch, 0);
+      return;
+    }
+    final rawA = ra.raw;
+    final rawB = rb.raw;
+    final w = ra.w;
+    final h = ra.h;
+    try {
+      final res = await runPdfIsolate(() => _diffPixels(rawA, rawB));
+      if (!mounted) return;
+      final total = w * h;
+      final ratio = total == 0 ? 0.0 : res.$1 / total;
+      _overlay[page] = await _rawToPng(res.$2, w, h);
+      if (!mounted) return;
+      // Seuil anti-bruit d'anti-aliasing : < 0,05 % de pixels ⇒ identique.
+      _diffCache[page] = _PageDiff(
+        ratio < 0.0005 ? _DiffKind.identical : _DiffKind.different,
+        ratio,
+      );
+    } catch (_) {
+      _diffCache[page] = const _PageDiff(_DiffKind.error, 0);
     }
   }
 
@@ -147,6 +195,24 @@ class _CompareScreenState extends State<CompareScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Comparer deux PDFs'),
+        actions: _ready
+            ? [
+                IconButton(
+                  tooltip: _showDiff
+                      ? 'Vue côte à côte'
+                      : 'Vue des différences',
+                  icon: Icon(
+                    _showDiff
+                        ? Icons.view_column_outlined
+                        : Icons.difference_outlined,
+                  ),
+                  // Actif seulement si un overlay est disponible pour la page.
+                  onPressed: _overlay[_currentPage] != null
+                      ? () => setState(() => _showDiff = !_showDiff)
+                      : null,
+                ),
+              ]
+            : null,
         bottom: _ready
             ? PreferredSize(
                 preferredSize: const Size.fromHeight(36),
@@ -178,7 +244,7 @@ class _CompareScreenState extends State<CompareScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Affichez côte à côte deux versions d\'un document',
+            'Détecte les différences page par page et les met en évidence',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
@@ -306,6 +372,68 @@ class _CompareScreenState extends State<CompareScreen> {
     );
   }
 
+  /// Bandeau de statut de comparaison pour la page courante. Texte en
+  /// `onSurfaceVariant` (contraste AA garanti) ; couleur portée par l'icône
+  /// (élément non textuel, seuil 3:1).
+  Widget _buildDiffChip() {
+    final d = _diffCache[_currentPage];
+    if (d == null) return const SizedBox(height: 6);
+    final cs = Theme.of(context).colorScheme;
+    final (IconData icon, Color iconColor, String label) = switch (d.kind) {
+      _DiffKind.identical => (
+        Icons.check_circle,
+        Colors.green,
+        'Pages identiques',
+      ),
+      _DiffKind.different => (
+        Icons.difference,
+        Colors.orange,
+        'Différences détectées · ${_fmtRatio(d.ratio)} de la page',
+      ),
+      _DiffKind.dimMismatch => (
+        Icons.aspect_ratio,
+        Colors.deepOrange,
+        'Formats de page différents',
+      ),
+      _DiffKind.missing => (
+        Icons.remove_circle_outline,
+        cs.onSurfaceVariant,
+        'Page absente d\'un des documents',
+      ),
+      _DiffKind.error => (
+        Icons.error_outline,
+        cs.onSurfaceVariant,
+        'Comparaison indisponible',
+      ),
+    };
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: iconColor),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _fmtRatio(double r) {
+    final pct = r * 100;
+    return '${pct.toStringAsFixed(pct < 1 ? 2 : 1)} %';
+  }
+
   Widget _buildComparison() {
     return Column(
       children: [
@@ -341,10 +469,13 @@ class _CompareScreenState extends State<CompareScreen> {
             ],
           ),
         ),
+        _buildDiffChip(),
         const Divider(height: 1),
         Expanded(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
+              : (_showDiff && _overlay[_currentPage] != null)
+              ? _buildOverlayView()
               : Row(
                   children: [
                     Expanded(child: _pageView(_thumbsA, _pagesA, Colors.blue)),
@@ -354,6 +485,34 @@ class _CompareScreenState extends State<CompareScreen> {
                     ),
                   ],
                 ),
+        ),
+      ],
+    );
+  }
+
+  /// Vue « différences » : image unique où les zones modifiées sont en rouge
+  /// et le reste lavé en gris clair (contexte).
+  Widget _buildOverlayView() {
+    final ov = _overlay[_currentPage];
+    if (ov == null) {
+      return const Center(child: Text('Aperçu des différences indisponible'));
+    }
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Text(
+            'Zones en rouge = différences',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+        ),
+        Expanded(
+          child: InteractiveViewer(
+            child: Image.memory(ov, fit: BoxFit.contain),
+          ),
         ),
       ],
     );
@@ -374,4 +533,60 @@ class _CompareScreenState extends State<CompareScreen> {
     }
     return InteractiveViewer(child: Image.memory(thumb, fit: BoxFit.contain));
   }
+}
+
+/// Raster d'une page : PNG pour l'affichage + octets bruts RGBA + dimensions
+/// pour la comparaison pixel.
+class _Raster {
+  final Uint8List png;
+  final Uint8List raw;
+  final int w;
+  final int h;
+  const _Raster({
+    required this.png,
+    required this.raw,
+    required this.w,
+    required this.h,
+  });
+}
+
+enum _DiffKind { identical, different, dimMismatch, missing, error }
+
+class _PageDiff {
+  final _DiffKind kind;
+  final double ratio; // fraction de pixels différents [0..1]
+  const _PageDiff(this.kind, this.ratio);
+}
+
+/// Balayage pixel des deux rasters RGBA (même taille garantie par l'appelant).
+/// Exécuté dans un isolate. Retourne (nb pixels différents, overlay RGBA).
+///
+/// Overlay : pixel modifié ⇒ rouge opaque ; pixel identique ⇒ gris très clair
+/// (contexte lavé). Tolérance par canal pour absorber le bruit d'anti-aliasing.
+(int, Uint8List) _diffPixels(Uint8List a, Uint8List b) {
+  final n = a.length < b.length ? a.length : b.length;
+  final overlay = Uint8List(n);
+  int changed = 0;
+  const thr = 28;
+  for (int i = 0; i + 3 < n; i += 4) {
+    final dr = (a[i] - b[i]).abs();
+    final dg = (a[i + 1] - b[i + 1]).abs();
+    final db = (a[i + 2] - b[i + 2]).abs();
+    if (dr > thr || dg > thr || db > thr) {
+      changed++;
+      overlay[i] = 0xE5;
+      overlay[i + 1] = 0x39;
+      overlay[i + 2] = 0x35;
+      overlay[i + 3] = 0xFF;
+    } else {
+      final gray = (b[i] * 30 + b[i + 1] * 59 + b[i + 2] * 11) ~/ 100;
+      final wash = 210 + gray ~/ 6;
+      final v = wash > 255 ? 255 : wash;
+      overlay[i] = v;
+      overlay[i + 1] = v;
+      overlay[i + 2] = v;
+      overlay[i + 3] = 0xFF;
+    }
+  }
+  return (changed, overlay);
 }

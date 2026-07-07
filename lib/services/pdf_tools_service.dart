@@ -20,7 +20,7 @@ class PdfToolsService {
   /// zip-bomb-style files. Adjust if real workflows need more.
   static const int _maxPdfBytes = 200 * 1024 * 1024;
 
-  /// Hard cap exposed for callers that need to display the limit.
+  /// Hard cap exposed for callers/tests that need to reference the limit.
   static int get maxPdfBytes => _maxPdfBytes;
 
   /// Reads a PDF file with size validation and magic-bytes sniffing.
@@ -391,92 +391,6 @@ class PdfToolsService {
       return _toBytes(document.saveSync());
     } finally {
       document.dispose();
-    }
-  }
-
-  // ── Create ────────────────────────────────────────────────────────────────
-
-  Future<String> createPdf({
-    required String title,
-    required String content,
-    String author = 'PDF Tech',
-  }) async {
-    final out = await runPdfIsolate(
-      () => _createIsolate(title, content, author),
-    );
-    final safeName = title
-        .replaceAll(RegExp(r'[^\w\s-]'), '')
-        .replaceAll(' ', '_');
-    return _saveAtomic(safeName.isEmpty ? 'nouveau_document' : safeName, out);
-  }
-
-  static Uint8List _createIsolate(String title, String content, String author) {
-    final document = PdfDocument();
-    try {
-      document.documentInformation.title = title;
-      document.documentInformation.author = author;
-      final page = document.pages.add();
-      _drawPage(page, title, content, 0);
-      _addPageNumbers(document);
-      return _toBytes(document.saveSync());
-    } finally {
-      document.dispose();
-    }
-  }
-
-  static void _drawPage(
-    PdfPage page,
-    String title,
-    String content,
-    int pageIndex,
-  ) {
-    final size = page.getClientSize();
-    final blue = PdfColor(21, 101, 192);
-    if (pageIndex == 0) {
-      page.graphics.drawString(
-        title,
-        PdfStandardFont(PdfFontFamily.helvetica, 22, style: PdfFontStyle.bold),
-        brush: PdfSolidBrush(blue),
-        bounds: Rect.fromLTWH(0, 0, size.width, 40),
-        format: PdfStringFormat(alignment: PdfTextAlignment.left),
-      );
-      page.graphics.drawLine(
-        PdfPen(blue, width: 1.5),
-        const Offset(0, 46),
-        Offset(size.width, 46),
-      );
-    }
-    page.graphics.drawString(
-      content,
-      PdfStandardFont(PdfFontFamily.helvetica, 11),
-      brush: PdfSolidBrush(PdfColor(30, 30, 30)),
-      bounds: Rect.fromLTWH(
-        0,
-        pageIndex == 0 ? 56 : 0,
-        size.width,
-        size.height - (pageIndex == 0 ? 76 : 20),
-      ),
-      format: PdfStringFormat(lineSpacing: 5.0),
-    );
-  }
-
-  static void _addPageNumbers(PdfDocument document) {
-    // Hisser hors de la boucle (audit perf v1.12) : N allocations
-    // PdfStandardFont/PdfSolidBrush évitées.
-    final font = PdfStandardFont(PdfFontFamily.helvetica, 9);
-    final brush = PdfSolidBrush(PdfColor(150, 150, 150));
-    final total = document.pages.count;
-    for (int i = 0; i < total; i++) {
-      final page = document.pages[i];
-      final w = page.getClientSize().width;
-      final h = page.getClientSize().height;
-      page.graphics.drawString(
-        'Page ${i + 1} / $total  ·  PDF Tech',
-        font,
-        brush: brush,
-        bounds: Rect.fromLTWH(0, h - 14, w, 14),
-        format: PdfStringFormat(alignment: PdfTextAlignment.center),
-      );
     }
   }
 

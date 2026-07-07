@@ -45,6 +45,7 @@ class _ProtectScreenState extends State<ProtectScreen> {
       title: 'Choisir le PDF à protéger',
     );
     if (path == null) return;
+    if (!mounted) return;
     setState(() {
       _filePath = path;
       _fileName = PathUtils.fileName(path);

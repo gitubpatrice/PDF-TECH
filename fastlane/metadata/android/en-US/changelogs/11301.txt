@@ -1,0 +1,9 @@
+v1.13.1 — Compare tool, image extraction & fixes
+
+Compare: now actually detects per-page differences (identical / % changed / size mismatch) with changed areas highlighted.
+
+Extract images: no more corrupted files, PNG supported alongside JPEG.
+
+Fixes: first-launch welcome screen that failed to show, removed a pointless permission prompt, OCR/Drive robustness, cleanup.
+
+100% local.

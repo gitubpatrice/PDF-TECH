@@ -1,0 +1,9 @@
+v1.13.1 — Comparateur, extraction d'images & correctifs
+
+Comparer : détecte enfin les différences réelles page par page (identiques / % modifié / formats) avec surbrillance des zones changées.
+
+Extraire les images : plus de fichiers corrompus, prise en charge des PNG en plus du JPEG.
+
+Correctifs : écran de bienvenue du 1er lancement qui ne s'affichait pas, suppression d'une demande d'autorisation inutile, robustesse OCR/Drive, nettoyage.
+
+100 % local.

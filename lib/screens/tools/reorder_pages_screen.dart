@@ -255,9 +255,8 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
           child: ReorderableListView.builder(
             padding: const EdgeInsets.only(bottom: 16),
             itemCount: _order.length,
-            onReorder: (oldIndex, newIndex) {
+            onReorderItem: (oldIndex, newIndex) {
               setState(() {
-                if (newIndex > oldIndex) newIndex--;
                 final item = _order.removeAt(oldIndex);
                 _order.insert(newIndex, item);
               });

@@ -76,6 +76,7 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
     try {
       final dir = Directory(widget.path);
       if (!await dir.exists()) {
+        if (!mounted) return;
         setState(() {
           _error = 'Dossier introuvable';
           _loading = false;

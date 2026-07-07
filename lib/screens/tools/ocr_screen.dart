@@ -63,6 +63,7 @@ class _OcrScreenState extends State<OcrScreen> {
     try {
       // ── Étape 1 : extraction de texte native (rapide) ───────────────────────
       final bytes = await PdfToolsService.safeReadPdf(_path!);
+      if (!mounted) return;
       final sfDoc = PdfDocument(inputBytes: bytes);
       final String nativeText;
       final int total;
@@ -78,6 +79,7 @@ class _OcrScreenState extends State<OcrScreen> {
         for (int i = 0; i < total; i++) {
           final t = extractor.extractText(startPageIndex: i, endPageIndex: i);
           textBuffer.writeln(t);
+          if (!mounted) return;
           setState(() => _processedPages = i + 1);
           // Yield au loop d'event pour ne pas bloquer l'UI sur de gros PDFs.
           await Future<void>.delayed(Duration.zero);
@@ -90,7 +92,8 @@ class _OcrScreenState extends State<OcrScreen> {
         sfDoc.dispose();
       }
 
-      final avgChars = nativeText.length / total.clamp(1, total);
+      if (!mounted) return;
+      final avgChars = nativeText.length / (total == 0 ? 1 : total);
 
       if (avgChars >= 50) {
         // PDF natif avec texte suffisant
@@ -154,6 +157,7 @@ class _OcrScreenState extends State<OcrScreen> {
             }
           }
 
+          if (!mounted) return;
           setState(() => _processedPages = i);
           // Yield pour rendre la main au framework entre deux pages OCR.
           await Future<void>.delayed(Duration.zero);
@@ -180,6 +184,7 @@ class _OcrScreenState extends State<OcrScreen> {
         }
       }
 
+      if (!mounted) return;
       setState(() {
         _extractedText = ocrBuffer.toString().trim();
         _isDone = true;

@@ -63,6 +63,12 @@ class _SignatureScreenState extends State<SignatureScreen> {
     // pendant async ; null-bang `!` aurait crashé le framework.
     final padState = _signatureKey.currentState;
     if (padState == null) return;
+    // Empêche d'insérer une signature vide (image blanche) : sans tracé,
+    // toPathList() est vide → feedback utilisateur au lieu d'un stamp muet.
+    if (padState.toPathList().isEmpty) {
+      showInfoSnack(context, 'Veuillez d\'abord dessiner votre signature');
+      return;
+    }
     setState(() => _processing = true);
     try {
       // Export signature image from pad

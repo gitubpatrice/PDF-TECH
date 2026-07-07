@@ -48,6 +48,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     setState(() => _checkingAuth = true);
     try {
       final signedIn = await _service.isSignedIn();
+      if (!mounted) return;
       if (signedIn) {
         setState(() {
           _signedIn = true;
@@ -59,7 +60,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       }
     } catch (e) {
       if (kDebugMode) debugPrint('[GoogleDriveScreen._checkSignIn] $e');
-      setState(() => _signedIn = false);
+      if (mounted) setState(() => _signedIn = false);
     } finally {
       if (mounted) setState(() => _checkingAuth = false);
     }
@@ -69,6 +70,7 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
     setState(() => _checkingAuth = true);
     try {
       final account = await _service.signIn();
+      if (!mounted) return;
       if (account == null) {
         setState(() => _checkingAuth = false);
         return;

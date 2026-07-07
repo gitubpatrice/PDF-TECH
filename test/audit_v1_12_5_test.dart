@@ -7,6 +7,8 @@
 // Un futur refactor qui régresserait ces invariants serait immédiatement
 // détecté en CI.
 
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf_tech/core/app_info.dart';
@@ -51,10 +53,19 @@ void main() {
   });
 
   group('AppInfo — drift detection', () {
-    test('AppInfo.version synchro pubspec (v1.12.5)', () {
+    test('AppInfo.version synchro pubspec.yaml', () {
+      // Lit dynamiquement la version de pubspec.yaml plutôt que de figer une
+      // constante (qui devenait périmée à chaque bump). Teste réellement la
+      // synchro AppInfo.version ↔ pubspec (cf. feedback_appinfo_version_bump.md).
+      final pubspec = File('pubspec.yaml').readAsStringSync();
+      final match = RegExp(
+        r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)',
+        multiLine: true,
+      ).firstMatch(pubspec);
+      expect(match, isNotNull, reason: 'version introuvable dans pubspec.yaml');
       expect(
         AppInfo.version,
-        '1.12.5',
+        match!.group(1),
         reason:
             'AppInfo.version DOIT être bumpée en parallèle de '
             'pubspec.yaml (cf. feedback_appinfo_version_bump.md). Si ce '

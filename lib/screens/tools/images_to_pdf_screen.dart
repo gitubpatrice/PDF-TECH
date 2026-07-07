@@ -238,9 +238,8 @@ class _ImagesToPdfScreenState extends State<ImagesToPdfScreen> {
         Expanded(
           child: ReorderableListView.builder(
             padding: const EdgeInsets.only(bottom: 80),
-            onReorder: (oldIdx, newIdx) {
+            onReorderItem: (oldIdx, newIdx) {
               setState(() {
-                if (newIdx > oldIdx) newIdx--;
                 final item = _images.removeAt(oldIdx);
                 _images.insert(newIdx, item);
               });

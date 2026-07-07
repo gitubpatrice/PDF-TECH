@@ -2,6 +2,26 @@
 
 ## Historique des durcissements
 
+- **v1.13.1** (2026-07-07) — Audit qualité + correctifs de premier lancement :
+  - **FLAG_SECURE sur le remplissage de formulaire** — le viewer de champs
+    PDF (souvent des PII : nom, adresse, données bancaires/santé) bloque
+    désormais captures d'écran et aperçu Recents, aligné sur
+    signature/protect/decrypt.
+  - **Suppression du prompt « sources inconnues »** — l'écran de premier
+    lancement renvoyait vers un toggle système grisé (l'app ne déclare pas
+    `REQUEST_INSTALL_PACKAGES` et ne s'auto-installe pas d'APK :
+    `UpdateService` est check-only). Cul-de-sac trompeur retiré + code mort
+    associé nettoyé (Dart + handler natif `openUnknownSources`).
+  - **Fiabilité 1er lancement** — le dialog d'accueil/permission stockage
+    plantait silencieusement (`Navigator.of` null : `showDialog` appelé
+    au-dessus du Navigator). Corrigé via `navigatorKey` → l'onboarding
+    s'affiche réellement.
+  - **Extraction d'images durcie** — validation structurelle des marqueurs
+    JPEG (exige un vrai Start-Of-Frame) : plus d'écriture de `.jpg`
+    corrompus issus de faux positifs dans des flux compressés.
+  - **Gardes `mounted`** ajoutées (OCR, Google Drive) : suppression des
+    `setState after dispose` sur opérations longues annulables.
+
 - **v1.13.0** (2026-05-29) — Réception des PDFs entrants (`ACTION_VIEW` /
   `ACTION_SEND`) depuis une autre app (mail Infomaniak « Visualiser »,
   gestionnaire de fichiers). Surface d'entrée nouvelle, durcie par

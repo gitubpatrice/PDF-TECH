@@ -170,7 +170,6 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
 
   void _moveBlock(int oldIdx, int newIdx) {
     setState(() {
-      if (newIdx > oldIdx) newIdx--;
       final b = _blocks.removeAt(oldIdx);
       _blocks.insert(newIdx, b);
     });
@@ -440,7 +439,7 @@ class _CreatePdfScreenState extends State<CreatePdfScreen> {
             child: ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               itemCount: _blocks.length,
-              onReorder: _moveBlock,
+              onReorderItem: _moveBlock,
               itemBuilder: (_, i) => _BlockCard(
                 key: ValueKey(_blocks[i].hashCode),
                 block: _blocks[i],

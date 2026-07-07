@@ -12,7 +12,11 @@ import '../../widgets/pdf_picker_screen.dart';
 
 /// Cap soft sur le nombre d'images extraites pour éviter qu'un PDF
 /// pathologique ne sature la RAM/le stockage.
-const int _maxExtractedJpegs = 1000;
+const int _maxExtractedImages = 1000;
+
+/// Taille minimale plausible d'un flux image embarqué (octets). Pré-filtre
+/// bon marché contre les faux positifs de marqueurs très courts.
+const int _minImageBytes = 128;
 
 /// G9 v1.12.3 — cap cumulatif sur les octets extraits. Aligné sur
 /// `_maxMergeCumulativeBytes` (F4 v1.12.2). Sans ce garde, un PDF
@@ -57,7 +61,7 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
     });
     try {
       final pdfBytes = await PdfToolsService.safeReadPdf(_path!);
-      final jpegs = await runPdfIsolate(() => _extractJpegs(pdfBytes));
+      final images = await runPdfIsolate(() => _extractImages(pdfBytes));
 
       final dir = await getApplicationDocumentsDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
@@ -65,9 +69,10 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
       await outDir.create(recursive: true);
 
       final paths = <String>[];
-      for (int i = 0; i < jpegs.length; i++) {
-        final outPath = '${outDir.path}/image_${i + 1}.jpg';
-        await atomicWriteBytes(outPath, jpegs[i]);
+      for (int i = 0; i < images.length; i++) {
+        final (bytes, ext) = images[i];
+        final outPath = '${outDir.path}/image_${i + 1}.$ext';
+        await atomicWriteBytes(outPath, bytes);
         paths.add(outPath);
       }
 
@@ -84,44 +89,133 @@ class _ExtractImagesScreenState extends State<ExtractImagesScreen> {
     }
   }
 
-  // Scanne les octets du PDF à la recherche de flux JPEG (FF D8 FF … FF D9).
-  // Static : exécutable dans un Isolate. Hard cap [_maxExtractedJpegs] pour
-  // éviter de saturer la RAM sur des PDFs pathologiques.
-  static List<Uint8List> _extractJpegs(Uint8List data) {
-    final results = <Uint8List>[];
+  // Scanne les octets du PDF à la recherche de flux image embarqués :
+  //  - JPEG (SOI FF D8 FF … EOI FF D9), VALIDÉS structurellement (présence
+  //    d'un vrai Start-Of-Frame) pour ne PAS écrire de .jpg corrompus issus
+  //    de faux positifs de marqueurs dans des flux compressés (Flate).
+  //  - PNG (signature 89 50 4E 47 … jusqu'au chunk IEND).
+  // Static : exécutable dans un Isolate. Caps [_maxExtractedImages] +
+  // [_maxExtractedCumulativeBytes] pour borner RAM/stockage.
+  static List<(Uint8List, String)> _extractImages(Uint8List data) {
+    final results = <(Uint8List, String)>[];
     int cumulative = 0;
     int i = 0;
-    while (i < data.length - 3) {
+    final len = data.length;
+    while (i < len - 3) {
+      // ── JPEG : FF D8 FF ─────────────────────────────────────────────────
       if (data[i] == 0xFF && data[i + 1] == 0xD8 && data[i + 2] == 0xFF) {
         final start = i;
-        int j = start + 2;
-        int? endAt;
-        while (j < data.length - 1) {
-          if (data[j] == 0xFF && data[j + 1] == 0xD9) {
-            endAt = j + 2;
-            break;
+        final endAt = _findJpegEnd(data, start);
+        if (endAt != null && _isValidJpeg(data, start, endAt)) {
+          final segLen = endAt - start;
+          if (segLen >= _minImageBytes) {
+            // G9 v1.12.3 — cap cumulatif bytes (cohérence F4 merge). Évite
+            // qu'un PDF malveillant n'alloue >> RAM device dans l'isolate.
+            if (cumulative + segLen > _maxExtractedCumulativeBytes) break;
+            results.add((data.sublist(start, endAt), 'jpg'));
+            cumulative += segLen;
+            if (results.length >= _maxExtractedImages) break;
           }
-          j++;
+          i = endAt;
+          continue;
         }
+        // Faux positif (pas d'EOI ou structure invalide) : avance d'1 octet.
+        i++;
+        continue;
+      }
+      // ── PNG : 89 50 4E 47 0D 0A 1A 0A ───────────────────────────────────
+      if (i < len - 8 &&
+          data[i] == 0x89 &&
+          data[i + 1] == 0x50 &&
+          data[i + 2] == 0x4E &&
+          data[i + 3] == 0x47 &&
+          data[i + 4] == 0x0D &&
+          data[i + 5] == 0x0A &&
+          data[i + 6] == 0x1A &&
+          data[i + 7] == 0x0A) {
+        final start = i;
+        final endAt = _findPngEnd(data, start);
         if (endAt != null) {
           final segLen = endAt - start;
-          // G9 v1.12.3 — cap cumulatif bytes (cohérence F4 merge). Évite
-          // qu'un PDF malveillant n'alloue >> RAM device dans l'isolate.
-          if (cumulative + segLen > _maxExtractedCumulativeBytes) break;
-          results.add(data.sublist(start, endAt));
-          cumulative += segLen;
-          if (results.length >= _maxExtractedJpegs) break;
+          if (segLen >= _minImageBytes) {
+            if (cumulative + segLen > _maxExtractedCumulativeBytes) break;
+            results.add((data.sublist(start, endAt), 'png'));
+            cumulative += segLen;
+            if (results.length >= _maxExtractedImages) break;
+          }
           i = endAt;
-        } else {
-          // Faux positif : pas de marqueur d'image trouvé. On saute après la
-          // zone déjà scannée pour éviter le pire cas O(n²).
-          i = j;
+          continue;
         }
-      } else {
         i++;
+        continue;
       }
+      i++;
     }
     return results;
+  }
+
+  /// Cherche l'EOI (FF D9) d'un JPEG démarrant à [start]. Dans un flux
+  /// entropique JPEG, tout 0xFF est suivi de 0x00 (byte-stuffing) ou d'un
+  /// marqueur RSTn ; un « FF D9 » nu est donc l'EOI réel. Retourne l'index
+  /// juste après l'EOI, ou null si absent.
+  static int? _findJpegEnd(Uint8List data, int start) {
+    final len = data.length;
+    int j = start + 2;
+    while (j < len - 1) {
+      if (data[j] == 0xFF && data[j + 1] == 0xD9) return j + 2;
+      j++;
+    }
+    return null;
+  }
+
+  /// Valide la structure des marqueurs JPEG de [start] à [end] : exige au
+  /// moins un Start-Of-Frame (SOF, FF C0–CF hors DHT/JPG/DAC) avant le SOS
+  /// ou l'EOI. Rejette les faux positifs FF D8 FF … FF D9 des flux compressés.
+  static bool _isValidJpeg(Uint8List data, int start, int end) {
+    int pos = start + 2; // après SOI
+    bool sawSof = false;
+    while (pos < end - 1) {
+      if (data[pos] != 0xFF) return false;
+      // Absorbe d'éventuels octets de remplissage FF successifs.
+      while (pos < end && data[pos] == 0xFF) {
+        pos++;
+      }
+      if (pos >= end) break;
+      final marker = data[pos];
+      pos++;
+      if (marker == 0xD9 || marker == 0xDA) break; // EOI / SOS
+      if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
+        continue; // TEM / RSTn : pas de segment de longueur
+      }
+      if (pos + 1 >= end) return false;
+      final segLen = (data[pos] << 8) | data[pos + 1];
+      if (segLen < 2) return false;
+      if (marker >= 0xC0 &&
+          marker <= 0xCF &&
+          marker != 0xC4 &&
+          marker != 0xC8 &&
+          marker != 0xCC) {
+        sawSof = true;
+      }
+      pos += segLen;
+    }
+    return sawSof;
+  }
+
+  /// Cherche la fin d'un PNG (fin du chunk IEND) depuis [start]. IEND =
+  /// « 49 45 4E 44 » suivi de 4 octets de CRC ⇒ fin = index + 8. Retourne
+  /// null si IEND absent.
+  static int? _findPngEnd(Uint8List data, int start) {
+    final len = data.length;
+    for (int j = start + 8; j < len - 7; j++) {
+      if (data[j] == 0x49 &&
+          data[j + 1] == 0x45 &&
+          data[j + 2] == 0x4E &&
+          data[j + 3] == 0x44) {
+        return j + 8;
+      }
+    }
+    return null;
   }
 
   Future<void> _shareAll() async {

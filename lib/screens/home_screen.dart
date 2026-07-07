@@ -314,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onShare: (f) => _shareService.sharePdf(f.path, f.name),
             formatDate: _formatDate,
           ),
-          ToolsTab(onPickFile: _pickAndOpen),
+          const ToolsTab(),
           const CloudTab(),
         ],
       ),

@@ -7,7 +7,6 @@ import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
 import android.provider.OpenableColumns
-import android.provider.Settings
 import android.view.WindowManager
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
@@ -110,23 +109,6 @@ class MainActivity : FlutterActivity() {
         // Intent ayant lancé l'activity (cold start). La copie est faite
         // maintenant, tant que le grant de lecture du content:// est vivant.
         handleIncomingIntent(intent, warmStart = false)
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.pdftech.pdf_tech/settings")
-            .setMethodCallHandler { call, result ->
-                if (call.method == "openUnknownSources") {
-                    try {
-                        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                            data = Uri.parse("package:$packageName")
-                        }
-                        startActivity(intent)
-                    } catch (_: Exception) {
-                        startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
-                    }
-                    result.success(null)
-                } else {
-                    result.notImplemented()
-                }
-            }
 
         // Envoi d'un fichier vers une app cible (kDrive, Proton Drive, Google Drive…)
         // via ACTION_SEND + setPackage. FileProvider expose l'URI en lecture.
