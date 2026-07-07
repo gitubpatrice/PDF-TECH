@@ -252,7 +252,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Tech'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/icon/logo_damier.png',
+              width: 28,
+              height: 28,
+              filterQuality: FilterQuality.high,
+            ),
+            const SizedBox(width: 10),
+            const Text('PDF Tech'),
+          ],
+        ),
         actions: [
           if (_navIndex == 0 && _recentFiles.isNotEmpty)
             IconButton(
