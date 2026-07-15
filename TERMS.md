@@ -1,6 +1,6 @@
 # Terms of Use — PDF Tech
 
-**Document version** : 7 May 2026
+**Document version** : 7 May 2026 · 🇫🇷 [Version française](https://github.com/gitubpatrice/PDF-TECH/blob/main/TERMS.fr.md)
 **App** : PDF Tech
 **Website** : https://www.files-tech.com
 **Contact** : contact@files-tech.com

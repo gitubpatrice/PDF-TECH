@@ -1,6 +1,6 @@
 # Politique de confidentialité — PDF Tech
 
-**Version du document** : 7 mai 2026
+**Version du document** : 7 mai 2026 · 🇬🇧 [English version](https://github.com/gitubpatrice/PDF-TECH/blob/main/PRIVACY.md)
 **App** : PDF Tech
 **Site officiel** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
