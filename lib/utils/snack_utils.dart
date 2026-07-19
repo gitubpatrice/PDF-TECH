@@ -54,6 +54,10 @@ void showInfoSnack(
     SnackBar(
       content: Text(message),
       duration: duration ?? const Duration(seconds: 4),
+      // `SnackBar.persist` vaut par défaut `action != null` : sans ce flag,
+      // passer une [action] rendrait le bandeau permanent et [duration]
+      // inopérante (cf. snack_bar.dart / scaffold.dart).
+      persist: false,
       action: action,
     ),
   );
