@@ -7,7 +7,7 @@ import '../tools/decrypt_screen.dart';
 import '../tools/delete_pages_screen.dart';
 import '../tools/export_images_screen.dart';
 import '../tools/extract_images_screen.dart';
-import '../tools/form_fill_screen.dart';
+import '../../features/form_fill/form_fill_screen.dart';
 import '../tools/header_footer_screen.dart';
 import '../tools/images_to_pdf_screen.dart';
 import '../tools/merge_screen.dart';

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/pdf_tools_service.dart';
@@ -76,10 +78,12 @@ class _StampScreenState extends State<StampScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'Tampon appliqué',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'Tampon appliqué',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

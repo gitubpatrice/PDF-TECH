@@ -11,13 +11,13 @@ import '../utils/date_utils.dart';
 class PdfFolderScreen extends StatefulWidget {
   final String path;
   final String title;
-  final void Function(String path) onPick;
+  final void Function(String path)? onPick;
 
   const PdfFolderScreen({
     super.key,
     required this.path,
     required this.title,
-    required this.onPick,
+    this.onPick,
   });
 
   @override
@@ -228,49 +228,62 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                             final parent = f.parent.path
                                 .replaceAll(widget.path, '')
                                 .replaceFirst(RegExp(r'^/'), '');
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 3,
-                              ),
-                              child: ListTile(
-                                dense: true,
-                                leading: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFFC62828,
-                                    ).withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(8),
+                            return GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () {
+                                debugPrint(
+                                  '[PdfFolderScreen] tapped: ${f.path}',
+                                );
+                                final callback = widget.onPick;
+                                if (callback != null) {
+                                  callback(f.path);
+                                }
+                                Navigator.of(context).pop(f.path);
+                              },
+                              child: Card(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                child: ListTile(
+                                  dense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 0,
                                   ),
-                                  child: const Icon(
-                                    Icons.picture_as_pdf,
-                                    color: Color(0xFFC62828),
-                                    size: 22,
+                                  leading: Container(
+                                    width: 28,
+                                    height: 28,
+                                    decoration: BoxDecoration(
+                                      color: const Color(
+                                        0xFFC62828,
+                                      ).withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.picture_as_pdf,
+                                      color: Color(0xFFC62828),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  subtitle: Text(
+                                    [
+                                      if (parent.isNotEmpty) parent,
+                                      if (stat != null) _formatSize(stat.size),
+                                      if (stat != null)
+                                        _formatDate(stat.modified),
+                                    ].join(' · '),
+                                    style: const TextStyle(fontSize: 10),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                title: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                subtitle: Text(
-                                  [
-                                    if (parent.isNotEmpty) parent,
-                                    if (stat != null) _formatSize(stat.size),
-                                    if (stat != null)
-                                      _formatDate(stat.modified),
-                                  ].join(' · '),
-                                  style: const TextStyle(fontSize: 11),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                onTap: () {
-                                  Navigator.of(context).pop();
-                                  widget.onPick(f.path);
-                                },
                               ),
                             );
                           },

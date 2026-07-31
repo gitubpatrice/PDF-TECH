@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -12,7 +14,7 @@ import 'home/cloud_tab.dart';
 import 'home/home_tab.dart';
 import 'home/pdf_search_delegate.dart';
 import 'home/tools_tab.dart';
-import 'pdf_viewer_screen.dart';
+import '../features/pdf_viewer/pdf_viewer_screen.dart';
 
 /// Écran d'accueil orchestrateur — gère la navigation entre les 3 onglets
 /// (Accueil / Outils / Cloud), le chargement des fichiers récents, l'ouverture
@@ -113,79 +115,81 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (info == null || !mounted) return;
     final updateInfo = info;
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        final cs = Theme.of(ctx).colorScheme;
-        return AlertDialog(
-          title: Text('Mise à jour v${updateInfo.version} disponible'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  updateInfo.body.isNotEmpty
-                      ? updateInfo.body
-                      : 'Une nouvelle version de PDF Tech est disponible.',
-                ),
-                if (updateInfo.expectedSha256 != null) ...[
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: cs.outline),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.verified_outlined,
-                              size: 14,
-                              color: cs.primary,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'SHA-256 attendu (APK arm64-v8a)',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        SelectableText(
-                          updateInfo.expectedSha256!,
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 10,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    ),
+    unawaited(
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          final cs = Theme.of(ctx).colorScheme;
+          return AlertDialog(
+            title: Text('Mise à jour v${updateInfo.version} disponible'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    updateInfo.body.isNotEmpty
+                        ? updateInfo.body
+                        : 'Une nouvelle version de PDF Tech est disponible.',
                   ),
+                  if (updateInfo.expectedSha256 != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: cs.outline),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.verified_outlined,
+                                size: 14,
+                                color: cs.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'SHA-256 attendu (APK arm64-v8a)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          SelectableText(
+                            updateInfo.expectedSha256!,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 10,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Plus tard'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Plus tard'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import '../../services/isolate_runner.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -91,10 +92,12 @@ class _MetadataScreenState extends State<MetadataScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'Métadonnées mises à jour',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'Métadonnées mises à jour',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

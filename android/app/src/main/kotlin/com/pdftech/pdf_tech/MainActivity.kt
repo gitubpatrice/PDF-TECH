@@ -31,6 +31,10 @@ class MainActivity : FlutterActivity() {
         /// (Infomaniak Mail « Visualiser », gestionnaire de fichiers…).
         private const val INCOMING_CHANNEL = "com.pdftech.pdf_tech/incoming"
 
+        /// Channel pour le picker natif interne (fallback ACTION_GET_CONTENT).
+        private const val PICKER_CHANNEL = "com.pdftech.pdf_tech/picker"
+        private const val PICKER_REQ_CODE = 1001
+
         /// Durée de rétention des copies importées dans cacheDir/incoming.
         /// Au-delà, purge best-effort au prochain import (évite l'accumulation
         /// sans toucher à un fichier en cours de visualisation).
@@ -43,6 +47,9 @@ class MainActivity : FlutterActivity() {
 
     /// Channel poussant le path du PDF importé vers Dart (warm start).
     private var incomingChannel: MethodChannel? = null
+
+    /// Résultat Flutter en attente pour le picker natif interne.
+    private var pendingPickerResult: MethodChannel.Result? = null
 
     /// Path du PDF capturé au lancement à froid (cold start), consommé par
     /// Dart via `getInitialPdf`. Null une fois lu.
@@ -215,6 +222,31 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+
+        // Picker natif interne : fallback ACTION_GET_CONTENT. Certains émulateurs
+        // Android 15 ne valident pas le tap central dans l’UI DocumentsUI lancée
+        // par file_picker/file_selector (ACTION_OPEN_DOCUMENT). ACTION_GET_CONTENT
+        // propose souvent une UI différente (ou un chooser d’apps) où la sélection
+        // fonctionne. Le PDF choisi est copié dans cacheDir/incoming comme un
+        // PDF entrant classique.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PICKER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "pickPdf") {
+                    pendingPickerResult = result
+                    val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                        type = "application/pdf"
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                    }
+                    try {
+                        startActivityForResult(intent, PICKER_REQ_CODE)
+                    } catch (e: Exception) {
+                        pendingPickerResult = null
+                        result.error("PICKER_ERROR", e.message, null)
+                    }
+                } else {
+                    result.notImplemented()
+                }
+            }
     }
 
     /// App déjà vivante (singleTop) : un nouvel « Ouvrir avec » arrive ici.
@@ -222,6 +254,20 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIncomingIntent(intent, warmStart = true)
+    }
+
+    /// Résultat du picker natif interne (ACTION_GET_CONTENT).
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != PICKER_REQ_CODE) return
+        val result = pendingPickerResult
+        pendingPickerResult = null
+        val uri = data?.takeIf { resultCode == RESULT_OK }?.data
+        if (uri == null) {
+            result?.success(null)
+            return
+        }
+        result?.success(copyIncomingToCache(uri))
     }
 
     /// Extrait l'URI du PDF de l'intent, la copie dans le cache, puis :

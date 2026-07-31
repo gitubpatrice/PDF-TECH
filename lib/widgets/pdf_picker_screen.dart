@@ -1,17 +1,22 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:path_provider/path_provider.dart';
+
+import '../screens/folder_browser_screen.dart';
 import '../screens/pdf_folder_screen.dart';
 import '../utils/snack_utils.dart';
+import '../utils/storage_permission_service.dart';
 
 /// Picker PDF custom avec deux onglets :
 /// - **Récents** : liste des PDFs récemment ouverts
-/// - **Parcourir** : bouton "Parcourir un autre dossier" en tête, grille de
-///   raccourcis colorés (Téléchargements, Documents, PDF Tech, WhatsApp),
-///   puis grille dynamique de **tous les dossiers** du stockage interne avec
-///   couleurs/icônes auto.
+/// - **Parcourir** : actions pour ouvrir le picker SAF fichier ou dossier.
+///
+/// P0 v1.13.2 — migration MANAGE_EXTERNAL_STORAGE → SAF : le picker ne scanne
+/// plus les chemins absolus `/storage/emulated/0/…`. Il utilise file_picker
+/// (Storage Access Framework) qui retourne des paths lisibles par l'app.
 ///
 /// Mode multi-sélection optionnel pour Fusionner / Images→PDF.
 ///
@@ -51,63 +56,19 @@ class PdfPickerScreen extends StatefulWidget {
   }
 }
 
-class _Shortcut {
-  final IconData icon;
-  final String label;
-  final String path;
-  final Color color;
-  const _Shortcut({
-    required this.icon,
-    required this.label,
-    required this.path,
-    required this.color,
-  });
-}
-
 class _PdfPickerScreenState extends State<PdfPickerScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   final _recentService = RecentFilesService();
   List<RecentFile> _recents = [];
-  List<Directory> _allFolders = [];
   bool _loading = true;
   final List<String> _selected = [];
-
-  /// Raccourcis curés : dossiers les plus susceptibles de contenir des PDFs.
-  static const _shortcuts = [
-    _Shortcut(
-      icon: Icons.download_outlined,
-      label: 'Téléchargements',
-      path: '/storage/emulated/0/Download',
-      color: Color(0xFF43A047),
-    ),
-    _Shortcut(
-      icon: Icons.description_outlined,
-      label: 'Documents',
-      path: '/storage/emulated/0/Documents',
-      color: Color(0xFF1976D2),
-    ),
-    _Shortcut(
-      icon: Icons.folder_special_outlined,
-      label: 'PDF Tech',
-      path: '/storage/emulated/0/Documents/PDF Tech',
-      color: Color(0xFFFF7043),
-    ),
-    _Shortcut(
-      icon: Icons.chat_outlined,
-      label: 'WhatsApp',
-      path:
-          '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
-      color: Color(0xFF25D366),
-    ),
-  ];
 
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
     _load();
-    _loadAllFolders();
   }
 
   @override
@@ -119,108 +80,24 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   Future<void> _load() async {
     final r = await _recentService.load();
     if (!mounted) return;
-    // Filtre cohérent avec RFT picker : on ne garde que les fichiers qui
-    // existent ET dont l'extension est .pdf (un picker PDF doit lister des
-    // PDFs même si RecentFilesService stockait par accident d'autres types).
+    // Filtre : on ne garde que les fichiers PDF. Sous SAF, un path public peut
+    // ne plus être lisible sans permission persistante ; on catch l'erreur de
+    // exists() et on élimine silencieusement l'entrée invalide.
     final checks = await Future.wait(
-      r.map((f) async => (await File(f.path).exists()) ? f : null),
+      r.map((f) async {
+        try {
+          return f.name.toLowerCase().endsWith('.pdf') ? f : null;
+        } catch (_) {
+          return null;
+        }
+      }),
     );
-    final existing = checks
-        .whereType<RecentFile>()
-        .where((f) => f.name.toLowerCase().endsWith('.pdf'))
-        .toList();
+    final existing = checks.whereType<RecentFile>().toList();
     if (!mounted) return;
     setState(() {
       _recents = existing;
       _loading = false;
     });
-  }
-
-  /// Liste tous les dossiers de premier niveau du stockage interne, exclus :
-  /// dossiers déjà raccourcis (anti-doublon), Android/ (data app), cachés.
-  Future<void> _loadAllFolders() async {
-    try {
-      final root = Directory('/storage/emulated/0');
-      if (!await root.exists()) return;
-      final shortcutPaths = _shortcuts.map((s) => s.path).toSet();
-      final entries = await root.list(followLinks: false).toList();
-      final folders =
-          entries.whereType<Directory>().where((d) {
-            final name = PathUtils.fileName(d.path);
-            if (name.startsWith('.')) return false;
-            if (name == 'Android') return false;
-            if (shortcutPaths.contains(d.path)) return false;
-            return true;
-          }).toList()..sort(
-            (a, b) => PathUtils.fileName(
-              a.path,
-            ).toLowerCase().compareTo(PathUtils.fileName(b.path).toLowerCase()),
-          );
-      if (!mounted) return;
-      setState(() => _allFolders = folders);
-    } catch (e) {
-      if (kDebugMode) debugPrint('[PdfPickerScreen._loadAllFolders] $e');
-    }
-  }
-
-  /// Icône smart selon le nom : reconnaît les patterns fréquents.
-  IconData _smartIconFor(String name) {
-    final n = name.toLowerCase();
-    if (RegExp(r'photo|image|picture|dcim|camera').hasMatch(n)) {
-      return Icons.photo_camera_outlined;
-    }
-    if (RegExp(r'vid[ée]o|movie|film|cin[ée]ma').hasMatch(n)) {
-      return Icons.videocam_outlined;
-    }
-    if (RegExp(r'music|audio|sound|son|chanson|podcast').hasMatch(n)) {
-      return Icons.music_note_outlined;
-    }
-    if (RegExp(r'doc|text|note|word|excel|pdf').hasMatch(n)) {
-      return Icons.description_outlined;
-    }
-    if (RegExp(r'download|t[ée]l[ée]chargement').hasMatch(n)) {
-      return Icons.download_outlined;
-    }
-    if (RegExp(r'backup|sauvegarde|archive').hasMatch(n)) {
-      return Icons.backup_outlined;
-    }
-    if (RegExp(r'screenshot|capture').hasMatch(n)) {
-      return Icons.screenshot_outlined;
-    }
-    if (RegExp(r'book|livre|epub|read|lecture').hasMatch(n)) {
-      return Icons.menu_book_outlined;
-    }
-    if (RegExp(r'whatsapp|telegram|signal|messenger|chat').hasMatch(n)) {
-      return Icons.chat_outlined;
-    }
-    if (RegExp(r'zip|tar|rar|7z').hasMatch(n)) {
-      return Icons.folder_zip_outlined;
-    }
-    return Icons.folder_outlined;
-  }
-
-  /// Couleur déterministe via hash du nom — palette 12 couleurs Material 600.
-  static const _autoPalette = <Color>[
-    Color(0xFF1976D2),
-    Color(0xFF43A047),
-    Color(0xFFE53935),
-    Color(0xFFFF7043),
-    Color(0xFF8E24AA),
-    Color(0xFFE91E63),
-    Color(0xFF00897B),
-    Color(0xFF3949AB),
-    Color(0xFF6D4C41),
-    Color(0xFF455A64),
-    Color(0xFF7CB342),
-    Color(0xFF039BE5),
-  ];
-
-  Color _autoColorFor(String name) {
-    var hash = 0;
-    for (final c in name.codeUnits) {
-      hash = (hash * 31 + c) & 0x7FFFFFFF;
-    }
-    return _autoPalette[hash % _autoPalette.length];
   }
 
   void _pick(String path) {
@@ -239,46 +116,201 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     });
   }
 
-  Future<void> _browseAnyFolder() async {
-    final dir = await FilePicker.getDirectoryPath();
-    if (dir == null || !mounted) return;
-    final label = PathUtils.fileName(dir);
-    await _browseFolder(dir, label.isEmpty ? 'Dossier' : label);
-  }
+  /// Ouvre le picker de PDFs. Avec [MANAGE_EXTERNAL_STORAGE], on scanne
+  /// directement `/sdcard/Download` dans notre propre UI (pas de dépendance au
+  /// DocumentsUI potentiellement bugué de l’émulateur). Sinon on fallback sur
+  /// `file_picker` SAF.
+  Future<void> _pickFiles() async {
+    debugPrint(
+      '[PdfPickerScreen] _pickFiles() invoked (multi=${widget.multi})',
+    );
 
-  Future<void> _browseFolder(String path, String label) async {
-    final dir = Directory(path);
-    if (!await dir.exists()) {
-      // Auto-création pour le dossier PDF Tech (notre dossier app)
-      if (label == 'PDF Tech') {
-        try {
-          await dir.create(recursive: true);
-        } catch (e) {
-          if (kDebugMode) {
-            debugPrint('[PdfPickerScreen._browseFolder create] $e');
-          }
-          if (!mounted) return;
-          showInfoSnack(context, 'Dossier "$label" introuvable');
-          return;
-        }
-      } else {
-        if (!mounted) return;
-        showInfoSnack(context, 'Dossier "$label" introuvable');
-        return;
-      }
+    final hasStorage = await StoragePermissionService.requestWithDialog(
+      context,
+    );
+    debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    if (!mounted) return;
+    if (!hasStorage) {
+      // L’utilisateur refuse la permission globale : on propose le picker SAF.
+      debugPrint('[PdfPickerScreen] falling back to file_picker SAF');
+      await _pickWithFilePicker();
+      return;
     }
+
+    // Scan direct de Download quand la permission globale est accordée.
+    final downloadDir = await _downloadDirectory();
+    debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+    if (!mounted) return;
+    if (downloadDir == null) {
+      showErrorSnack(context, 'Impossible d’accéder au dossier Download');
+      return;
+    }
+    debugPrint('[PdfPickerScreen] opening PdfFolderScreen for Download');
     if (!mounted) return;
     final picked = await Navigator.push<String>(
       context,
       MaterialPageRoute(
-        builder: (_) => PdfFolderScreen(
-          path: path,
-          title: label,
-          onPick: (p) => Navigator.pop(context, p),
+        builder: (_) => PdfFolderScreen(path: downloadDir, title: 'Download'),
+      ),
+    );
+    debugPrint('[PdfPickerScreen] PdfFolderScreen returned: $picked');
+    if (!mounted) return;
+    if (picked != null && picked.toLowerCase().endsWith('.pdf')) {
+      if (widget.multi) {
+        setState(() {
+          if (!_selected.contains(picked)) _selected.add(picked);
+        });
+      } else {
+        Navigator.pop(context, picked);
+      }
+    }
+  }
+
+  /// Picker SAF fallback (sans permission globale).
+  Future<void> _pickWithFilePicker() async {
+    List<String> paths = [];
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: widget.multi,
+        dialogTitle: widget.multi
+            ? 'Sélectionner des PDFs'
+            : 'Sélectionner un PDF',
+      );
+      if (result != null && result.files.isNotEmpty) {
+        paths = result.files
+            .map((f) => f.path)
+            .where((p) => p != null)
+            .cast<String>()
+            .where((p) => p.toLowerCase().endsWith('.pdf'))
+            .toList();
+      }
+    } catch (e, st) {
+      debugPrint('[PdfPickerScreen] file_picker error: $e\n$st');
+    }
+
+    if (!mounted) return;
+    if (paths.isEmpty) return;
+
+    if (widget.multi) {
+      setState(() {
+        for (final p in paths) {
+          if (!_selected.contains(p)) _selected.add(p);
+        }
+      });
+    } else {
+      Navigator.pop(context, paths.first);
+    }
+  }
+
+  /// Ouvre l’explorateur de dossiers intégré puis navigue dans le dossier
+  /// choisi pour y sélectionner un PDF.
+  Future<void> _pickAndBrowseFolder() async {
+    debugPrint('[PdfPickerScreen] _pickAndBrowseFolder() invoked');
+
+    final hasStorage = await StoragePermissionService.requestWithDialog(
+      context,
+    );
+    debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    if (!mounted) return;
+    if (!hasStorage) {
+      // L’utilisateur refuse la permission globale : on propose le picker SAF.
+      await _pickFolderWithSaf();
+      return;
+    }
+
+    final rootDir = await _externalRootDirectory();
+    if (!mounted) return;
+    if (rootDir == null) {
+      showErrorSnack(context, 'Impossible d’accéder au stockage');
+      return;
+    }
+
+    final picked = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FolderBrowserScreen(
+          path: rootDir,
+          title: 'Stockage',
+          pickFile: true,
         ),
       ),
     );
-    if (picked != null && mounted) _pick(picked);
+    debugPrint('[PdfPickerScreen] folder browser returned: $picked');
+    if (!mounted) return;
+    if (picked != null && picked.toLowerCase().endsWith('.pdf')) {
+      if (widget.multi) {
+        setState(() {
+          if (!_selected.contains(picked)) _selected.add(picked);
+        });
+      } else {
+        Navigator.pop(context, picked);
+      }
+    }
+  }
+
+  /// Picker de dossier SAF fallback (sans permission globale).
+  Future<void> _pickFolderWithSaf() async {
+    final dir = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Sélectionner un dossier',
+    );
+    if (dir == null || !mounted) return;
+    final label = PathUtils.fileName(dir);
+    final picked = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfFolderScreen(
+          path: dir,
+          title: label.isEmpty ? 'Dossier' : label,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (picked != null && picked.toLowerCase().endsWith('.pdf')) {
+      if (widget.multi) {
+        setState(() {
+          if (!_selected.contains(picked)) _selected.add(picked);
+        });
+      } else {
+        Navigator.pop(context, picked);
+      }
+    }
+  }
+
+  /// Retourne la racine du stockage externe (`/sdcard` ou équivalent).
+  Future<String?> _externalRootDirectory() async {
+    try {
+      final extDir = await getExternalStorageDirectory();
+      if (extDir == null) return null;
+      final root = Directory(extDir.parent.parent.parent.parent.path);
+      if (await root.exists()) return root.path;
+      final fallback = Directory('/sdcard');
+      if (await fallback.exists()) return fallback.path;
+      return null;
+    } catch (e) {
+      debugPrint('[PdfPickerScreen] _externalRootDirectory error: $e');
+      return null;
+    }
+  }
+
+  /// Retourne le chemin de `/sdcard/Download` ou équivalent externe.
+  Future<String?> _downloadDirectory() async {
+    try {
+      final extDir = await getExternalStorageDirectory();
+      if (extDir == null) return null;
+      final download = Directory(
+        '${extDir.parent.parent.parent.parent.path}/Download',
+      );
+      if (await download.exists()) return download.path;
+      // Fallback : /sdcard/Download
+      final fallback = Directory('/sdcard/Download');
+      if (await fallback.exists()) return fallback.path;
+      return null;
+    } catch (e) {
+      debugPrint('[PdfPickerScreen] _downloadDirectory error: $e');
+      return null;
+    }
   }
 
   @override
@@ -345,7 +377,11 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
         final f = _recents[i];
         final selected = _selected.contains(f.path);
         return ListTile(
-          leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+          leading: const Icon(
+            Icons.picture_as_pdf,
+            color: Colors.red,
+            size: 20,
+          ),
           title: Text(
             f.name,
             overflow: TextOverflow.ellipsis,
@@ -372,76 +408,51 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     return SafeArea(
       top: false,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
-            child: Text(
-              'Raccourcis',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey.shade700,
-                letterSpacing: 0.3,
+          Card(
+            child: ListTile(
+              leading: Icon(
+                Icons.picture_as_pdf_outlined,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
               ),
+              title: const Text(
+                'Choisir un PDF',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                widget.multi
+                    ? 'Ouvrir le gestionnaire de fichiers et sélectionner un ou plusieurs PDFs'
+                    : 'Ouvrir le gestionnaire de fichiers et sélectionner un fichier PDF',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _pickFiles,
             ),
           ),
-          // Grille raccourcis curés (Téléchargements, Documents, PDF Tech, WhatsApp)
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 6,
-            mainAxisSpacing: 6,
-            childAspectRatio: 2.7,
-            children: _shortcuts
-                .map(
-                  (s) => _ShortcutCard(
-                    icon: s.icon,
-                    label: s.label,
-                    color: s.color,
-                    onTap: () => _browseFolder(s.path, s.label),
-                  ),
-                )
-                .toList(),
-          ),
-
-          if (_allFolders.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
-              child: Text(
-                'Tous les dossiers',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.grey.shade700,
-                  letterSpacing: 0.3,
-                ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: Icon(
+                Icons.folder_open,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
               ),
+              title: const Text(
+                'Choisir un dossier',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text(
+                'Parcourir un dossier et ses sous-dossiers',
+                style: TextStyle(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _pickAndBrowseFolder,
             ),
-            // Grille dynamique de tous les dossiers du stockage interne
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
-              childAspectRatio: 2.7,
-              children: _allFolders.map((d) {
-                final name = PathUtils.fileName(d.path);
-                return _ShortcutCard(
-                  icon: _smartIconFor(name),
-                  label: name,
-                  color: _autoColorFor(name),
-                  onTap: () => _browseFolder(d.path, name),
-                );
-              }).toList(),
-            ),
-          ],
-
+          ),
           if (widget.multi && _selected.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Card(
               color: Theme.of(
                 context,
@@ -455,83 +466,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
               ),
             ),
           ],
-
-          // "Parcourir un autre dossier" en bas avec marge réduite + SafeArea
-          // au niveau du ListView pour ne pas être masqué par la barre de
-          // navigation système (geste / 3 boutons).
-          const SizedBox(height: 6),
-          Card(
-            margin: EdgeInsets.zero,
-            child: ListTile(
-              dense: true,
-              leading: Icon(
-                Icons.folder_open,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              title: const Text(
-                'Parcourir un autre dossier',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              subtitle: const Text(
-                'Sélecteur (sous-dossiers, SD, etc.)',
-                style: TextStyle(fontSize: 11),
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _browseAnyFolder,
-            ),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class _ShortcutCard extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  const _ShortcutCard({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

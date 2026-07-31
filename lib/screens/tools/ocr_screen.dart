@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:io';
-import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
-import 'package:pdfx/pdfx.dart' as pdfx;
-import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:pdfrx_engine/pdfrx_engine.dart' as pdfrx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
@@ -32,6 +32,7 @@ class _OcrScreenState extends State<OcrScreen> {
   String _extractedText = '';
   bool _isDone = false;
   String _mode = ''; // 'text' ou 'ocr'
+  final List<String> _savedTxtPaths = [];
 
   Future<void> _pickFile() async {
     final path = await PdfPickerScreen.pickOne(
@@ -112,8 +113,7 @@ class _OcrScreenState extends State<OcrScreen> {
         _processedPages = 0;
       });
 
-      final pdfDoc = await pdfx.PdfDocument.openFile(_path!);
-      final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
+      final pdfDoc = await pdfrx.PdfDocument.openFile(_path!);
       final ocrBuffer = StringBuffer();
       final tmpRoot = await getTemporaryDirectory();
       // Sous-dossier dédié à cette session OCR. Purgé en finally même si
@@ -125,30 +125,35 @@ class _OcrScreenState extends State<OcrScreen> {
       await ocrTmp.create();
 
       try {
-        for (int i = 1; i <= pdfDoc.pagesCount; i++) {
-          final page = await pdfDoc.getPage(i);
+        for (int i = 1; i <= pdfDoc.pages.length; i++) {
+          final page = pdfDoc.pages[i - 1];
           final pageImage = await page.render(
-            width: page.width * 2,
-            height: page.height * 2,
-            format: pdfx.PdfPageImageFormat.png,
-            backgroundColor: '#ffffff',
+            width: (page.width * 2).toInt(),
+            height: (page.height * 2).toInt(),
           );
-          await page.close();
 
-          if (pageImage?.bytes != null) {
-            final pngBytes = await _rawToPng(
-              pageImage!.bytes,
-              pageImage.width ?? (page.width * 2).toInt(),
-              pageImage.height ?? (page.height * 2).toInt(),
-            );
+          if (pageImage != null) {
+            // P0 v1.13.4 — pdfrx_engine retourne un bitmap brut ; on encode
+            // directement en PNG via package:image (pas de format intégré).
+            final image = pageImage.createImageNF();
+            final pngBytes = img.encodePng(image);
+            pageImage.dispose();
+
             final tmpFile = File('${ocrTmp.path}/ocr_p$i.png');
             await atomicWriteBytes(tmpFile.path, pngBytes);
 
-            final inputImage = InputImage.fromFile(tmpFile);
-            final result = await recognizer.processImage(inputImage);
-            if (result.text.isNotEmpty) {
+            // OCR via Tesseract (open source) : français + anglais.
+            final text = await FlutterTesseractOcr.extractText(
+              tmpFile.path,
+              language: 'fra+eng',
+              args: {
+                'psm': '6', // bloc de texte uniforme
+                'preserve_interword_spaces': '1',
+              },
+            );
+            if (text.trim().isNotEmpty) {
               ocrBuffer.writeln('── Page $i ──');
-              ocrBuffer.writeln(result.text);
+              ocrBuffer.writeln(text);
             }
             try {
               await tmpFile.delete();
@@ -163,22 +168,12 @@ class _OcrScreenState extends State<OcrScreen> {
           await Future<void>.delayed(Duration.zero);
         }
       } finally {
-        // F6 v1.12.2 — close pdfDoc + recognizer DANS finally (avant : exception
-        // au milieu de la boucle laissait FD natif + modèle ML Kit en RAM,
-        // ~5 OCR en échec successifs = process kill par limit FD).
-        try {
-          await pdfDoc.close();
-        } catch (_) {
-          /* best-effort */
-        }
-        try {
-          recognizer.close();
-        } catch (_) {
-          /* best-effort */
-        }
+        // F6 v1.12.2 — close pdfDoc dans finally (avant : exception au milieu
+        // de la boucle laissait FD natif en RAM).
+        await pdfDoc.dispose();
         // Purge garantie même en cas d'exception au milieu de la boucle.
         try {
-          if (await ocrTmp.exists()) await ocrTmp.delete(recursive: true);
+          if (ocrTmp.existsSync()) ocrTmp.deleteSync(recursive: true);
         } catch (e) {
           if (kDebugMode) debugPrint('[OcrScreen.purgeOcrTmp] $e');
         }
@@ -195,21 +190,6 @@ class _OcrScreenState extends State<OcrScreen> {
       setState(() => _isProcessing = false);
       showErrorSnack(context, e);
     }
-  }
-
-  // Convertit les pixels bruts (BGRA/RGBA) en PNG via dart:ui
-  Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rawBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    final uiImage = await completer.future;
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
   }
 
   Future<void> _copyText() async {
@@ -232,8 +212,27 @@ class _OcrScreenState extends State<OcrScreen> {
     final base = (_name ?? 'document').replaceAll('.pdf', '');
     final outPath = '${dir.path}/${base}_ocr_$ts.txt';
     await atomicWriteString(outPath, _extractedText);
+    _savedTxtPaths.add(outPath);
     if (!mounted) return;
     showInfoSnack(context, 'Sauvegardé : ${PathUtils.fileName(outPath)}');
+  }
+
+  Future<void> _clearExtracted() async {
+    setState(() {
+      _extractedText = '';
+      _isDone = false;
+      _mode = '';
+    });
+    for (final path in _savedTxtPaths) {
+      try {
+        await File(path).delete();
+      } catch (_) {
+        // best-effort : le fichier peut déjà avoir été supprimé manuellement.
+      }
+    }
+    _savedTxtPaths.clear();
+    if (!mounted) return;
+    showInfoSnack(context, 'Texte effacé de l\'app');
   }
 
   Future<void> _share() async {
@@ -370,6 +369,13 @@ class _OcrScreenState extends State<OcrScreen> {
                 style: TextStyle(color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 16),
+              const Text(
+                'Le texte extrait est stocké temporairement sur cet appareil. '
+                'Pensez à l\'effacer après usage si le document est sensible.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: _process,
@@ -464,12 +470,18 @@ class _OcrScreenState extends State<OcrScreen> {
                     ),
                   ),
                 ),
-                if (!isEmpty)
+                if (!isEmpty) ...[
                   TextButton.icon(
                     onPressed: _saveAsTxt,
                     icon: const Icon(Icons.save_alt, size: 16),
                     label: const Text('Sauvegarder .txt'),
                   ),
+                  TextButton.icon(
+                    onPressed: _clearExtracted,
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('Effacer'),
+                  ),
+                ],
               ],
             ),
           ),

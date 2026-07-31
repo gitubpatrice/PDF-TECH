@@ -1,15 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
 
-import '../../utils/snack_utils.dart';
+import '../../utils/storage_permission_service.dart';
 import '../../widgets/pdf_picker_screen.dart';
-import '../all_pdfs_screen.dart';
+import '../folder_browser_screen.dart';
 import '../pdf_folder_screen.dart';
 import '../tools/compress_screen.dart';
 import '../tools/images_to_pdf_screen.dart';
@@ -55,37 +56,6 @@ class _HomeTabState extends State<HomeTab> {
   int _totalBytes = 0;
   int _freeBytes = 0;
 
-  /// Raccourcis vers les dossiers les plus susceptibles de contenir des PDFs.
-  /// Chaque tuile ouvre un PdfFolderScreen filtré .pdf — l'utilisateur n'a
-  /// pas à fouiller dans le SAF système.
-  static const _browseFolders = [
-    (
-      icon: Icons.download_outlined,
-      label: 'Téléchargements',
-      path: '/storage/emulated/0/Download',
-      color: Color(0xFF43A047),
-    ),
-    (
-      icon: Icons.description_outlined,
-      label: 'Documents',
-      path: '/storage/emulated/0/Documents',
-      color: Color(0xFF1976D2),
-    ),
-    (
-      icon: Icons.chat_outlined,
-      label: 'WhatsApp',
-      path:
-          '/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
-      color: Color(0xFF25D366),
-    ),
-    (
-      icon: Icons.folder_special_outlined,
-      label: 'PDF Tech',
-      path: '/storage/emulated/0/Documents/PDF Tech',
-      color: Color(0xFFFF7043),
-    ),
-  ];
-
   static const _quickActions = [
     (
       icon: Icons.menu_book_outlined,
@@ -113,20 +83,6 @@ class _HomeTabState extends State<HomeTab> {
   void initState() {
     super.initState();
     _loadStorage();
-    _ensurePdfTechFolder();
-  }
-
-  /// Crée /storage/emulated/0/Documents/PDF Tech/ silencieusement au boot
-  /// pour qu'il existe quand l'utilisateur clique sur la tuile correspondante.
-  /// Si la perm MANAGE_EXTERNAL_STORAGE n'est pas accordée, l'erreur est
-  /// silencieuse — la création sera retentée au prochain clic sur la tuile.
-  Future<void> _ensurePdfTechFolder() async {
-    try {
-      final dir = Directory('/storage/emulated/0/Documents/PDF Tech');
-      if (!await dir.exists()) await dir.create(recursive: true);
-    } catch (e) {
-      if (kDebugMode) debugPrint('[HomeTab._ensurePdfTechFolder] $e');
-    }
   }
 
   Future<void> _loadStorage() async {
@@ -170,16 +126,24 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  /// "Lire un PDF" : ouvre le dernier PDF lu si dispo (et fichier existe
-  /// toujours), sinon ouvre le PdfPickerScreen pour choisir.
+  /// "Lire un PDF" : tente d'ouvrir le dernier PDF lu si son path est encore
+  /// lisible (app-private ou copie SAF), sinon ouvre le picker. Sous SAF,
+  /// `File(path).exists()` sur un chemin public peut échouer sans permission
+  /// globale ; on catch silencieusement et on délègue au picker.
   Future<void> _readLastOrPick(BuildContext context) async {
     final last = widget.recentFiles.isNotEmpty
         ? widget.recentFiles.first
         : null;
-    if (last != null && await File(last.path).exists()) {
-      if (!context.mounted) return;
-      widget.onOpen(last.path);
-      return;
+    if (last != null) {
+      try {
+        if (await File(last.path).exists()) {
+          if (!context.mounted) return;
+          widget.onOpen(last.path);
+          return;
+        }
+      } catch (_) {
+        // Path public sans accès : on passe au picker SAF.
+      }
     }
     if (!context.mounted) return;
     final picked = await PdfPickerScreen.pickOne(context, title: 'Lire un PDF');
@@ -193,227 +157,49 @@ class _HomeTabState extends State<HomeTab> {
       title: 'PDF à modifier',
     );
     if (picked == null || !context.mounted) return;
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => PdfAnnotateScreen(path: picked)),
     );
   }
 
-  /// Demande MANAGE_EXTERNAL_STORAGE avec un dialog explicatif si manquant.
-  /// Sur refus, propose d'ouvrir Réglages. Retourne true si autorisé.
-  Future<bool> _ensureStorageAccess() async {
-    if (await Permission.manageExternalStorage.isGranted) return true;
-    if (!mounted) return false;
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.folder_outlined, size: 36),
-        title: const Text('Accès aux fichiers requis'),
-        content: const Text(
-          'PDF Tech a besoin d\'accéder à tous les fichiers de votre '
-          'téléphone pour parcourir Téléchargements, Documents, WhatsApp '
-          'et trouver vos PDFs.\n\nAucun fichier n\'est transmis ailleurs.',
-          style: TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Annuler'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Autoriser'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return false;
-
-    final status = await Permission.manageExternalStorage.request();
-    if (status.isGranted) return true;
-
-    if (!mounted) return false;
-    showInfoSnack(
+  /// Ouvre l’explorateur de dossiers intégré pour parcourir le stockage
+  /// et sélectionner un PDF. Nécessite [MANAGE_EXTERNAL_STORAGE].
+  Future<void> _pickAndBrowseFolder() async {
+    final hasStorage = await StoragePermissionService.requestWithDialog(
       context,
-      'Permission refusée — activez "Tous les fichiers" dans Réglages',
-      duration: const Duration(seconds: 5),
-      action: SnackBarAction(
-        label: 'Réglages',
-        onPressed: () => openAppSettings(),
-      ),
     );
-    return false;
-  }
+    if (!mounted) return;
+    if (!hasStorage) {
+      // Fallback SAF si la permission globale est refusée.
+      final dir = await FilePicker.getDirectoryPath();
+      if (dir == null || !mounted) return;
+      final label = PathUtils.fileName(dir);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfFolderScreen(
+            path: dir,
+            title: label.isEmpty ? 'Dossier' : label,
+            onPick: widget.onOpen,
+          ),
+        ),
+      );
+      return;
+    }
 
-  /// Ouvre un PdfFolderScreen filtré sur le path donné. Si le dossier n'existe
-  /// pas, deux cas :
-  /// - "PDF Tech" (notre dossier app) : on le crée automatiquement, c'est
-  ///   l'emplacement où l'app sauvegarde les PDFs générés.
-  /// - Autre dossier (ex: WhatsApp jamais utilisé) : message clair, pas de
-  ///   création silencieuse pour ne pas créer des dossiers étrangers.
-  Future<void> _browseFolder(String path, String label) async {
-    if (!await _ensureStorageAccess()) return;
+    final extDir = await getExternalStorageDirectory();
     if (!mounted) return;
-    final dir = Directory(path);
-    final exists = await dir.exists();
-    if (!mounted) return;
-    if (!exists) {
-      if (label == 'PDF Tech') {
-        try {
-          await dir.create(recursive: true);
-        } catch (e) {
-          if (!mounted) return;
-          showInfoSnack(
-            context,
-            'Impossible de créer le dossier PDF Tech : $e',
-          );
-          return;
-        }
-      } else {
-        showInfoSnack(context, 'Dossier "$label" introuvable sur ce téléphone');
-        return;
-      }
-    }
-    // v1.12.5 (S2) — defense-in-depth : valide que le path canonique résolu
-    // reste sous /storage/. Protège contre un symlink pathologique qui
-    // pointerait vers /data/data/<autre-pkg>/ ou hors-périmètre. Sur Android
-    // shared storage les symlinks sont rares, mais la validation est rapide.
-    try {
-      final canonical = await dir.resolveSymbolicLinks();
-      if (!canonical.startsWith('/storage/') &&
-          !canonical.startsWith('/sdcard/')) {
-        if (!mounted) return;
-        showInfoSnack(context, 'Dossier "$label" — chemin invalide');
-        return;
-      }
-    } catch (_) {
-      // resolveSymbolicLinks peut throw sur permission denied ; on continue
-      // car le path est dans la whitelist statique du widget.
-    }
-    if (!mounted) return;
-    Navigator.of(context).push(
+    final root = extDir?.parent.parent.parent.parent.path;
+    if (root == null) return;
+
+    final picked = await Navigator.push<String>(
+      context,
       MaterialPageRoute(
         builder: (_) =>
-            PdfFolderScreen(path: path, title: label, onPick: widget.onOpen),
+            FolderBrowserScreen(path: root, title: 'Stockage', pickFile: true),
       ),
     );
-  }
-
-  /// Scan récursif de tout /sdcard pour trouver tous les PDFs du tél.
-  /// Utile pour le premier lancement quand l'utilisateur ne sait pas où
-  /// sont ses fichiers. Affiche un dialog de progression avec bouton
-  /// "Annuler" qui interrompt proprement le scan.
-  Future<void> _scanAllPdfs() async {
-    if (!await _ensureStorageAccess()) return;
-    if (!mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
-    final found = <File>[];
-    int scanned = 0;
-
-    // Completer qui sert de flag d'annulation : complété par le bouton
-    // "Annuler" du dialog ; observé par `_walk` pour s'arrêter proprement.
-    final canceller = Completer<void>();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        content: Row(
-          children: const [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Expanded(child: Text('Recherche des PDFs sur votre téléphone…')),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (!canceller.isCompleted) canceller.complete();
-            },
-            child: const Text('Annuler'),
-          ),
-        ],
-      ),
-    );
-
-    try {
-      await _walk(
-        Directory('/storage/emulated/0'),
-        found,
-        () => scanned++,
-        canceller,
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('[HomeTab._scanAllPdfs walk] $e');
-    }
-
-    final wasCancelled = canceller.isCompleted;
-
-    if (!mounted) return;
-    navigator.pop(); // ferme le dialog progress
-
-    if (wasCancelled && found.isEmpty) {
-      messenger.showInfoSnack('Scan annulé');
-      return;
-    }
-    if (found.isEmpty) {
-      messenger.showInfoSnack('Aucun PDF trouvé sur ce téléphone');
-      return;
-    }
-    // Pré-calcule les FileStat une seule fois en parallèle async (évite
-    // IO sync sur main isolate — `sort()` aurait sinon appelé `statSync()`
-    // deux fois par comparaison, O(n log n) bloquant).
-    final withStat = await Future.wait(
-      found.map((f) async => (f, await f.stat())),
-    );
-    if (!navigator.mounted) return;
-    withStat.sort((a, b) => b.$2.modified.compareTo(a.$2.modified));
-    final foundSorted = withStat.map((e) => e.$1).toList(growable: false);
-    final statsByPath = {for (final entry in withStat) entry.$1.path: entry.$2};
-
-    navigator.push(
-      MaterialPageRoute(
-        builder: (_) => AllPdfsScreen(
-          files: foundSorted,
-          statsByPath: statsByPath,
-          onPick: widget.onOpen,
-        ),
-      ),
-    );
-  }
-
-  /// Walk récursif limité aux sous-dossiers utilisateur, ignore caches/Android.
-  /// [depth] borne la profondeur (sécurité contre liens/symlinks pathologiques
-  /// et arbo très profondes qui figent le scan). Le paramètre [canceller]
-  /// permet d'interrompre proprement depuis l'UI.
-  static const int _walkMaxDepth = 8;
-  Future<void> _walk(
-    Directory dir,
-    List<File> out,
-    void Function() onTick,
-    Completer<void> canceller, {
-    int depth = 0,
-  }) async {
-    if (depth >= _walkMaxDepth) return;
-    if (canceller.isCompleted) return;
-    final skip = {'Android', '.thumbnails', '.cache'};
-    try {
-      await for (final e in dir.list(recursive: false, followLinks: false)) {
-        if (canceller.isCompleted) return;
-        onTick();
-        if (e is File) {
-          if (e.path.toLowerCase().endsWith('.pdf')) out.add(e);
-        } else if (e is Directory) {
-          final name = PathUtils.fileName(e.path);
-          if (skip.contains(name) || name.startsWith('.')) continue;
-          await _walk(e, out, onTick, canceller, depth: depth + 1);
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) debugPrint('[HomeTab._walk] $e');
-    }
+    if (picked != null && mounted) widget.onOpen(picked);
   }
 
   @override
@@ -466,7 +252,10 @@ class _HomeTabState extends State<HomeTab> {
         ],
 
         // ── Parcourir ───────────────────────────────────────────────────────
-        // Toujours visible — accès direct aux dossiers les plus probables.
+        // P0 v1.13.2 — sans MANAGE_EXTERNAL_STORAGE, l'app utilise le Storage
+        // Access Framework : file_picker crée une copie temporaire lisible
+        // ou retourne un path app-private. Plus de scan global, plus de
+        // raccourcis hardcodés vers /storage/emulated/0/….
         _sectionHeader(
           context,
           'Parcourir',
@@ -482,25 +271,17 @@ class _HomeTabState extends State<HomeTab> {
           mainAxisSpacing: 8,
           childAspectRatio: 1.1,
           children: [
-            ..._browseFolders.map(
-              (f) => ActionCard(
-                icon: f.icon,
-                label: f.label,
-                color: f.color,
-                onTap: () => _browseFolder(f.path, f.label),
-              ),
-            ),
             ActionCard(
-              icon: Icons.search,
-              label: 'Trouver mes PDFs',
-              color: const Color(0xFFAB47BC),
-              onTap: _scanAllPdfs,
+              icon: Icons.picture_as_pdf_outlined,
+              label: 'Choisir un PDF',
+              color: const Color(0xFF1565C0),
+              onTap: () => widget.onPickFile(),
             ),
             ActionCard(
               icon: Icons.folder_outlined,
-              label: 'Choisir…',
-              color: const Color(0xFF607D8B),
-              onTap: () => widget.onPickFile(),
+              label: 'Choisir un dossier',
+              color: const Color(0xFF43A047),
+              onTap: _pickAndBrowseFolder,
             ),
           ],
         ),

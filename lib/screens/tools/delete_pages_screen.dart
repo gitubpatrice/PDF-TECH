@@ -1,4 +1,5 @@
 import '../../services/isolate_runner.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -72,10 +73,12 @@ class _DeletePagesScreenState extends State<DeletePagesScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'Pages supprimées',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'Pages supprimées',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

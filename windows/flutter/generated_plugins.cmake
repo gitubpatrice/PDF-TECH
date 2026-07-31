@@ -3,7 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
-  pdfx
+  file_selector_windows
   permission_handler_windows
   share_plus
   syncfusion_pdfviewer_windows

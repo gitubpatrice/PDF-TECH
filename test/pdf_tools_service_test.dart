@@ -13,6 +13,21 @@ Future<String> _writeTemp(String name, List<int> bytes) async {
   return f.path;
 }
 
+/// Crée un fichier sparse de [size] octets (un seul octet écrit à la fin)
+/// sans charger [size] octets en RAM.
+Future<String> _writeSparseFile(String name, int size) async {
+  final dir = await Directory.systemTemp.createTemp('pdf_tech_test_');
+  final f = File('${dir.path}/$name');
+  final raf = await f.open(mode: FileMode.write);
+  try {
+    await raf.setPosition(size - 1);
+    await raf.writeFrom(Uint8List.fromList([0]));
+  } finally {
+    await raf.close();
+  }
+  return f.path;
+}
+
 /// Génère un PDF minimal valide (signature `%PDF-1.4` + EOF).
 List<int> _minimalPdfBytes() {
   return Uint8List.fromList('%PDF-1.4\n%âãÏÓ\n%%EOF\n'.codeUnits);
@@ -57,6 +72,17 @@ void main() {
 
     test('expose maxPdfBytes (cap) > 0', () {
       expect(PdfToolsService.maxPdfBytes, greaterThan(0));
+    });
+
+    test('rejette un fichier dépassant le cap de 200 Mo', () async {
+      final path = await _writeSparseFile(
+        'huge.pdf',
+        PdfToolsService.maxPdfBytes + 1,
+      );
+      expect(
+        () => PdfToolsService.safeReadPdf(path),
+        throwsA(isA<PdfValidationException>()),
+      );
     });
   });
 }

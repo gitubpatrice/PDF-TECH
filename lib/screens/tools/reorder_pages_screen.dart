@@ -2,9 +2,9 @@ import 'package:files_tech_core/files_tech_core.dart';
 import 'dart:async';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart' as pdfx;
+import 'package:image/image.dart' as img;
+import 'package:pdfrx_engine/pdfrx_engine.dart' as pdfrx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../utils/atomic_write.dart';
@@ -60,57 +60,36 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
       _thumbs.clear();
       _isLoadingThumbs = true;
     });
-    _loadThumbnails(path, count);
+    unawaited(_loadThumbnails(path, count));
   }
 
   Future<void> _loadThumbnails(String path, int count) async {
-    // F14 v1.12.4 — try/finally symétrique : un throw sur `getPage`,
-    // `render` ou `_rawToPng` au milieu de la boucle laissait pdfDoc
-    // ouvert (et la page courante non close).
-    final pdfDoc = await pdfx.PdfDocument.openFile(path);
+    // F14 v1.12.4 — try/finally symétrique : un throw sur `render` ou
+    // l'encodage PNG au milieu de la boucle laissait pdfDoc ouvert.
+    final pdfDoc = await pdfrx.PdfDocument.openFile(path);
     try {
       for (int i = 1; i <= count; i++) {
         if (!mounted) break;
-        final page = await pdfDoc.getPage(i);
-        try {
-          final img = await page.render(
-            width: page.width,
-            height: page.height,
-            format: pdfx.PdfPageImageFormat.png,
-            backgroundColor: '#ffffff',
-          );
-          if (img?.bytes != null) {
-            final png = await _rawToPng(
-              img!.bytes,
-              img.width ?? page.width.toInt(),
-              img.height ?? page.height.toInt(),
-            );
-            if (mounted) {
-              setState(() => _thumbs[i - 1] = _Thumb(png));
-            }
+        final page = pdfDoc.pages[i - 1];
+        final pageImage = await page.render(
+          width: page.width.toInt(),
+          height: page.height.toInt(),
+        );
+        if (pageImage != null) {
+          // P0 v1.13.2 — pdfrx_engine retourne un bitmap brut ; on encode
+          // directement en PNG via package:image.
+          final image = pageImage.createImageNF();
+          final png = Uint8List.fromList(img.encodePng(image));
+          pageImage.dispose();
+          if (mounted) {
+            setState(() => _thumbs[i - 1] = _Thumb(png));
           }
-        } finally {
-          await page.close();
         }
       }
     } finally {
-      await pdfDoc.close();
+      await pdfDoc.dispose();
     }
     if (mounted) setState(() => _isLoadingThumbs = false);
-  }
-
-  Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rawBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    final uiImage = await completer.future;
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
   }
 
   Future<void> _process() async {
@@ -126,10 +105,12 @@ class _ReorderPagesScreenState extends State<ReorderPagesScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'Pages réordonnées',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'Pages réordonnées',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

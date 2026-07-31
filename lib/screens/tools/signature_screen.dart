@@ -1,7 +1,9 @@
-import '../../services/isolate_runner.dart';
-import 'package:files_tech_core/files_tech_core.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+
+import '../../services/isolate_runner.dart';
+import 'package:files_tech_core/files_tech_core.dart';
 
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -35,12 +37,12 @@ class _SignatureScreenState extends State<SignatureScreen> {
   void initState() {
     super.initState();
     // F1 v1.12.2 — bloque captures pendant signature manuscrite.
-    SecureWindow.enable();
+    unawaited(SecureWindow.enable());
   }
 
   @override
   void dispose() {
-    SecureWindow.disable();
+    unawaited(SecureWindow.disable());
     super.dispose();
   }
 
@@ -73,11 +75,10 @@ class _SignatureScreenState extends State<SignatureScreen> {
     try {
       // Export signature image from pad
       final image = await padState.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) {
-        throw Exception('Impossible d\'exporter la signature');
-      }
-      final pngBytes = byteData.buffer.asUint8List();
+      // Cap défense-in-depth : le pad fait 200 dp de haut, mais sur tablette /
+      // grand écran la largeur peut grimper. On borne le plus grand côté à
+      // 2000 px pour éviter toute image-bomb lors de l'insertion PDF.
+      final pngBytes = await _resizePngIfNeeded(image, maxSide: 2000);
 
       // Load PDF (size + magic bytes validés)
       final bytes = await PdfToolsService.safeReadPdf(_filePath!);
@@ -102,6 +103,43 @@ class _SignatureScreenState extends State<SignatureScreen> {
     } finally {
       if (mounted) setState(() => _processing = false);
     }
+  }
+
+  /// Encode l'image signature en PNG et la redimensionne si nécessaire pour
+  /// que son plus grand côté ne dépasse pas [maxSide]. Retourne les bytes PNG.
+  static Future<Uint8List> _resizePngIfNeeded(
+    ui.Image source, {
+    required int maxSide,
+  }) async {
+    final w = source.width;
+    final h = source.height;
+    if (w <= maxSide && h <= maxSide) {
+      final byteData = await source.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw Exception('Impossible d\'exporter la signature');
+      }
+      return byteData.buffer.asUint8List();
+    }
+    // Redimensionnement proportionnel via le codec intégré (pas de décodage
+    // bitmap côté Dart).
+    final byteData = await source.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) {
+      throw Exception('Impossible d\'exporter la signature');
+    }
+    final ratio = maxSide / (w > h ? w : h);
+    final codec = await ui.instantiateImageCodec(
+      byteData.buffer.asUint8List(),
+      targetWidth: (w * ratio).round(),
+      targetHeight: (h * ratio).round(),
+    );
+    final frame = await codec.getNextFrame();
+    final resized = await frame.image.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    if (resized == null) {
+      throw Exception('Échec du redimensionnement de la signature');
+    }
+    return resized.buffer.asUint8List();
   }
 
   static Uint8List _signatureIsolate(

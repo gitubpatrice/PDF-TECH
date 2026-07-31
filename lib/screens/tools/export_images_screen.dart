@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
-import 'package:pdfx/pdfx.dart' as pdfx;
+import 'package:pdfrx_engine/pdfrx_engine.dart' as pdfrx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../services/pdf_tools_service.dart';
@@ -76,7 +76,7 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
       _isDone = false;
     });
     try {
-      final pdfDoc = await pdfx.PdfDocument.openFile(_path!);
+      final pdfDoc = await pdfrx.PdfDocument.openFile(_path!);
       try {
         final dir = await getApplicationDocumentsDirectory();
         final ts = DateTime.now().millisecondsSinceEpoch;
@@ -86,47 +86,30 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
 
         final paths = <String>[];
 
-        for (int i = 1; i <= pdfDoc.pagesCount; i++) {
-          final page = await pdfDoc.getPage(i);
-          try {
-            // G13 v1.12.3 — clamp dimensions de sortie (1..6000) pour
-            // protéger contre les PDFs aux pages UserSpace pathologiques :
-            // une page 14400×14400 × scale=3 = 43200² ≈ 7 Go RAM.
-            final renderW = (page.width * _scale).toInt().clamp(1, 6000);
-            final renderH = (page.height * _scale).toInt().clamp(1, 6000);
-            final pageImage = await page.render(
-              width: renderW.toDouble(),
-              height: renderH.toDouble(),
-              format: _format == 'png'
-                  ? pdfx.PdfPageImageFormat.png
-                  : pdfx.PdfPageImageFormat.jpeg,
-              backgroundColor: '#ffffff',
-            );
+        for (int i = 1; i <= pdfDoc.pages.length; i++) {
+          final page = pdfDoc.pages[i - 1];
+          // G13 v1.12.3 — clamp dimensions de sortie (1..6000) pour
+          // protéger contre les PDFs aux pages UserSpace pathologiques :
+          // une page 14400×14400 × scale=3 = 43200² ≈ 7 Go RAM.
+          final renderW = (page.width * _scale).toInt().clamp(1, 6000);
+          final renderH = (page.height * _scale).toInt().clamp(1, 6000);
+          final pageImage = await page.render(width: renderW, height: renderH);
 
-            if (pageImage?.bytes != null) {
-              Uint8List finalBytes;
-              if (_format == 'png') {
-                finalBytes = await _rawToPng(
-                  pageImage!.bytes,
-                  pageImage.width ?? renderW,
-                  pageImage.height ?? renderH,
-                );
-              } else {
-                finalBytes = pageImage!.bytes;
-              }
-              final pageNum = i.toString().padLeft(3, '0');
-              final outPath = '${outDir.path}/page_$pageNum.$_format';
-              await atomicWriteBytes(outPath, finalBytes);
-              paths.add(outPath);
+          if (pageImage != null) {
+            // P0 v1.13.2 — pdfrx_engine retourne un bitmap brut ; on encode
+            // en PNG ou JPEG via package:image (pas de format intégré).
+            final image = pageImage.createImageNF();
+            final Uint8List finalBytes;
+            if (_format == 'png') {
+              finalBytes = Uint8List.fromList(img.encodePng(image));
+            } else {
+              finalBytes = Uint8List.fromList(img.encodeJpg(image));
             }
-          } finally {
-            // G12 v1.12.3 — page.close() garanti même si render/write throw,
-            // sinon leak FD natif sur exceptions au milieu de la boucle.
-            try {
-              await page.close();
-            } catch (_) {
-              /* best-effort */
-            }
+            pageImage.dispose();
+            final pageNum = i.toString().padLeft(3, '0');
+            final outPath = '${outDir.path}/page_$pageNum.$_format';
+            await atomicWriteBytes(outPath, finalBytes);
+            paths.add(outPath);
           }
 
           if (mounted) setState(() => _processedPages = i);
@@ -141,33 +124,15 @@ class _ExportImagesScreenState extends State<ExportImagesScreen> {
           _isProcessing = false;
         });
       } finally {
-        // G12 v1.12.3 — close pdfDoc DANS finally (avant : leak FD si render
+        // G12 v1.12.3 — dispose pdfDoc DANS finally (avant : leak FD si render
         // ou atomicWrite throw au milieu de la boucle).
-        try {
-          await pdfDoc.close();
-        } catch (_) {
-          /* best-effort */
-        }
+        await pdfDoc.dispose();
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isProcessing = false);
       showErrorSnack(context, e);
     }
-  }
-
-  Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rawBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    final uiImage = await completer.future;
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
   }
 
   Future<void> _shareAll() async {

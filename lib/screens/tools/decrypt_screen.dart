@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
@@ -14,7 +16,8 @@ class DecryptScreen extends StatefulWidget {
   State<DecryptScreen> createState() => _DecryptScreenState();
 }
 
-class _DecryptScreenState extends State<DecryptScreen> {
+class _DecryptScreenState extends State<DecryptScreen>
+    with WidgetsBindingObserver {
   String? _path;
   String? _name;
   final _passwordCtrl = TextEditingController();
@@ -24,14 +27,26 @@ class _DecryptScreenState extends State<DecryptScreen> {
   @override
   void initState() {
     super.initState();
-    SecureWindow.enable();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(SecureWindow.enable());
   }
 
   @override
   void dispose() {
-    SecureWindow.disable();
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(SecureWindow.disable());
     _passwordCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Le PDF déchiffré est en clair sur disque : on purge dès que l'app passe
+    // en arrière-plan pour minimiser la fenêtre d'exposition.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      unawaited(PdfToolsService.purgeDecryptedCache());
+    }
   }
 
   Future<void> _pickFile() async {

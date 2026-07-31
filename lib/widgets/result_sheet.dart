@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart' show PathUtils;
-import '../screens/pdf_viewer_screen.dart';
+import '../features/pdf_viewer/pdf_viewer_screen.dart';
 import 'cloud_share_row.dart';
 
 Future<void> showResultSheet(

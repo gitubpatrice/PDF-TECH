@@ -1,9 +1,9 @@
 import 'dart:async';
 import '../../services/isolate_runner.dart';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart' as pdfx;
+import 'package:image/image.dart' as img;
+import 'package:pdfrx_engine/pdfrx_engine.dart' as pdfrx;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../services/pdf_tools_service.dart';
 import '../../utils/snack_utils.dart';
@@ -83,7 +83,7 @@ class _CompareScreenState extends State<CompareScreen> {
       _currentPage = 0;
     });
 
-    if (_ready) _loadPage(_currentPage);
+    if (_ready) await _loadPage(_currentPage);
   }
 
   Future<void> _loadPage(int pageIndex) async {
@@ -91,13 +91,12 @@ class _CompareScreenState extends State<CompareScreen> {
     // Déjà rendu + comparé : rien à refaire (PNG en cache pour l'affichage).
     if (_diffCache.containsKey(pageIndex)) return;
     setState(() => _isLoading = true);
-    final rasters = await Future.wait([
-      _renderRaster(_pathA!, pageIndex, _pagesA),
-      _renderRaster(_pathB!, pageIndex, _pagesB),
-    ]);
+    // Sérialisé (pas de Future.wait) : le rendu PDF natif est gourmand en
+    // mémoire ; exécuter les deux pages en parallèle double le pic de RAM.
+    final ra = await _renderRaster(_pathA!, pageIndex, _pagesA);
     if (!mounted) return;
-    final ra = rasters[0];
-    final rb = rasters[1];
+    final rb = await _renderRaster(_pathB!, pageIndex, _pagesB);
+    if (!mounted) return;
     if (ra != null) _thumbsA[pageIndex] = ra.png;
     if (rb != null) _thumbsB[pageIndex] = rb.png;
     await _computeDiff(pageIndex, ra, rb);
@@ -108,31 +107,35 @@ class _CompareScreenState extends State<CompareScreen> {
   /// dimensions (nécessaires à la comparaison pixel). Retourne null si la page
   /// n'existe pas de ce côté.
   ///
-  /// try/finally symétrique (cf. ex-F13 v1.12.4) : un throw sur `page.render`
-  /// ou `_rawToPng` ne doit pas laisser pdfDoc/page ouverts (leak FD natif).
+  /// P0 v1.13.2 — migration pdfx → pdfrx_engine. Le bitmap brut retourné par
+  /// PDFium est encodé en PNG via package:image ; les octets normalisés en
+  /// RGBA uint8 sont conservés pour la comparaison pixel.
   Future<_Raster?> _renderRaster(String path, int index, int total) async {
     if (index >= total) return null;
-    final pdfDoc = await pdfx.PdfDocument.openFile(path);
+    final pdfDoc = await pdfrx.PdfDocument.openFile(path);
     try {
-      final page = await pdfDoc.getPage(index + 1);
-      try {
-        final img = await page.render(
-          width: page.width * 1.5,
-          height: page.height * 1.5,
-          format: pdfx.PdfPageImageFormat.png,
-          backgroundColor: '#ffffff',
-        );
-        if (img?.bytes == null) return null;
-        final w = img!.width ?? (page.width * 1.5).toInt();
-        final h = img.height ?? (page.height * 1.5).toInt();
-        final png = await _rawToPng(img.bytes, w, h);
-        return _Raster(png: png, raw: img.bytes, w: w, h: h);
-      } finally {
-        await page.close();
-      }
+      final page = pdfDoc.pages[index];
+      final pageImage = await page.render(
+        width: (page.width * 1.5).toInt(),
+        height: (page.height * 1.5).toInt(),
+      );
+      if (pageImage == null) return null;
+      final image = pageImage.createImageNF();
+      final png = Uint8List.fromList(img.encodePng(image));
+      final raw = _imageToRgba(image);
+      final w = image.width;
+      final h = image.height;
+      pageImage.dispose();
+      return _Raster(png: png, raw: raw, w: w, h: h);
     } finally {
-      await pdfDoc.close();
+      await pdfDoc.dispose();
     }
+  }
+
+  /// Convertit une image pdfrx/image en buffer RGBA uint8 normalisé pour
+  /// `_diffPixels`. Si l'image est déjà RGBA, l'opération est une no-op.
+  Uint8List _imageToRgba(img.Image src) {
+    return src.convert(format: img.Format.uint8).getBytes();
   }
 
   /// Compare les rasters bruts des deux côtés pour la page donnée. Le balayage
@@ -151,6 +154,12 @@ class _CompareScreenState extends State<CompareScreen> {
     }
     final rawA = ra.raw;
     final rawB = rb.raw;
+    if (rawA.length != rawB.length) {
+      // Les dimensions affichées correspondent mais les buffers bruts ont des
+      // tailles différentes (formats internes différents, canal alpha, etc.).
+      _diffCache[page] = const _PageDiff(_DiffKind.error, 0);
+      return;
+    }
     final w = ra.w;
     final h = ra.h;
     try {
@@ -158,7 +167,14 @@ class _CompareScreenState extends State<CompareScreen> {
       if (!mounted) return;
       final total = w * h;
       final ratio = total == 0 ? 0.0 : res.$1 / total;
-      _overlay[page] = await _rawToPng(res.$2, w, h);
+      // P0 v1.13.2 — conversion RGBA → PNG via package:image.
+      final overlayImage = img.Image.fromBytes(
+        width: w,
+        height: h,
+        bytes: res.$2.buffer,
+        format: img.Format.uint8,
+      );
+      _overlay[page] = Uint8List.fromList(img.encodePng(overlayImage));
       if (!mounted) return;
       // Seuil anti-bruit d'anti-aliasing : < 0,05 % de pixels ⇒ identique.
       _diffCache[page] = _PageDiff(
@@ -170,24 +186,10 @@ class _CompareScreenState extends State<CompareScreen> {
     }
   }
 
-  Future<Uint8List> _rawToPng(Uint8List rawBytes, int width, int height) async {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      rawBytes,
-      width,
-      height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-    final uiImage = await completer.future;
-    final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
-  }
-
   void _goTo(int page) {
     if (page < 0 || page >= _maxPages) return;
     setState(() => _currentPage = page);
-    _loadPage(page);
+    unawaited(_loadPage(page));
   }
 
   @override
@@ -564,7 +566,12 @@ class _PageDiff {
 /// Overlay : pixel modifié ⇒ rouge opaque ; pixel identique ⇒ gris très clair
 /// (contexte lavé). Tolérance par canal pour absorber le bruit d'anti-aliasing.
 (int, Uint8List) _diffPixels(Uint8List a, Uint8List b) {
-  final n = a.length < b.length ? a.length : b.length;
+  // Précondition : tailles égales (vérifiée par l'appelant). Si ce n'est pas
+  // le cas, on retourne un overlay vide — l'appelant remontera une erreur.
+  if (a.length != b.length) {
+    return (0, Uint8List(0));
+  }
+  final n = a.length;
   final overlay = Uint8List(n);
   int changed = 0;
   const thr = 28;

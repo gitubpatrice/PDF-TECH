@@ -1,4 +1,5 @@
 import '../../services/isolate_runner.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -84,10 +85,12 @@ class _PageNumbersScreenState extends State<PageNumbersScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'Numéros de page ajoutés',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'Numéros de page ajoutés',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

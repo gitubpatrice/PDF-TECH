@@ -1,4 +1,5 @@
 import '../../services/isolate_runner.dart';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -98,10 +99,12 @@ class _HeaderFooterScreenState extends State<HeaderFooterScreen> {
 
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      showResultSheet(
-        context,
-        outputPath: outPath,
-        operationLabel: 'En-tête/Pied de page ajouté',
+      unawaited(
+        showResultSheet(
+          context,
+          outputPath: outPath,
+          operationLabel: 'En-tête/Pied de page ajouté',
+        ),
       );
     } catch (e) {
       if (!mounted) return;

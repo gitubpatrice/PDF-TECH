@@ -21,9 +21,9 @@ abstract final class ImageBounds {
   /// Inspecte les premiers octets pour extraire (width, height) si format
   /// reconnu. Retourne `null` sinon.
   static (int, int)? probeDimensions(Uint8List bytes) {
-    if (bytes.length < 24) return null;
-    // PNG : 0x89 'P' 'N' 'G'
-    if (bytes[0] == 0x89 &&
+    // PNG : signature 8 octets + IHDR chunk (16 octets) = 24 octets minimum.
+    if (bytes.length >= 24 &&
+        bytes[0] == 0x89 &&
         bytes[1] == 0x50 &&
         bytes[2] == 0x4E &&
         bytes[3] == 0x47) {
@@ -33,13 +33,16 @@ abstract final class ImageBounds {
       return (w, h);
     }
     // GIF : 'GIF87a' / 'GIF89a' — width@6 height@8 little-endian uint16.
-    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) {
+    if (bytes.length >= 10 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46) {
       final w = bytes[6] | (bytes[7] << 8);
       final h = bytes[8] | (bytes[9] << 8);
       return (w, h);
     }
     // JPEG : 0xFF 0xD8 ... scan SOF0/SOF2 marker.
-    if (bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    if (bytes.length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xD8) {
       var i = 2;
       while (i + 8 < bytes.length) {
         if (bytes[i] != 0xFF) {

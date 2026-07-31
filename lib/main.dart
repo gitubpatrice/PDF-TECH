@@ -2,14 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:pdfrx/pdfrx.dart' show pdfrxFlutterInitialize;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'services/pdf_tools_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
+  // P0 v1.13.2 — initialisation de PDFium avant tout rendu via pdfrx_engine
+  // (OCR, comparaison, export images, réorganisation). Sans ça, l'ouverture
+  // d'un PdfDocument dans un isolate ou en dehors d'un PdfViewer widget
+  // peut échouer avec « PDFium not initialized ».
+  await pdfrxFlutterInitialize();
+  await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,
@@ -231,8 +236,10 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     final navContext = _navigatorKey.currentContext;
     if (navContext == null || !navContext.mounted) return;
 
-    // Étape 1 : welcome + accès aux fichiers
-    final wantStorage = await showDialog<bool>(
+    // P0 v1.13.2 — Dialog de bienvenue simplifié : plus de demande de
+    // MANAGE_EXTERNAL_STORAGE. L'utilisateur sélectionne explicitement ses
+    // PDFs/dossiers via le Storage Access Framework à la demande.
+    await showDialog(
       context: navContext,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
@@ -243,27 +250,19 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
         ),
         title: const Text('Bienvenue dans PDF Tech'),
         content: const Text(
-          'Pour parcourir vos PDFs (Téléchargements, Documents, WhatsApp, '
-          'recherche globale), PDF Tech a besoin d\'accéder aux fichiers '
-          'de votre téléphone.\n\n'
-          'Aucun fichier n\'est transmis ailleurs.',
+          'Ouvrez, modifiez et partagez vos PDFs en toute confidentialité.\n\n'
+          'Sélectionnez simplement les fichiers ou dossiers que vous souhaitez '
+          'utiliser ; aucun accès global à vos fichiers n\'est requis.',
           style: TextStyle(fontSize: 13),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Plus tard'),
-          ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Autoriser'),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Commencer'),
           ),
         ],
       ),
     );
-    if (wantStorage == true) {
-      await Permission.manageExternalStorage.request();
-    }
     // Ex-étape 2 « Autoriser les mises à jour » retirée : l'app ne s'auto-
     // installe pas d'APK (UpdateService = check-only, « pas d'auto-download »),
     // et sans REQUEST_INSTALL_PACKAGES le toggle système « sources inconnues »

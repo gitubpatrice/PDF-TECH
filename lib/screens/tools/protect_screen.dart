@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import '../../services/pdf_tools_service.dart';
@@ -28,12 +30,12 @@ class _ProtectScreenState extends State<ProtectScreen> {
     super.initState();
     // F1 v1.12.2 — bloque captures + aperçu task switcher pendant
     // saisie password.
-    SecureWindow.enable();
+    unawaited(SecureWindow.enable());
   }
 
   @override
   void dispose() {
-    SecureWindow.disable();
+    unawaited(SecureWindow.disable());
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     super.dispose();
@@ -156,6 +158,12 @@ class _ProtectScreenState extends State<ProtectScreen> {
               const Text(
                 'Le PDF résultant nécessitera ce mot de passe pour être ouvert.',
                 style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Le mot de passe reste en mémoire vive jusqu\'à la fermeture '
+                'de l\'application.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             ],
             const Spacer(),

@@ -1,13 +1,15 @@
-import 'package:file_picker/file_picker.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path_provider/path_provider.dart';
 
 import '../../services/google_drive_service.dart';
+import '../../utils/saf_picker.dart';
 import '../../utils/snack_utils.dart';
 import 'package:files_tech_core/files_tech_core.dart';
-import '../pdf_viewer_screen.dart';
+import '../../features/pdf_viewer/pdf_viewer_screen.dart';
 
 class GoogleDriveScreen extends StatefulWidget {
   const GoogleDriveScreen({super.key});
@@ -115,12 +117,13 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   }
 
   Future<void> _upload() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-    if (result?.files.single.path == null) return;
-    final path = result!.files.single.path!;
+    final path = await SafPicker.pickPdf();
+    if (path == null || !path.toLowerCase().endsWith('.pdf')) {
+      if (mounted) {
+        showInfoSnack(context, 'Veuillez sélectionner un fichier PDF');
+      }
+      return;
+    }
     setState(() => _uploading = true);
     try {
       await _service.uploadFile(path);
@@ -145,12 +148,14 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       await _recents.addOrUpdate(recentList, localPath);
       if (!mounted) return;
       showInfoSnack(context, 'Téléchargement terminé');
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(
-            path: localPath,
-            title: driveFile.name ?? 'document.pdf',
+      unawaited(
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfViewerScreen(
+              path: localPath,
+              title: driveFile.name ?? 'document.pdf',
+            ),
           ),
         ),
       );

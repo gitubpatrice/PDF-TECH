@@ -247,7 +247,7 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     final outBytes = await runPdfIsolate(
       () => _flattenInIsolate(path, serialized),
     );
-    final out = await _saveToVisibleDocuments(outBytes);
+    final out = await _saveToAppDocuments(outBytes);
     return out.path;
   }
 
@@ -271,30 +271,11 @@ class _PdfAnnotateScreenState extends State<PdfAnnotateScreen> {
     };
   }
 
-  /// Sauve dans /Documents/PDF Tech/ (visible) avec fallback app-privé.
-  Future<File> _saveToVisibleDocuments(List<int> bytes) async {
+  /// P0 v1.13.2 — Sauve dans le dossier app-privé. Sans
+  /// MANAGE_EXTERNAL_STORAGE, l'app ne peut plus écrire dans /Documents/PDF Tech/.
+  Future<File> _saveToAppDocuments(List<int> bytes) async {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final filename = '${_baseName(widget.path)}_annote_$ts.pdf';
-    try {
-      final visible = Directory('/storage/emulated/0/Documents/PDF Tech');
-      if (!await visible.exists()) await visible.create(recursive: true);
-      final out = File('${visible.path}/$filename');
-      await atomicWriteBytes(out.path, bytes);
-      return out;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('[PdfAnnotate._saveToVisibleDocuments fallback] $e');
-      }
-    }
-    // Fallback : /Android/data/<pkg>/files/output/ (FileProvider-shareable)
-    final extDir = await getExternalStorageDirectory();
-    if (extDir != null) {
-      final outDir = Directory('${extDir.path}/output');
-      if (!await outDir.exists()) await outDir.create(recursive: true);
-      final out = File('${outDir.path}/$filename');
-      await atomicWriteBytes(out.path, bytes);
-      return out;
-    }
     final docs = await getApplicationDocumentsDirectory();
     final out = File('${docs.path}/$filename');
     await atomicWriteBytes(out.path, bytes);

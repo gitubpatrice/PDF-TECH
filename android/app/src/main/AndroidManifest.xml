@@ -3,12 +3,11 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- READ_MEDIA_IMAGES retiré : la sélection d'images (Images → PDF)
-         passe par file_picker / SAF qui octroie l'accès via URI ; pas
-         besoin de permission MediaStore. -->
-    <!-- Lecture de tous les PDFs sur le stockage externe (section Parcourir
-         et scan global). MANAGE_EXTERNAL_STORAGE car Documents/Download/
-         WhatsApp Documents sont hors scoped storage de l'app. -->
+    <!-- P0 v1.13.4 — MANAGE_EXTERNAL_STORAGE réactivé. L'app est un
+         gestionnaire/lecteur de PDFs : l'utilisateur a besoin d'ouvrir des
+         documents répartis sur tout le stockage externe (Download, Documents,
+         WhatsApp Documents, etc.) sans avoir à naviguer dans un picker SAF
+         système par fichier. La permission n'est pas destinée au Play Store. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
