@@ -1,0 +1,9 @@
+v1.13.2 — Built-in file browser & Tesseract OCR
+
+New PDF picker: direct storage navigation with a built-in folder browser, plus system picker fallback if permission is denied.
+
+OCR migrated to Tesseract: fully offline text recognition with embedded French and English models.
+
+Security improved: clean MANAGE_EXTERNAL_STORAGE handling, no Google Play, no tracker.
+
+100% local.

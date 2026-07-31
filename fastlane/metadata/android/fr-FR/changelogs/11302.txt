@@ -1,0 +1,9 @@
+v1.13.2 — Explorateur de fichiers intégré & OCR Tesseract
+
+Nouveau picker PDF : navigation directe dans le stockage avec un explorateur de dossiers intégré, plus de fallback sur le picker système si la permission est refusée.
+
+OCR migré vers Tesseract : reconnaissance de texte 100 % hors-ligne avec les modèles français et anglais embarqués.
+
+Sécurité renforcée : gestion propre de MANAGE_EXTERNAL_STORAGE, pas de Google Play, pas de traqueur.
+
+100 % local.
