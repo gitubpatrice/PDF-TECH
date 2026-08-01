@@ -6,8 +6,8 @@ import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 
+import '../../services/secure_app_preferences.dart';
 import '../../utils/storage_permission_service.dart';
 import '../../widgets/pdf_picker_screen.dart';
 import '../folder_browser_screen.dart';
@@ -163,15 +163,16 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
-  /// Ouvre l’explorateur de dossiers intégré pour parcourir le stockage
-  /// et sélectionner un PDF. Nécessite [MANAGE_EXTERNAL_STORAGE].
+  /// Ouvre l'explorateur de dossiers integre pour parcourir le stockage
+  /// et selectionner un PDF.
+  ///
+  /// P0 v1.13.4+ — mode securise par defaut : l'acces complet au stockage
+  /// n'est utilise que si l'utilisateur l'a explicitement active dans les
+  /// parametres. Sinon, le picker de dossier SAF natif est propose.
   Future<void> _pickAndBrowseFolder() async {
-    final hasStorage = await StoragePermissionService.requestWithDialog(
-      context,
-    );
+    final fullMode = await SecureAppPreferences.getFullStorageMode();
     if (!mounted) return;
-    if (!hasStorage) {
-      // Fallback SAF si la permission globale est refusée.
+    if (!fullMode) {
       final dir = await FilePicker.getDirectoryPath();
       if (dir == null || !mounted) return;
       final label = PathUtils.fileName(dir);
@@ -187,10 +188,32 @@ class _HomeTabState extends State<HomeTab> {
       return;
     }
 
-    final extDir = await getExternalStorageDirectory();
+    final hasStorage = await StoragePermissionService.requestWithDialog(
+      context,
+    );
     if (!mounted) return;
-    final root = extDir?.parent.parent.parent.parent.path;
-    if (root == null) return;
+    if (!hasStorage) {
+      // Fallback SAF si la permission globale est refusee.
+      final dir = await FilePicker.getDirectoryPath();
+      if (dir == null || !mounted) return;
+      final label = PathUtils.fileName(dir);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PdfFolderScreen(
+            path: dir,
+            title: label.isEmpty ? 'Dossier' : label,
+            onPick: widget.onOpen,
+          ),
+        ),
+      );
+      return;
+    }
+
+    final rootDir = Directory('/sdcard');
+    if (!mounted) return;
+    if (!await rootDir.exists()) return;
+    if (!mounted) return;
+    final root = rootDir.path;
 
     final picked = await Navigator.push<String>(
       context,

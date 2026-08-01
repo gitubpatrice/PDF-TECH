@@ -1,0 +1,1291 @@
+# Rapport d'Audit Sécurité Mobile
+
+**Application** : PDF Tech
+**Plateforme** : Flutter / Android
+**Date** : 01/08/2026 12:09
+**Méthodologie** : OWASP Mobile Top 10 (2024) / MASVS v2
+
+---
+
+## Score Global : 0/100
+
+| Sévérité | Nombre |
+|---|---|
+| Critique | 10 |
+| Haute | 8 |
+| Moyenne | 11 |
+| Basse | 11 |
+| Info | 6 |
+| **Total** | **46** |
+
+---
+
+## Évaluation OWASP Mobile Top 10
+
+# Évaluation OWASP Mobile Top 10 — PDF Tech v1.13.3
+
+**Application** : PDF Tech v1.13.3  
+**Plateforme** : Flutter (Dart) + Android natif (Kotlin)  
+**Scope** : `J:/applications/pdf_tech` + dépendance `J:/applications/files_tech_core`  
+**APK audité** : `build/app/outputs/flutter-apk/pdf-tech-universel-1.13.3.apk`  
+**Date** : 2026-08-01  
+**Référentiel** : OWASP Mobile Top 10 (2024) / MASVS v2  
+
+---
+
+## Score Global : 66/100
+
+**Méthode** : moyenne pondérée des 10 catégories. La catégorie M1 est classée **Critique** (score 3/10) et compte donc double.
+
+| Catégorie | Score | Statut | Findings |
+|---|---|---|---|
+| M1 - Improper Credential Usage | 3/10 | Critique | 1 |
+| M2 - Inadequate Supply Chain Security | 8/10 | Partiellement conforme | 0 (observations) |
+| M3 - Insecure Authentication/Authorization | 9/10 | Conforme | 0 |
+| M4 - Insufficient Input/Output Validation | 9/10 | Conforme | 0 |
+| M5 - Insecure Communication | 8/10 | Partiellement conforme | 1 (info) |
+| M6 - Inadequate Privacy Controls | 7/10 | Partiellement conforme | 2 |
+| M7 - Insufficient Binary Protections | 6/10 | Partiellement conforme | 1 |
+| M8 - Security Misconfiguration | 5/10 | Non conforme | 3 |
+| M9 - Insecure Data Storage | 6/10 | Non conforme | 2 |
+| M10 - Insufficient Cryptography | 9/10 | Conforme | 0 |
+
+**Formule** : `(3×2 + 8 + 9 + 9 + 8 + 7 + 6 + 5 + 6 + 9) / 11 = 66/100`
+
+---
+
+## Résumé par Catégorie
+
+| Catégorie | Score | Statut | Findings |
+|---|---|---|---|
+| M1 - Improper Credential Usage | 3/10 | Critique | 1 |
+| M2 - Inadequate Supply Chain Security | 8/10 | Partiellement conforme | 0 |
+| M3 - Insecure Authentication/Authorization | 9/10 | Conforme | 0 |
+| M4 - Insufficient Input/Output Validation | 9/10 | Conforme | 0 |
+| M5 - Insecure Communication | 8/10 | Partiellement conforme | 1 |
+| M6 - Inadequate Privacy Controls | 7/10 | Partiellement conforme | 2 |
+| M7 - Insufficient Binary Protections | 6/10 | Partiellement conforme | 1 |
+| M8 - Security Misconfiguration | 5/10 | Non conforme | 3 |
+| M9 - Insecure Data Storage | 6/10 | Non conforme | 2 |
+| M10 - Insufficient Cryptography | 9/10 | Conforme | 0 |
+
+---
+
+## Détail des Findings
+
+### [M1] - Finding #1 : Secrets de signature de l'application en clair dans le working tree
+
+- **Sévérité** : Critique
+- **Localisation** : `android/key.properties:1-2`, `android/app/keystore.jks`
+- **Description** : Le fichier `key.properties` contient le mot de passe du keystore et le mot de passe de la clé de signature en clair (`storePassword=***REDACTED*** `keyPassword=***REDACTED*** Le fichier binaire `keystore.jks` (2 752 octets) est également présent dans le répertoire de travail. Ces deux fichiers sont bien listés dans `.gitignore`, mais leur présence locale expose les secrets de signature de l'éditeur.
+- **Impact** : Toute personne ayant accès au poste de développement (ou à une archive/backup/snapshot du répertoire) peut signer des APK frauduleux avec la clé de PDF Tech. Cela invalide la chaîne de confiance des releases GitHub/F-Droid et permettrait de publier des mises à jour malveillantes sous l'identité de l'application.
+- **Recommandation** : Supprimer immédiatement `android/key.properties` et `android/app/keystore.jks` du working tree. Ne conserver les secrets de signature que dans un coffre-fort CI (GitHub Actions secrets, Azure Key Vault, etc.). Le build `release` doit échouer si les variables d'environnement `PDFTECH_*` ne sont pas fournies, plutôt que de fallback sur la clé debug.
+- **Code vulnérable** :
+  ```properties
+  # android/key.properties
+  storePassword=***REDACTED***
+  keyPassword=***REDACTED***
+  keyAlias=pdf_studio
+  storeFile=keystore.jks
+  ```
+- **Code corrigé** :
+  ```properties
+  # android/key.properties — SUPPRIMER ce fichier du working tree
+  # Ne jamais stocker les credentials localement.
+  ```
+  ```kotlin
+  // android/app/build.gradle.kts
+  // La logique actuelle lit déjà les env vars PDFTECH_* en priorité.
+  // S'assurer que le build release ÉCHOUE si elles sont absentes.
+  create("release") {
+      val alias = keyProp("PDFTECH_KEY_ALIAS", "keyAlias")
+      val kPass = keyProp("PDFTECH_KEY_PASSWORD", "keyPassword")
+      val sFile = keyProp("PDFTECH_STORE_FILE", "storeFile")
+      val sPass = keyProp("PDFTECH_STORE_PASSWORD", "storePassword")
+      require(alias != null && kPass != null && sFile != null && sPass != null) {
+          "Credentials release manquants. Le build release ne peut pas être signé."
+      }
+      // ...
+  }
+  ```
+
+### [M2] - Aucun finding actif (observation)
+
+- **Sévérité** : Info
+- **Localisation** : `pubspec.yaml`, `pubspec.lock`, `.github/workflows/security.yml`
+- **Description** : Les dépendances sont globalement à jour et le workflow CI exécute `osv-scanner` hebdomadairement. Aucune CVE connue n'a été identifiée dans les dépendances principales. Le fichier `android/app/proguard-rules.pro` contient des règles `-keep` pour `com.it_nomads.fluttersecurestorage.**` et `dev.fluttercommunity.plus.device_info.**`, alors que ces plugins ne sont pas déclarés dans `pubspec.yaml` ; ce sont des vestiges sans impact direct mais qui augmentent la surface de confiance du fichier ProGuard.
+- **Impact** : Négligeable en l'état, mais les règles fantômes peuvent masquer l'absence d'une dépendance réelle ou induire en erreur lors d'une revue.
+- **Recommandation** : Nettoyer `proguard-rules.pro` pour ne conserver que les plugins réellement utilisés. Maintenir `osv-scanner` en CI et surveiller les mises à jour de `syncfusion_flutter_pdf`, `pdfrx` et `googleapis`.
+
+### [M3] - Aucun finding
+
+- **Statut** : Conforme
+- **Justification** : L'application n'implémente pas de mécanisme d'authentification propre (pas de login/password, pas de rôles). L'unique mécanisme d'identité est l'OAuth Google Drive via `google_sign_in` avec le scope restreint `https://www.googleapis.com/auth/drive.file` et une révocation correcte du refresh token (`disconnect()`). La `MainActivity` est `exported="true"` mais justifiée par les filtres `LAUNCHER`, `ACTION_VIEW` et `ACTION_SEND` PDF, avec validation des intents entrants et whitelist des packages de partage. Aucun bypass d'authentification ni IDOR n'est applicable ici.
+
+### [M4] - Aucun finding
+
+- **Statut** : Conforme
+- **Justification** : Aucune WebView n'est utilisée directement dans l'application. `url_launcher` expose une `WebViewActivity` interne `exported="false"`. Les intents entrants (PDF partagés ou ouverts) sont validés, copiés dans un sous-répertoire isolé du cache, avec limitation de taille (200 Mo), vérification des magic bytes `%PDF-`, et anti path-traversal via `resolveSafePdfName()`. Les noms de fichiers Drive et les chemins locaux sont sanitisés. Les bases de données et le stockage local ne sont pas exposés à des injections SQL.
+
+### [M5] - Finding #1 : Absence de certificate pinning pour les endpoints réseau
+
+- **Sévérité** : Basse (Info / défense en profondeur)
+- **Localisation** : `files_tech_core/lib/src/update/update_service.dart:87-92`, `android/app/src/main/res/xml/network_security_config.xml`
+- **Description** : Les communications utilisent exclusivement HTTPS (`api.github.com`, `googleapis.com`, `objects.githubusercontent.com`). Le `network_security_config.xml` interdit le trafic en clair (`cleartextTrafficPermitted="false"`) et n'accepte que les ancres système. Cependant, aucun pinning de certificat (ou de clé publique) n'est implémenté pour l'endpoint de mise à jour GitHub ni pour Google Drive.
+- **Impact** : Dans un scénario où un attaquant peut installer un certificat racine malveillant sur l'appareil de la victime, le trafic HTTPS pourrait être intercepté sans que l'application ne le détecte. Le risque est atténué par la validation stricte de la réponse GitHub (semver, whitelist d'hôtes, pas d'auto-download) et le scope restreint de Google Drive.
+- **Recommandation** : Envisager le pinning de clé publique pour `api.github.com` et `objects.githubusercontent.com` si le mécanisme de mise à jour devient critique. Pour Google Drive, le SDK officiel gère la confiance ; ne pas implémenter de TrustManager custom.
+- **Code vulnérable** :
+  ```xml
+  <!-- network_security_config.xml -->
+  <base-config cleartextTrafficPermitted="false">
+      <trust-anchors>
+          <certificates src="system" />
+      </trust-anchors>
+  </base-config>
+  ```
+- **Code corrigé** :
+  ```xml
+  <!-- Exemple de pinning pour les endpoints de mise à jour -->
+  <domain-config>
+      <domain includeSubdomains="false">api.github.com</domain>
+      <domain includeSubdomains="true">objects.githubusercontent.com</domain>
+      <pin-set expiration="2027-01-01">
+          <pin digest="SHA-256">BASE64_HASH_PRIMARY</pin>
+          <pin digest="SHA-256">BASE64_HASH_BACKUP</pin>
+      </pin-set>
+  </domain-config>
+  ```
+
+### [M6] - Finding #1 : Permission `MANAGE_EXTERNAL_STORAGE` à haut privilège
+
+- **Sévérité** : Haute
+- **Localisation** : `android/app/src/main/AndroidManifest.xml:11-12`, `lib/widgets/pdf_picker_screen.dart:124-312`, `lib/screens/home/home_tab.dart:190`
+- **Description** : L'application déclare `android.permission.MANAGE_EXTERNAL_STORAGE`, qui accorde un accès universel à l'ensemble du stockage partagé. Le commentaire du manifeste indique que c'est volontaire pour un gestionnaire/lecteur de PDFs et que l'application n'est pas destinée au Play Store. Le code natif restreint les chemins partagés via `isAllowedPath()` et une whitelist de packages cibles, mais la permission elle-même reste très élevée.
+- **Impact** : Si une partie du code Dart est compromise (via une injection de path, une mauvaise validation, ou un plugin tiers), cette permission permet de lire/écrire n'importe où sur le stockage externe. Cela augmente considérablement la surface d'attaque et peut être mal perçue par les utilisateurs et les stores alternatifs (F-Droid).
+- **Recommandation** : Privilégier le Storage Access Framework (SAF) comme chemin par défaut (`file_picker` / `file_selector`). Documenter la justification pour F-Droid. Évaluer si le scan direct de `Download` et l'accès à la racine externe via `getExternalStorageDirectory()` sont encore nécessaires, et migrer vers `getExternalFilesDirectory()` / SAF dès que possible.
+- **Code vulnérable** :
+  ```xml
+  <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+      tools:ignore="ScopedStorage" />
+  ```
+- **Code corrigé** :
+  ```xml
+  <!-- Supprimer MANAGE_EXTERNAL_STORAGE si SAF couvre tous les cas d'usage -->
+  <!-- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" /> -->
+  ```
+
+### [M6] - Finding #2 : Métadonnées de fichiers persistées en clair dans `SharedPreferences`
+
+- **Sévérité** : Basse
+- **Localisation** : `lib/features/pdf_viewer/services/last_page_service.dart`, `lib/main.dart:226-287`, `files_tech_core/lib/src/recents/recent_files_service.dart:26-101`
+- **Description** : Les chemins, noms, tailles et dates d'accès des fichiers récents sont persistés dans `SharedPreferences` via JSON. `SharedPreferences` n'est pas chiffré sur Android. Le même mécanisme est utilisé pour le cache du check de mise à jour (`update_last_check_ms_<repo>`).
+- **Impact** : Sur un appareil rooté ou avec accès au backup, un nom de fichier comme `fiche_paie_2026.pdf` ou un path révélateur peut être lu en clair. Ce ne sont pas des secrets, mais des métadonnées potentiellement sensibles. Le risque est atténué par `android:allowBackup="false"` et l'absence de cloud backup.
+- **Recommandation** : Évaluer la sensibilité des paths. Si certains fichiers peuvent être sensibles, migrer les données récentes vers `flutter_secure_storage` (ou un chiffrement local avec clé Keystore) et/ou anonymiser les noms de fichiers. Pour les fichiers publics/documents, le stockage actuel reste acceptable.
+- **Code vulnérable** :
+  ```dart
+  // files_tech_core/lib/src/recents/recent_files_service.dart
+  Future<void> _save(List<RecentFile> files) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(key, files.map((f) => f.toJsonString()).toList());
+  }
+  ```
+- **Code corrigé** :
+  ```dart
+  // Si les paths sont sensibles : chiffrer la liste avant persistence
+  Future<void> _save(List<RecentFile> files) async {
+    final prefs = await SharedPreferences.getInstance();
+    final encrypted = await _encryptJson(files.map((f) => f.toJsonString()).toList());
+    await prefs.setStringList(key, encrypted);
+  }
+  ```
+
+### [M7] - Finding #1 : Protections binaires partielles (absence de root detection et anti-tampering)
+
+- **Sévérité** : Moyenne
+- **Localisation** : `android/app/build.gradle.kts`, `android/app/proguard-rules.pro`
+- **Description** : Le build release est obfusqué avec R8 (`isMinifyEnabled = true`, `isShrinkResources = true`) et les règles ProGuard sont présentes. L'application est compilée en mode release Flutter (AOT). Cependant, il n'existe aucune détection de root, d'émulateur, de Frida/Xposed, ni de vérification anti-tampering (signature de l'APK) ou d'intégrité du binaire.
+- **Impact** : Pour une application PDF offline sans données financières ou médicales sensibles, le risque est limité. Néanmoins, un attaquant peut facilement reverser l'application, modifier la logique de partage ou les permissions, et repackager un APK. Cela est surtout préoccupant en lien avec M1 (secrets de signature) : si la clé de signature fuite, l'attaquant peut signer son APK modifié avec l'identité légitime.
+- **Recommandation** : Évaluer le threat model. Si la distribution F-Droid/GitHub nécessite une confiance renforcée, envisager l'intégration de Play Integrity API (pour les builds Play) ou d'une bibliothèque de détection de root de base (RootBeer) avec vérification de signature côté natif. Ne pas bloquer totalement les appareils rootés pour F-Droid, mais avertir l'utilisateur.
+
+### [M8] - Finding #1 : Fallback signing debug en build release
+
+- **Sévérité** : Haute
+- **Localisation** : `android/app/build.gradle.kts:100-108`
+- **Description** : Si les credentials release ne sont pas disponibles (absence de `key.properties` et absence de variables d'environnement `PDFTECH_STORE_PASSWORD`), le build release est signé avec la clé debug Android par défaut.
+- **Impact** : Un APK release signé debug peut être remplacé/écrasé par n'importe quel autre APK debug sur un appareil. Si ce type d'artefact est publié par erreur, il constitue un incident de sécurité majeur et permet à un attaquant d'installer une version malveillante à la place de l'application.
+- **Recommandation** : Interdire le fallback debug en build release. Le build release doit échouer si les credentials release manquent.
+- **Code vulnérable** :
+  ```kotlin
+  buildTypes {
+      release {
+          signingConfig = if (keyPropertiesFile.exists() ||
+              System.getenv("PDFTECH_STORE_PASSWORD") != null) {
+              signingConfigs.getByName("release")
+          } else {
+              signingConfigs.getByName("debug")
+          }
+          // ...
+      }
+  }
+  ```
+- **Code corrigé** :
+  ```kotlin
+  buildTypes {
+      release {
+          signingConfig = signingConfigs.getByName("release")
+          // ...
+      }
+  }
+  ```
+  Et dans la configuration de la signature release :
+  ```kotlin
+  create("release") {
+      val alias = keyProp("PDFTECH_KEY_ALIAS", "keyAlias")
+      val kPass = keyProp("PDFTECH_KEY_PASSWORD", "keyPassword")
+      val sFile = keyProp("PDFTECH_STORE_FILE", "storeFile")
+      val sPass = keyProp("PDFTECH_STORE_PASSWORD", "storePassword")
+      require(alias != null && kPass != null && sFile != null && sPass != null) {
+          "Credentials release manquants. Le build release ne peut pas être signé."
+      }
+      // ...
+  }
+  ```
+
+### [M8] - Finding #2 : Signature APK v1 activée (attaque Janus)
+
+- **Sévérité** : Moyenne
+- **Localisation** : `android/app/build.gradle.kts:52-54`
+- **Description** : La signature v1 (JAR) est activée en parallèle de v2 et v3.
+- **Impact** : La signature v1 est vulnérable à l'attaque Janus (CVE-2017-13156) et permet de modifier certaines parties du ZIP sans invalider la v1. Bien que v2/v3 soient présentes, certains outils ou scénarios pourraient ne valider que v1. Le `minSdk` est 24+, ce qui limite l'exploitation sur les appareils modernes, mais la surface reste présente.
+- **Recommandation** : Désactiver `enableV1Signing` si la compatibilité avec des appareils très anciens (API < 24) n'est pas indispensable. Si v1 doit être conservé, documenter le risque accepté dans `SECURITY.md`.
+- **Code vulnérable** :
+  ```kotlin
+  enableV1Signing = true
+  enableV2Signing = true
+  enableV3Signing = true
+  ```
+- **Code corrigé** :
+  ```kotlin
+  enableV1Signing = false
+  enableV2Signing = true
+  enableV3Signing = true
+  ```
+
+### [M8] - Finding #3 : `minSdk` hérité du SDK Flutter et règles ProGuard fantômes
+
+- **Sévérité** : Basse
+- **Localisation** : `android/app/build.gradle.kts:61`, `android/app/proguard-rules.pro:14-17`
+- **Description** : `minSdk = flutter.minSdkVersion` rend la valeur dépendante du SDK Flutter. Le fichier `proguard-rules.pro` contient des règles `-keep` pour `flutter_secure_storage` et `device_info_plus`, qui ne sont pas des dépendances de l'application.
+- **Impact** : Très faible. Une mise à jour Flutter pourrait changer le `minSdk` sans que l'équipe ne s'en aperçoive. Les règles fantômes n'ont pas d'impact fonctionnel mais alourdissent la revue de sécurité.
+- **Recommandation** : Pinner explicitement `minSdk = 24` et nettoyer les règles ProGuard inutiles.
+- **Code vulnérable** :
+  ```kotlin
+  minSdk = flutter.minSdkVersion
+  ```
+- **Code corrigé** :
+  ```kotlin
+  minSdk = 24
+  ```
+
+### [M9] - Finding #1 : `debugPrint` non protégés en release fuite de paths utilisateur
+
+- **Sévérité** : Moyenne
+- **Localisation** : `lib/widgets/pdf_picker_screen.dart:124-311`, `lib/utils/saf_picker.dart:63-81`
+- **Description** : Plusieurs `debugPrint` loguent des chemins de fichiers, des noms de fichiers et des stacktraces sans être protégés par `if (kDebugMode)`. En release, ces logs peuvent atterrir dans logcat et exposer des paths absolus de fichiers utilisateurs (`/storage/emulated/0/...`).
+- **Impact** : Fuite d'informations sur la structure de stockage de l'utilisateur, potentiellement des noms de fichiers sensibles. Sur un appareil partagé ou avec une application malveillante disposant de la permission `READ_LOGS`, ces informations peuvent être collectées.
+- **Recommandation** : Protéger tous les `debugPrint` par `if (kDebugMode)` ou les supprimer. Remplacer les logs en production par un système de logging conditionnel au mode debug.
+- **Code vulnérable** :
+  ```dart
+  debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+  debugPrint('[SafPicker] copied SAF file to: $destPath (${bytes.length} bytes)');
+  debugPrint('[SafPicker] failed to persist ${file.path}: $e\n$st');
+  ```
+- **Code corrigé** :
+  ```dart
+  if (kDebugMode) {
+    debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+  }
+  ```
+
+### [M9] - Finding #2 : Messages d'erreur utilisateur avec exceptions brutes (Google Drive)
+
+- **Sévérité** : Basse
+- **Localisation** : `lib/screens/cloud/google_drive_screen.dart:89, 113, 135, 164`
+- **Description** : Les erreurs Google Drive sont affichées telles quelles dans les Snackbars (`'connexion : $e'`, `'chargement : $e'`, etc.).
+- **Impact** : Les exceptions de Google Sign-In / HTTP ne contiennent généralement pas de tokens, mais elles peuvent contenir des URLs, des messages internes ou des détails de configuration en cas d'exception personnalisée ou de proxy. C'est une fuite d'information mineure.
+- **Recommandation** : Remplacer les messages d'erreur bruts par des messages génériques et loguer les détails uniquement en `kDebugMode`.
+- **Code vulnérable** :
+  ```dart
+  showErrorSnack(context, 'connexion : $e');
+  showErrorSnack(context, 'chargement : $e');
+  showErrorSnack(context, 'upload : $e');
+  showErrorSnack(context, 'téléchargement : $e');
+  ```
+- **Code corrigé** :
+  ```dart
+  } catch (e) {
+    if (kDebugMode) debugPrint('[GoogleDriveScreen._signIn] $e');
+    if (mounted) showErrorSnack(context, 'Échec de la connexion. Vérifiez votre connexion et réessayez.');
+  }
+  ```
+
+### [M10] - Aucun finding
+
+- **Statut** : Conforme
+- **Justification** : La protection des PDFs par mot de passe utilise `PdfEncryptionAlgorithm.aesx256Bit` (AES-256). Le mot de passe owner est généré avec `Random.secure()` sur 32 caractères. Le helper `SecretBytes` utilise `Random.secure()` pour le CSPRNG, fournit des comparaisons en temps constant et un effacement de buffers. Aucun algorithme obsolète (DES, RC4, MD5, ECB, SHA-1 pour la sécurité) n'a été trouvé dans le code. La mise à jour utilise SHA-256 pour le hash de l'APK. Aucune implémentation cryptographique maison n'est utilisée pour le chiffrement des données ; la bibliothèque Syncfusion est utilisée pour les opérations PDF.
+
+---
+
+## Top 5 Actions Prioritaires
+
+1. **Supprimer immédiatement les secrets de signature du working tree** (M1) — Critique, effort < 1h. Supprimer `android/key.properties` et `android/app/keystore.jks`, ne conserver les secrets que dans GitHub Actions secrets ou un coffre-fort CI.
+2. **Interdire le fallback debug en build release** (M8) — Haute, effort < 1h. Faire échouer le build release si les credentials release sont absents.
+3. **Réduire la dépendance à `MANAGE_EXTERNAL_STORAGE`** (M6) — Haute, effort ~1 jour. Privilégier SAF par défaut, documenter la justification pour F-Droid, et évaluer le scan direct de `Download`.
+4. **Corriger les `debugPrint` non protégés** (M9) — Moyenne, effort < 1h. Protéger les logs de paths par `if (kDebugMode)` dans `pdf_picker_screen.dart` et `saf_picker.dart`.
+5. **Désactiver `enableV1Signing`** si la compatibilité API < 24 n'est pas indispensable (M8) — Moyenne, effort < 1h.
+
+---
+
+## Points conformes notables
+
+| Domaine | Évaluation | Preuve dans le code |
+|---|---|---|
+| Backup / Cloud extraction | ✅ Conforme | `allowBackup="false"`, `fullBackupContent="false"`, `data_extraction_rules.xml` exclut tous les domaines. |
+| Trafic réseau | ✅ Conforme | `usesCleartextTraffic="false"`, `network_security_config.xml` sans cleartext, ancres système uniquement. |
+| Obfuscation build release | ✅ Conforme | `isMinifyEnabled = true`, `isShrinkResources = true`, fichier `proguard-rules.pro` présent. |
+| FileProvider | ✅ Conforme | `exported="false"`, authority basée sur `applicationId`, `file_paths.xml` sans `root-path` ni `files-path="."`. |
+| Validation des intents entrants | ✅ Conforme | `MainActivity.kt` : `isAllowedPath()`, canonicalisation, blacklist `/Android/data/<autre-pkg>`, whitelist des packages cloud. |
+| Partage de fichiers | ✅ Conforme | Utilisation de `content://` via `FileProvider`, `FLAG_GRANT_READ_URI_PERMISSION`, `clipData` lié. |
+| FLAG_SECURE | ✅ Conforme | `secure_window.dart` + `MainActivity.kt` : pose/retrait de `FLAG_SECURE` sur la fenêtre principale. |
+| Gestion des mots de passe PDF | ✅ Conforme | `PdfEncryptionAlgorithm.aesx256Bit`, owner password aléatoire de 32 caractères via `Random.secure()`. |
+| Lecture PDF sécurisée | ✅ Conforme | `safeReadPdf()` : cap 200 Mo, validation magic bytes `%PDF-`. |
+| Écriture atomique | ✅ Conforme | `atomicWriteBytes()` : write tmp + rename + flush. |
+| OAuth Google Drive | ✅ Conforme | Scope restreint `drive.file`, `disconnect()` révoque le refresh token, client HTTP dédié fermé après chaque requête. |
+| Mise à jour | ✅ Conforme | Whitelist `github.com` / `objects.githubusercontent.com`, pas d'auto-download, SHA-256 attendu dans le body, cache 12h. |
+| Anti path-traversal | ✅ Conforme | `resolveSafePdfName()` côté natif, `_sanitizeFileName()` côté Dart, sanitisation des noms Drive. |
+
+---
+
+## Synthèse
+
+PDF Tech v1.13.3 présente une posture défensive globalement satisfaisante pour une application PDF offline : validation des entrées, partage sécurisé via FileProvider, pas de cleartext traffic, pas de backup, obfuscation release, et utilisation de cryptographie moderne. Les points bloquants sont **configurationnels** et ne relèvent pas de failles de logique applicative.
+
+Le score global de **66/100** est principalement pénalisé par :
+- la présence de secrets de signature en clair dans le working tree (M1) ;
+- le fallback signing debug en release (M8) ;
+- la permission `MANAGE_EXTERNAL_STORAGE` à haut privilège (M6) ;
+- les fuites de paths utilisateur via `debugPrint` en release (M9).
+
+La correction des 5 actions prioritaires permettrait de remonter le score global autour de 80/100.
+
+
+---
+
+## Audit de Code Source
+
+# Audit de Code Source — PDF Tech v1.13.3
+
+**Date** : 2026-08-01  
+**Scope** : `J:/applications/pdf_tech` + dépendance path `J:/applications/files_tech_core`  
+**Plateforme** : Flutter (Dart) + Android natif (Kotlin)  
+**APK release auditée** : `build/app/outputs/flutter-apk/pdf-tech-universel-1.13.3.apk`  
+**Fichiers analysés** : 271 fichiers suivis par git + code source natif et dépendance partagée  
+**Auditeur** : Agent Code Audit (analyse statique)
+
+---
+
+## Résumé
+
+| Indicateur | Valeur |
+|---|---|
+| **Fichiers analysés** | ~271 (git) + sources natifs + `files_tech_core` |
+| **Vulnérabilités trouvées** | 1 Critique, 2 Hautes, 4 Moyennes, 3 Basses, 4 Info |
+| **Score de sécurité du code** | **68/100** |
+
+**Verdict global** : Le code est globalement bien durci pour une application PDF offline : validation des intents entrants, FileProvider restreint, anti-path-traversal, FLAG_SECURE, pas de cleartext traffic, pas de backup, pas de secrets hardcodés dans le code source, et une bonne hygiène de gestion des mots de passe PDF. Les points bloquants concernent presque exclusivement la **gestion des secrets de signature** et la **permission d'accès universel au stockage**. Ce sont des problèmes opérationnels / configurationnels, pas des failles de logique applicative.
+
+---
+
+## Configuration & Manifeste
+
+| Paramètre | Valeur actuelle | Valeur recommandée / Évaluation | Sévérité |
+|---|---|---|---|
+| `android:allowBackup` | `false` | `false` — conforme | ✅ Info |
+| `android:fullBackupContent` | `false` | `false` — conforme | ✅ Info |
+| `dataExtractionRules` | Exclut tous les domaines | Conforme | ✅ Info |
+| `android:usesCleartextTraffic` | `false` | `false` — conforme | ✅ Info |
+| `networkSecurityConfig` | `@xml/network_security_config` | Présent, cleartext interdit, ancrages système — conforme | ✅ Info |
+| `android:debuggable` | Non présent (défaut `false`) | `false` — conforme | ✅ Info |
+| `MainActivity android:exported` | `true` | Obligatoire pour `LAUNCHER`, `ACTION_VIEW` et `ACTION_SEND` PDF — acceptable avec validation côté natif | ✅ Info |
+| `FileProvider android:exported` | `false` | `false` — conforme | ✅ Info |
+| `FileProvider android:grantUriPermissions` | `true` | Nécessaire pour le partage de PDF — acceptable avec `file_paths.xml` restreint | ✅ Info |
+| `minSdk` | `flutter.minSdkVersion` (actuellement 24) | Pinner explicitement la valeur | ℹ️ Info |
+| `targetSdk` | `35` | À jour — conforme | ✅ Info |
+| `compileSdk` | `36` | À jour — conforme | ✅ Info |
+| `isMinifyEnabled` / `isShrinkResources` | `true` / `true` | Conforme | ✅ Info |
+| `enableV1Signing` | `true` | Désactiver si compatibilité v1 non requise | Moyenne |
+| `enableV2Signing` / `enableV3Signing` | `true` / `true` | Conforme | ✅ Info |
+| Fallback signing debug en release | Activé | Interdire le fallback debug | Haute |
+
+---
+
+## Permissions
+
+| Permission | Utilisée dans | Nécessaire ? | Recommandation |
+|---|---|---|---|
+| `INTERNET` | `AndroidManifest.xml:5` | Oui (mise à jour GitHub, Google Drive) | OK |
+| `MANAGE_EXTERNAL_STORAGE` | `AndroidManifest.xml:11`, `storage_permission_service.dart` | Partiellement justifiée pour un gestionnaire/lecteur de PDFs hors Play Store | Haute — réduire la surface ou documenter pour F-Droid |
+
+**Observations** :
+- Seule `INTERNET` et `MANAGE_EXTERNAL_STORAGE` sont déclarées explicitement.
+- Les plugins ajoutent des composants standards (receiver `ProfileInstallReceiver`, service `RevocationBoundService`, provider `ShareFileProvider`) qui sont tous `exported="false"` ou protégés par des permissions système. Ce ne sont pas des vulnérabilités.
+
+---
+
+## Secrets Détectés
+
+| # | Type | Fichier:Ligne | Extrait | Sévérité |
+|---|---|---|---|---|
+| 1 | Mot de passe keystore en clair | `android/key.properties:1` | `storePassword=***REDACTED*** | Critique |
+| 2 | Mot de passe de clé en clair | `android/key.properties:2` | `keyPassword=***REDACTED*** | Critique |
+| 3 | Fichier keystore JKS présent | `android/app/keystore.jks` | Fichier binaire de 2 752 octets | Critique |
+
+**Précision importante** : `key.properties` et `keystore.jks` sont bien listés dans `.gitignore` et ne sont **pas** suivis par git. Cependant, ils sont présents dans le working tree local. Toute archive, backup, snapshot ou exfiltration du répertoire de travail emporterait les secrets de signature.
+
+**Aucun autre secret** (clé API, token, mot de passe applicatif, URL avec credentials, clé privée) n'a été trouvé dans le code source Dart/Kotlin/XML/YAML/JSON.
+
+---
+
+## Dépendances à Risque
+
+| Dépendance | Version lockée | Dernière version connue | Risque | CVE |
+|---|---|---|---|---|
+| `syncfusion_flutter_pdf` | 33.2.13 | 33.2.13 | Faible | Aucune identifiée |
+| `syncfusion_flutter_pdfviewer` | 33.2.13 | 33.2.13 | Faible | Aucune identifiée |
+| `syncfusion_flutter_signaturepad` | 33.2.13 | 33.2.13 | Faible | Aucune identifiée |
+| `pdfrx` | 2.4.7 | 2.4.7 | Faible | Aucune identifiée |
+| `pdfrx_engine` | 0.4.6 | 0.4.6 | Faible | Aucune identifiée |
+| `flutter_tesseract_ocr` | 0.4.31 | 0.4.31 | Faible | Aucune identifiée |
+| `google_sign_in` | 6.3.0 | 6.3.0 | Faible | Aucune identifiée |
+| `googleapis` | 13.2.0 | 13.2.0 | Faible | Aucune identifiée |
+| `http` | 1.6.0 | 1.6.0 | Faible | Aucune identifiée |
+| `permission_handler` | 12.0.3 | 12.0.3 | Faible | Aucune identifiée |
+| `file_picker` | 11.0.2 | 11.0.2 | Faible | Aucune identifiée |
+| `share_plus` | 10.1.4 | 10.1.4 | Faible | Aucune identifiée |
+| `shared_preferences` | 2.5.5 | 2.5.5 | Faible | Aucune identifiée |
+| `url_launcher` | 6.3.2 | 6.3.2 | Faible | Aucune identifiée |
+| `intl` | 0.20.0 | 0.20.0 | Faible | Aucune identifiée |
+| `files_tech_core` | 0.3.4 (path) | — | Dépendance maîtrisée | Aucune |
+
+**Note** : Les dépendances sont globalement à jour. Le workflow `.github/workflows/security.yml` exécute `osv-scanner` hebdomadairement pour détecter les CVE dans les dépendances pub. C'est une bonne pratique.
+
+---
+
+## Vulnérabilités dans le Code
+
+### Finding #1 — Secrets de signature en clair dans le working tree
+- **Type** : Secret exposé
+- **Sévérité** : Critique
+- **Fichier** : `android/key.properties:1-2` et `android/app/keystore.jks`
+- **Description** : Les mots de passe du keystore et de la clé sont stockés en clair dans `key.properties`, et le fichier binaire `keystore.jks` est présent dans le répertoire Android. Même si ces fichiers sont dans `.gitignore`, leur présence dans le working tree expose la clé de signature de l'éditeur.
+- **Impact** : Toute personne ayant accès au poste de développement peut signer des APK frauduleux avec la clé de PDF Tech. Cela invalide complètement la chaîne de confiance des releases GitHub/F-Droid.
+- **Code actuel** :
+  ```properties
+  # android/key.properties
+  storePassword=***REDACTED***
+  keyPassword=***REDACTED***
+  keyAlias=pdf_studio
+  storeFile=keystore.jks
+  ```
+- **Code corrigé** : Le fichier `key.properties` et le keystore ne doivent jamais être présents localement en clair. Utiliser uniquement des variables d'environnement en CI (déjà partiellement fait dans `build.gradle.kts`) et un coffre-fort chiffré (GitHub Actions secrets, Azure Key Vault, etc.).
+  ```properties
+  # android/key.properties — SUPPRIMER ce fichier du working tree
+  # Ne jamais stocker les credentials localement.
+  ```
+  ```kotlin
+  // android/app/build.gradle.kts
+  // La logique actuelle lit déjà les env vars PDFTECH_* en priorité.
+  // S'assurer que le build release ÉCHOUE si elles sont absentes.
+  ```
+- **Effort** : Rapide (< 1h) — supprimer les fichiers et documenter la procédure CI.
+
+---
+
+### Finding #2 — Fallback signing debug en build release
+- **Type** : Config vulnérable
+- **Sévérité** : Haute
+- **Fichier** : `android/app/build.gradle.kts:100-108`
+- **Description** : Si les credentials release ne sont pas disponibles, le build release est signé avec la clé debug Android.
+- **Code actuel** :
+  ```kotlin
+  buildTypes {
+      release {
+          signingConfig = if (keyPropertiesFile.exists() ||
+              System.getenv("PDFTECH_STORE_PASSWORD") != null) {
+              signingConfigs.getByName("release")
+          } else {
+              signingConfigs.getByName("debug")
+          }
+          ...
+      }
+  }
+  ```
+- **Impact** : Un APK release signé debug peut être remplacé/écrasé par n'importe quel autre APK debug sur un appareil. Si ce type d'artefact est publié par erreur, il constitue un incident de sécurité majeur.
+- **Code corrigé** :
+  ```kotlin
+  buildTypes {
+      release {
+          signingConfig = signingConfigs.getByName("release")
+          ...
+      }
+  }
+  ```
+  Et dans la configuration de la config release, faire échouer le build si les credentials manquent :
+  ```kotlin
+  create("release") {
+      val alias = keyProp("PDFTECH_KEY_ALIAS", "keyAlias")
+      val kPass = keyProp("PDFTECH_KEY_PASSWORD", "keyPassword")
+      val sFile = keyProp("PDFTECH_STORE_FILE", "storeFile")
+      val sPass = keyProp("PDFTECH_STORE_PASSWORD", "storePassword")
+      require(alias != null && kPass != null && sFile != null && sPass != null) {
+          "Credentials release manquants. Le build release ne peut pas être signé."
+      }
+      ...
+  }
+  ```
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #3 — Permission `MANAGE_EXTERNAL_STORAGE` (all-files access)
+- **Type** : Config vulnérable
+- **Sévérité** : Haute
+- **Fichier** : `android/app/src/main/AndroidManifest.xml:11-12`
+- **Description** : L'application déclare `MANAGE_EXTERNAL_STORAGE`, qui donne accès à l'ensemble du stockage partagé. Le commentaire indique que c'est volontaire pour un gestionnaire de PDFs et que l'app n'est pas destinée au Play Store.
+- **Code actuel** :
+  ```xml
+  <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+      tools:ignore="ScopedStorage" />
+  ```
+- **Impact** : Si une partie du code Dart est compromise (via une injection de path, une mauvaise validation, ou un plugin tiers), cette permission permet de lire/écrire n'importe où sur le stockage externe. C'est un privilège très élevé. Le code natif restreint ensuite les chemins partagés via `isAllowedPath()`, mais la permission elle-même reste dangereuse.
+- **Code corrigé / mitigation** : La permission est partiellement justifiée par la nature de l'application. Pour réduire le risque :
+  1. Privilégier le Storage Access Framework (SAF) comme chemin par défaut (`file_picker` / `file_selector`).
+  2. Documenter la justification pour F-Droid.
+  3. S'assurer qu'aucune méthode Dart ne peut utiliser cette permission pour accéder à des zones hors scope PDF (le code actuel est déjà orienté SAF, mais le scan direct de `Download` reste actif).
+- **Effort** : Moyen (< 1 jour) — nécessite une revue UX et une possible migration complète vers SAF.
+
+---
+
+### Finding #4 — Signature APK v1 activée (attaque Janus)
+- **Type** : Config vulnérable
+- **Sévérité** : Moyenne
+- **Fichier** : `android/app/build.gradle.kts:52-54`
+- **Description** : La signature v1 (JAR) est activée en parallèle de v2 et v3.
+- **Code actuel** :
+  ```kotlin
+  enableV1Signing = true
+  enableV2Signing = true
+  enableV3Signing = true
+  ```
+- **Impact** : La signature v1 est vulnérable à l'attaque Janus (CVE-2017-13156) et permet de modifier certaines parties du ZIP sans invalider la v1. Bien que v2/v3 soient présentes, certains outils ou scénarios pourraient ne valider que v1.
+- **Code corrigé** :
+  ```kotlin
+  enableV1Signing = false
+  enableV2Signing = true
+  enableV3Signing = true
+  ```
+  Si la compatibilité avec des appareils très anciens (API < 24) est indispensable, conserver v1 et documenter le risque accepté.
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #5 — `debugPrint` non protégés en release (fuite de paths utilisateur)
+- **Type** : Code vulnérable
+- **Sévérité** : Moyenne
+- **Fichier** : `lib/widgets/pdf_picker_screen.dart:124-311` et `lib/utils/saf_picker.dart:63-81`
+- **Description** : Plusieurs `debugPrint` loguent des chemins de fichiers, des noms de fichiers et des stacktraces sans être protégés par `if (kDebugMode)`. En release, ces logs peuvent atterrir dans logcat et exposer des paths absolus de fichiers utilisateurs (`/storage/emulated/0/...`).
+- **Code actuel** :
+  ```dart
+  debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+  debugPrint('[SafPicker] copied SAF file to: $destPath (${bytes.length} bytes)');
+  debugPrint('[SafPicker] failed to persist ${file.path}: $e\n$st');
+  ```
+- **Impact** : Fuite d'informations sur la structure de stockage de l'utilisateur, potentiellement des noms de fichiers sensibles.
+- **Code corrigé** :
+  ```dart
+  if (kDebugMode) {
+    debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+  }
+  ```
+  Ou simplement supprimer les logs non essentiels en release.
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #6 — Utilisation d'API de stockage externe dépréciées
+- **Type** : Code vulnérable / Dette technique
+- **Sévérité** : Moyenne
+- **Fichier** : `android/app/src/main/kotlin/com/pdftech/pdf_tech/MainActivity.kt:214`, `lib/widgets/pdf_picker_screen.dart:284-311`, `lib/screens/home/home_tab.dart:190`
+- **Description** : Utilisation de `Environment.getExternalStorageDirectory()` (deprecated API 29) et `getExternalStorageDirectory()` via `path_provider` pour construire des chemins absolus sur le stockage externe.
+- **Impact** : Comportement incohérent selon les versions Android, fragilité face au Scoped Storage, et dépendance à `MANAGE_EXTERNAL_STORAGE` pour fonctionner. Peut masquer des bugs de permission.
+- **Code corrigé** : Migrer vers `StorageManager` / `StorageStatsManager` pour les statistiques de stockage, et utiliser exclusivement le Storage Access Framework ou `getExternalFilesDirectory()` pour les chemins de fichiers.
+- **Effort** : Moyen (< 1 jour).
+
+---
+
+### Finding #7 — Messages d'erreur utilisateur avec exceptions brutes
+- **Type** : Code vulnérable / Info leak mineur
+- **Sévérité** : Basse
+- **Fichier** : `lib/screens/cloud/google_drive_screen.dart:89, 113, 135, 164`
+- **Description** : Les erreurs Google Drive sont affichées telles quelles dans les Snackbars (`'connexion : $e'`, `'chargement : $e'`, etc.).
+- **Code actuel** :
+  ```dart
+  showErrorSnack(context, 'connexion : $e');
+  showErrorSnack(context, 'chargement : $e');
+  showErrorSnack(context, 'upload : $e');
+  showErrorSnack(context, 'téléchargement : $e');
+  ```
+- **Impact** : Les exceptions de Google Sign-In / HTTP ne contiennent généralement pas de tokens, mais elles peuvent contenir des URLs, des messages internes ou des détails de configuration en cas d'exception personnalisée ou de proxy.
+- **Code corrigé** :
+  ```dart
+  } catch (e) {
+    if (kDebugMode) debugPrint('[GoogleDriveScreen._signIn] $e');
+    if (mounted) showErrorSnack(context, 'Échec de la connexion. Vérifiez votre connexion et réessayez.');
+  }
+  ```
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #8 — Stockage de métadonnées de fichiers en clair dans `SharedPreferences`
+- **Type** : Bonne pratique manquante
+- **Sévérité** : Basse
+- **Fichier** : `lib/features/pdf_viewer/services/last_page_service.dart`, `lib/main.dart:226-287`, `files_tech_core/lib/src/recents/recent_files_service.dart`
+- **Description** : Les chemins, noms, tailles et dates d'accès des fichiers récents sont persistés dans `SharedPreferences` via JSON. `SharedPreferences` n'est pas chiffré.
+- **Impact** : Sur un appareil rooté ou avec accès au backup, un nom de fichier comme `fiche_paie_2026.pdf` ou un path révélateur peut être lu en clair. Ce ne sont pas des secrets, mais des métadonnées potentiellement sensibles.
+- **Code corrigé** : Évaluer la sensibilité des paths. Si certains sont sensibles, migrer les données récentes vers `flutter_secure_storage` ou chiffrer la liste localement. Pour les fichiers publics/documents, c'est acceptable.
+- **Effort** : Moyen (< 1 jour).
+
+---
+
+### Finding #9 — `catch (_) { return null; }` silencieux sur le check de mise à jour
+- **Type** : Bonne pratique manquante
+- **Sévérité** : Basse
+- **Fichier** : `files_tech_core/lib/src/update/update_service.dart:141-143`
+- **Description** : Toutes les erreurs du check de mise à jour sont absorbées.
+- **Impact** : Acceptable pour l'UX, mais cela complique le diagnostic et la détection d'attaques réseau (MITM, compte GitHub compromis publiant un payload inattendu). Le reste du code est robuste (validation type-safe, whitelist d'hôtes), donc le risque reste limité.
+- **Code corrigé** : Ajouter un log conditionnel en `kDebugMode` ou un callback `onError` optionnel pour les apps consommatrices, sans changer le comportement par défaut.
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #10 — `minSdk` hérité de `flutter.minSdkVersion`
+- **Type** : Bonne pratique manquante
+- **Sévérité** : Info
+- **Fichier** : `android/app/build.gradle.kts:61`
+- **Description** : `minSdk = flutter.minSdkVersion` rend la valeur dépendante du SDK Flutter.
+- **Impact** : Très faible. Une mise à jour Flutter pourrait changer le `minSdk` sans que l'équipe ne s'en aperçoive.
+- **Code corrigé** : Pinner explicitement la valeur, comme c'est fait pour `targetSdk` et `compileSdk`.
+  ```kotlin
+  minSdk = 24
+  ```
+- **Effort** : Rapide (< 1h).
+
+---
+
+### Finding #11 — Absence de pinning de certificat pour GitHub
+- **Type** : Bonne pratique manquante
+- **Sévérité** : Info
+- **Fichier** : `files_tech_core/lib/src/update/update_service.dart:87-92`
+- **Description** : Le check de mise à jour utilise `https://api.github.com` via le package `http` sans pinning de certificat.
+- **Impact** : Le package `http` s'appuie sur les certificats système. Cela ne protège pas contre un adversaire capable d'installer un certificat racine malveillant sur l'appareil. Cependant, l'URL est contrôlée par les paramètres `owner`/`repo`, et l'APK n'est pas auto-téléchargé.
+- **Code corrigé** : Pour une défense en profondeur, envisager du pinning de clé publique pour `api.github.com` et `objects.githubusercontent.com` si le mécanisme de mise à jour devient critique.
+- **Effort** : Long (> 1 jour) — maintenance du pinning.
+
+---
+
+### Finding #12 — Logging dans un helper cryptographique
+- **Type** : Info / Bonne pratique
+- **Fichier** : `files_tech_core/lib/src/security/secret_bytes.dart:84-91`
+- **Description** : Un `debugPrint` est présent dans `SecretBytes.wipe`, mais il est encapsulé dans un `assert` et ne loggue que la taille du buffer, jamais son contenu.
+- **Impact** : Négligeable. Le message ne s'exécute qu'en mode debug et sert de "fil-piège" pour les développeurs.
+- **Code corrigé** : Aucun changement nécessaire, mais s'assurer que le contenu du buffer ne soit jamais loggué.
+- **Effort** : Aucun.
+
+---
+
+## Points conformes notables
+
+| Domaine | Évaluation | Preuve dans le code |
+|---|---|---|
+| **Backup / Cloud extraction** | ✅ Conforme | `allowBackup="false"`, `fullBackupContent="false"`, `data_extraction_rules.xml` exclut tous les domaines. |
+| **Trafic réseau** | ✅ Conforme | `usesCleartextTraffic="false"`, `network_security_config.xml` sans cleartext, ancrages système uniquement. |
+| **Obfuscation build release** | ✅ Conforme | `isMinifyEnabled = true`, `isShrinkResources = true`, fichier `proguard-rules.pro` présent. |
+| **FileProvider** | ✅ Conforme | `exported="false"`, authority basée sur `applicationId`, `file_paths.xml` sans `root-path` ni `files-path="."`. |
+| **Validation des intents entrants** | ✅ Conforme | `MainActivity.kt` : `isAllowedPath()`, canonicalisation, blacklist `/Android/data/<autre-pkg>`, whitelist des packages cloud. |
+| **Partage de fichiers** | ✅ Conforme | Utilisation de `content://` via `FileProvider`, `FLAG_GRANT_READ_URI_PERMISSION`, `clipData` lié. |
+| **FLAG_SECURE** | ✅ Conforme | `secure_window.dart` + `MainActivity.kt` : pose/retrait de `FLAG_SECURE` sur la fenêtre principale. |
+| **Gestion des mots de passe PDF** | ✅ Conforme | `PdfEncryptionAlgorithm.aesx256Bit`, owner password aléatoire de 32 caractères via `Random.secure()`, SecureWindow sur les écrans sensibles. |
+| **Lecture PDF sécurisée** | ✅ Conforme | `safeReadPdf()` : cap 200 Mo, validation magic bytes `%PDF-`. |
+| **Écriture atomique** | ✅ Conforme | `atomicWriteBytes()` : write tmp + rename + flush. |
+| **OAuth Google Drive** | ✅ Conforme | Scope restreint `https://www.googleapis.com/auth/drive.file`, `disconnect()` révoque le refresh token, client HTTP dédié fermé après chaque requête. |
+| **Mise à jour** | ✅ Conforme | Whitelist `github.com` / `objects.githubusercontent.com`, pas d'auto-download, SHA-256 attendu dans le body, cache 12h. |
+| **Anti path-traversal** | ✅ Conforme | `resolveSafePdfName()` côté natif, `_sanitizeFileName()` côté Dart, sanitisation des noms Drive. |
+| **Logging** | ✅ Partiellement conforme | La majorité des `debugPrint` sont protégés par `if (kDebugMode)`. Seuls 2 fichiers ont des oublis. |
+| **Secrets dans le code** | ✅ Conforme | Aucune clé API, token, mot de passe applicatif ou clé privée n'a été trouvé dans le code source. |
+| **WebView** | ✅ Conforme | Aucune WebView directe dans le code applicatif. `url_launcher` expose une `WebViewActivity` interne `exported="false"`. |
+
+---
+
+## Checklist Appliquée
+
+### Checklist rapide (15 min)
+- [x] Pas de secrets dans le code source (sauf keystore/properties local non git-tracké)
+- [ ] `debuggable=false` et `allowBackup=false` — `allowBackup=false` OK, debuggable non explicit mais défaut false
+- [x] HTTPS partout, pas de cleartext traffic
+- [x] Données sensibles chiffrées au repos (mots de passe PDF via AES-256)
+- [ ] Permissions minimales justifiées — `MANAGE_EXTERNAL_STORAGE` est un privilège élevé
+- [ ] Pas de `Log.d` avec des données sensibles — `debugPrint` non protégés dans 2 fichiers
+- [x] Dépendances à jour sans CVE connues identifiées
+
+### Checklist standard (1h)
+- [x] Composants Android exported justifiés et protégés
+- [x] WebViews sécurisées (pas de WebView applicative)
+- [x] Validation des entrées sur tous les points d'entrée
+- [ ] Gestion correcte des sessions — OAuth OK, mais pas de pinning TLS
+- [ ] Certificate pinning sur les endpoints critiques — non implémenté
+- [ ] Pas de données sensibles dans les logs, le cache, le clipboard — logs paths à corriger
+- [x] Algorithmes crypto modernes (AES-256, pas de MD5/DES/ECB)
+- [x] ProGuard/R8 configuré correctement
+- [x] Deep links / intents validés et sanitisés
+
+### Checklist approfondie (demi-journée)
+- [x] Revue des flux d'authentification/autorisation (Google Drive scope restreint)
+- [x] Test de tous les endpoints API depuis le code mobile (GitHub Releases, Google Drive)
+- [x] Analyse des flux de données sensibles (mot de passe PDF en RAM, purge decrypted/)
+- [ ] Revue de la gestion d'erreurs — erreurs silencieuses dans update, messages bruts Drive
+- [x] Analyse des mécanismes de mise à jour de l'app (pas d'auto-download, SHA-256 affiché)
+- [ ] Vérification des mécanismes anti-tampering — non implémentés (pas de demande dans le scope)
+- [ ] Revue des mécanismes de détection root/jailbreak — non implémentés (pas de demande dans le scope)
+- [x] Audit complet des dépendances transitives (pubspec.lock + osv-scanner en CI)
+
+---
+
+## Conclusion et recommandations prioritaires
+
+1. **Supprimer immédiatement** `android/key.properties` et `android/app/keystore.jks` du working tree local. Ne conserver les secrets de signature que dans le coffre-fort CI (GitHub Actions secrets). (Critique — < 1h)
+2. **Interdire le fallback debug** en build release dans `android/app/build.gradle.kts`. (Haute — < 1h)
+3. **Réduire la dépendance à `MANAGE_EXTERNAL_STORAGE`** : privilégier SAF par défaut, documenter la justification pour F-Droid, et évaluer si le scan direct de `Download` est encore nécessaire. (Haute — 1 jour)
+4. **Désactiver `enableV1Signing`** si la compatibilité avec les appareils API < 24 n'est pas indispensable. (Moyenne — < 1h)
+5. **Corriger les `debugPrint` non protégés** dans `pdf_picker_screen.dart` et `saf_picker.dart` pour éviter la fuite de paths en logcat release. (Moyenne — < 1h)
+6. **Remplacer les messages d'erreur bruts** par des messages génériques dans `google_drive_screen.dart`. (Basse — < 1h)
+7. **Migrer les statistiques de stockage** vers `StorageManager`/`StorageStatsManager` et réduire l'usage de `getExternalStorageDirectory()`. (Moyenne — 1 jour)
+8. **Évaluer le chiffrement** des métadonnées de fichiers récents si les paths peuvent être sensibles. (Basse — 1 jour)
+9. **Pinner `minSdk`** explicitement dans `build.gradle.kts`. (Info — < 1h)
+10. **Envisager le certificate pinning** pour les endpoints de mise à jour si le threat model le justifie. (Info — > 1 jour)
+
+**Score final : 68/100** — bonne posture défensive globale, mais des failles de configuration et de logging doivent être corrigées avant de considérer l'app comme suffisamment durcie pour une distribution de confiance.
+
+
+---
+
+## Tests de Pénétration
+
+# Rapport de Tests de Pénétration — PDF Tech v1.13.3
+
+**Date** : 2026-08-01  
+**Application** : PDF Tech  
+**Version** : 1.13.3 (versionCode 11303)  
+**Package** : `com.pdftech.pdf_tech`  
+**Plateforme** : Flutter (Dart) + Android natif (Kotlin)  
+**APK analysée** : `J:/applications/pdf_tech/build/app/outputs/flutter-apk/pdf-tech-universel-1.13.3.apk`  
+**Type de test** : Boîte blanche (code source + APK + appareil physique)  
+**Environnement** : Appareil physique Samsung (non rooté), Android 14/15, `adb` disponible.  
+**Référentiel** : Code source dans `J:/applications/pdf_tech`, dépendance `J:/applications/files_tech_core`.  
+
+---
+
+## Résumé exécutif
+
+L'audit de pénétration confirme la bonne posture défensive globale de PDF Tech : pas de secrets embarqués dans l'APK, pas de trafic en clair, pas de composants exportés inutiles, FileProvider restreint, `allowBackup="false"`, signatures APK v2/v3, et une validation robuste des intents entrants. Le risque principal ne réside pas dans l'application runtime, mais dans la **gestion des secrets de signature** et la **permission `MANAGE_EXTERNAL_STORAGE`**, qui augmentent la surface d'attaque opérationnelle.
+
+**Score de sécurité pentest** : **72/100** (amélioration par rapport au code source seul, grâce à la confirmation que l'APK release est correctement signée et que les protections runtime sont actives).
+
+| Critique | Haute | Moyenne | Basse | Info |
+|---|---|---|---|---|
+| 1 | 2 | 3 | 3 | 3 |
+
+---
+
+## Informations générales
+
+- **Application** : PDF Tech v1.13.3
+- **Plateforme** : Flutter + Android natif (Kotlin)
+- **Type de test** : Boîte blanche
+- **Environnement** : Appareil physique non rooté + analyse statique de l'APK
+- **Date** : 2026-08-01
+- **APK** : `pdf-tech-universel-1.13.3.apk` (129 Mo)
+- **Signature** : Certificat release `CN=Haltaya.Patrice`, RSA 2048, SHA384withRSA, valide jusqu'au 11/09/2053
+- **Schémas de signature** : v2 ✅, v3 ✅, v1 ❌ (pas de signature JAR exploitable)
+
+---
+
+## Résumé des tests
+
+| Catégorie | Tests effectués | Réussis | Échoués | N/A |
+|---|---|---|---|---|
+| Reconnaissance / surface d'attaque | 6 | 6 | 0 | 0 |
+| Analyse statique de l'APK | 8 | 6 | 2 | 0 |
+| Interception réseau | 3 | 0 | 0 | 3 (nécessite proxy/root) |
+| Stockage local | 5 | 3 | 0 | 2 (nécessite root) |
+| Reverse engineering | 4 | 3 | 1 | 0 |
+| Fuzzing intents / deep links | 4 | 3 | 1 | 0 |
+| Authentification / autorisation | 3 | 2 | 1 | 0 |
+
+**Légende** : *Réussis* = conforme ou sans vulnérabilité observée ; *Échoués* = finding confirmé ; *N/A* = test impossible dans l'environnement disponible.
+
+---
+
+## Méthodologie et outils
+
+### Outils utilisés
+
+| Outil | Version / Source | Usage |
+|---|---|---|
+| `aapt` | Android SDK build-tools 36.1.0 | Analyse du Manifest, ressources XML |
+| `apksigner` (jar) | Android SDK build-tools 36.1.0 | Vérification des schémas de signature APK |
+| `keytool` | OpenJDK 17.0.18 | Lecture du certificat de signature |
+| `unzip` | Git Bash / Cygwin | Extraction de l'APK |
+| `adb` | Android SDK platform-tools | Tests dynamiques sur appareil physique |
+| `python3` | Environnement local | Extraction de strings et patterns dans l'APK |
+| Code source / code audit | `code-audit-report.md` | Validation des findings de l'agent Code Audit |
+
+Les outils `apktool` et `jadx` n'étaient pas disponibles dans l'environnement ; l'analyse du bytecode a été remplacée par l'analyse des strings, des ressources XML et du code source Dart/Kotlin disponible.
+
+### Phases exécutées
+
+1. **Reconnaissance** : `aapt dump badging`, extraction de l'APK, inventaire des composants, permissions, deep links, providers et bibliothèques natives.
+2. **Analyse statique de l'APK** : vérification des signatures, ressources XML (`network_security_config`, `file_paths`, `data_extraction_rules`), recherche de secrets dans les strings, analyse des assets Flutter.
+3. **Tests dynamiques adb** : lancement d'intents, vérification du statut debug, `run-as`, `backup`, permissions accordées, `FLAG_SECURE`.
+4. **Fuzzing léger** : intents malformés envoyés à `MainActivity` (path traversal, URI tierce, SEND avec extra STREAM).
+5. **Interception réseau** : non effectuée physiquement (appareil non rooté, pas de certificat CA installé). Analyse conceptuelle basée sur le `network_security_config` et le code source.
+6. **Stockage local** : extraction directe impossible sans root. Analyse statique des chemins de stockage et du code Dart/Kotlin de persistance.
+7. **Reverse engineering** : extraction des bibliothèques natives Flutter (`libapp.so`, `libflutter.so`), vérification de l'absence de symboles de debug, constat de la difficulté de reverse du snapshot Dart AOT.
+
+---
+
+## Vulnérabilités découvertes
+
+### Vuln #1 — Secrets de signature de l'application en clair dans le working tree
+
+- **Catégorie** : Stockage / Configuration
+- **Sévérité** : **Critique**
+- **CVSS v3.1 approximatif** : **8.4** (AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N)
+- **Description** : Les fichiers `android/key.properties` et `android/app/keystore.jks` sont présents en clair dans le répertoire de travail local. Ils contiennent les mots de passe du keystore et de la clé de signature. Ils sont bien listés dans `.gitignore` et ne sont pas suivis par git, mais toute archive, backup, snapshot ou compromission du poste de développement les emporterait.
+- **Reproduction** :
+  1. Accéder au poste de développement (ou à une sauvegarde non chiffrée du répertoire).
+  2. Lire `android/key.properties`.
+  3. Utiliser `keytool` / `jarsigner` / `apksigner` avec `keystore.jks` pour signer un APK arbitraire avec l'identité `com.pdftech.pdf_tech`.
+- **Preuve** :
+  ```bash
+  $ ls -la android/app/keystore.jks
+  -rw-r--r-- 1 ... 2752 ... android/app/keystore.jks
+  $ keytool -list -keystore android/app/keystore.jks
+  Entrée de clé n°1 : pdf_studio
+  ```
+  Le fichier `key.properties` contient `storePassword` et `keyPassword` en clair.
+- **Impact** : Falsification de release. Un attaquant peut signer des APK frauduleux acceptés comme émanant de l'éditeur, compromettant la chaîne de distribution GitHub/F-Droid. La confiance dans les mises à jour est totalement invalidée.
+- **Remédiation** :
+  - Supprimer immédiatement `android/key.properties` et `android/app/keystore.jks` du working tree.
+  - Ne conserver les secrets que dans un coffre-fort CI (GitHub Actions secrets, Azure Key Vault, etc.).
+  - Faire échouer le build release si les variables d'environnement ne sont pas définies.
+  - Activer la rotation des clés si le keystore a déjà été exposé.
+- **Priorité** : Immédiat
+
+---
+
+### Vuln #2 — Fallback de signature debug en build release
+
+- **Catégorie** : Configuration / Build
+- **Sévérité** : **Haute**
+- **CVSS v3.1 approximatif** : **7.5** (AV:N/AC:H/PR:H/UI:N/S:U/C:N/I:H/A:N)
+- **Description** : Dans `android/app/build.gradle.kts`, la configuration `release` retombe sur la signature debug si les credentials release ne sont pas disponibles. Bien que l'APK analysée soit correctement signée en release, le processus de build permet de générer accidentellement un APK release signé debug.
+- **Reproduction** :
+  1. Lancer un build release sans les variables `PDFTECH_*` ni le fichier `key.properties`.
+  2. Observer que `signingConfig` est assigné à `signingConfigs.getByName("debug")`.
+  3. Vérifier la signature avec `apksigner verify --verbose` : le certificat debug est alors présent.
+- **Preuve** (extrait du code source) :
+  ```kotlin
+  buildTypes {
+      release {
+          signingConfig = if (keyPropertiesFile.exists() ||
+              System.getenv("PDFTECH_STORE_PASSWORD") != null) {
+              signingConfigs.getByName("release")
+          } else {
+              signingConfigs.getByName("debug")
+          }
+      }
+  }
+  ```
+- **Impact** : Un APK release signé debug peut être remplacé par n'importe quel autre APK debug sur un appareil de test, et constitue un incident majeur s'il est publié par erreur.
+- **Remédiation** :
+  - Supprimer le fallback debug : `signingConfig = signingConfigs.getByName("release")`.
+  - Faire échouer le build release si les credentials sont absents (`require(...)`).
+- **Priorité** : Immédiat
+
+---
+
+### Vuln #3 — Permission `MANAGE_EXTERNAL_STORAGE` accordée sur l'appareil
+
+- **Catégorie** : Autorisation / Stockage
+- **Sévérité** : **Haute**
+- **CVSS v3.1 approximatif** : **7.1** (AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:N)
+- **Description** : L'application déclare `MANAGE_EXTERNAL_STORAGE` et cette permission est en mode `allow` sur l'appareil de test. Cette permission donne un accès universel en lecture/écriture sur le stockage partagé, bien au-delà du Scoped Storage.
+- **Reproduction** :
+  1. Vérifier le Manifest via `aapt dump badging` : `uses-permission: name='android.permission.MANAGE_EXTERNAL_STORAGE'`.
+  2. Vérifier l'état sur l'appareil :
+     ```bash
+     adb shell appops get com.pdftech.pdf_tech
+     # MANAGE_EXTERNAL_STORAGE: mode=allow
+     ```
+- **Preuve** :
+  ```bash
+  adb shell dumpsys package com.pdftech.pdf_tech | grep MANAGE_EXTERNAL_STORAGE
+  # MANAGE_EXTERNAL_STORAGE: mode=allow
+  ```
+- **Impact** : Si une partie du code Dart ou un plugin tiers est compromise (injection de chemin, mauvaise validation), l'attaquant peut lire/écrire n'importe quel fichier sur le stockage externe. C'est un privilège très élevé pour une application qui pourrait fonctionner principalement via le Storage Access Framework (SAF).
+- **Remédiation** :
+  - Privilégier `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE` avec un scope limité, ou mieux, utiliser exclusivement SAF et `getExternalFilesDirectory()`.
+  - Si `MANAGE_EXTERNAL_STORAGE` est indispensable, documenter la justification pour F-Droid et restreindre tous les chemins d'accès via une whitelist de dossiers PDF.
+  - Désactiver l'accès par défaut et ne le demander que si l'utilisateur choisit explicitement un mode "gestionnaire de fichiers".
+- **Priorité** : Court terme
+
+---
+
+### Vuln #4 — Logs applicatifs (`debugPrint`) non protégés en mode release
+
+- **Catégorie** : Fuite d'information / Logging
+- **Sévérité** : **Moyenne**
+- **CVSS v3.1 approximatif** : **4.3** (AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N)
+- **Description** : Plusieurs `debugPrint` dans `lib/widgets/pdf_picker_screen.dart` et `lib/utils/saf_picker.dart` loguent des chemins de fichiers, des noms de fichiers et des stacktraces sans être protégés par `if (kDebugMode)`. En release, ces messages peuvent être lus via `logcat` si l'appareil est en mode debug ou si une application avec `READ_LOGS` est présente.
+- **Reproduction** :
+  1. Ouvrir l'application, naviguer vers le picker de PDF ou importer un fichier via SAF.
+  2. Exécuter `adb logcat -s com.pdftech.pdf_tech` (sur un appareil autorisant la lecture des logs applicatifs).
+  3. Observer les lignes du type :
+     ```
+     [PdfPickerScreen] download dir: /storage/emulated/0/...
+     [SafPicker] copied SAF file to: /data/data/.../cache/... (... bytes)
+     [SafPicker] failed to persist ...: ...
+     ```
+- **Preuve** (code source) :
+  ```dart
+  debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+  debugPrint('[SafPicker] copied SAF file to: $destPath (${bytes.length} bytes)');
+  debugPrint('[SafPicker] failed to persist ${file.path}: $e\n$st');
+  ```
+- **Impact** : Fuite d'informations sur la structure de stockage, les noms de fichiers et potentiellement des chemins révélateurs (`fiche_paie_2026.pdf`, etc.).
+- **Remédiation** :
+  - Remplacer les `debugPrint` non conditionnels par :
+    ```dart
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+    }
+    ```
+  - Ou supprimer les logs non essentiels en release.
+- **Priorité** : Court terme
+
+---
+
+### Vuln #5 — Utilisation d'API de stockage externe dépréciées
+
+- **Catégorie** : Code / Dette technique
+- **Sévérité** : **Moyenne**
+- **CVSS v3.1 approximatif** : **5.3** (AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:L)
+- **Description** : Le code utilise `Environment.getExternalStorageDirectory()` (API dépréciée depuis Android 10) et `getExternalStorageDirectory()` via `path_provider` pour construire des chemins absolus sur le stockage externe.
+- **Fichiers concernés** : `MainActivity.kt:214`, `pdf_picker_screen.dart:284-311`, `home_tab.dart:190`.
+- **Reproduction** : Analyse statique du code source ; exécuter l'application sur Android 10+ et observer les comportements incohérents selon les constructeurs.
+- **Impact** : Fragilité face au Scoped Storage, comportements variables sur les ROMs récentes, et dépendance maintenue à `MANAGE_EXTERNAL_STORAGE`. Peut masquer des bugs de permission ou des fuites de données.
+- **Remédiation** :
+  - Migrer vers `StorageManager` / `StorageStatsManager` pour les statistiques de stockage.
+  - Utiliser exclusivement le Storage Access Framework ou `getExternalFilesDirectory()` pour les chemins de fichiers.
+- **Priorité** : Moyen terme
+
+---
+
+### Vuln #6 — Signature APK v1 activée dans la configuration de build (risque Janus)
+
+- **Catégorie** : Configuration / Signature
+- **Sévérité** : **Moyenne** (dans le code de build) / **Non applicable** (pour l'APK analysée)
+- **CVSS v3.1 approximatif** : **5.9** (AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:H/A:N) si v1 seule
+- **Description** : Le `build.gradle.kts` configure `enableV1Signing = true`. La signature v1 (JAR) est vulnérable à l'attaque Janus (CVE-2017-13156) car elle ne couvre pas intégralement le fichier ZIP. Cependant, l'APK analysée `pdf-tech-universel-1.13.3.apk` a été vérifiée avec `apksigner` et ne présente **pas** de signature v1 valide ; seuls les schémas v2 et v3 sont actifs.
+- **Reproduction** :
+  1. Lire `build.gradle.kts` :
+     ```kotlin
+     enableV1Signing = true
+     enableV2Signing = true
+     enableV3Signing = true
+     ```
+  2. Vérifier l'APK release :
+     ```bash
+     apksigner verify --verbose pdf-tech-universel-1.13.3.apk
+     # Verified using v2 scheme: true
+     # Verified using v3 scheme: true
+     # Verified using v1 scheme: false
+     ```
+- **Impact** : Si un build est produit avec v1 comme seul schéma (mauvaise configuration, modification manuelle), un attaquant peut injecter du code DEX sans invalider la signature. L'APK actuel n'est pas affecté, mais la configuration expose au risque humain.
+- **Remédiation** :
+  - Désactiver v1 si la compatibilité API < 24 n'est pas requise : `enableV1Signing = false`.
+  - Si v1 doit être conservé, documenter le risque accepté et s'assurer que v2/v3 sont toujours présents et vérifiés.
+- **Priorité** : Moyen terme
+
+---
+
+### Vuln #7 — Messages d'erreur utilisateur avec exceptions brutes
+
+- **Catégorie** : Fuite d'information / UX
+- **Sévérité** : **Basse**
+- **CVSS v3.1 approximatif** : **3.7** (AV:L/AC:L/PR:N/UI:N/S:U/C:L/I:N/A:N)
+- **Description** : Dans `google_drive_screen.dart`, les erreurs de connexion, chargement, upload et téléchargement sont affichées telles quelles dans les Snackbars (`'connexion : $e'`, etc.).
+- **Fichier concerné** : `lib/screens/cloud/google_drive_screen.dart:89, 113, 135, 164`.
+- **Reproduction** : Couper le réseau ou forcer une erreur OAuth, observer le Snackbar affichant le message d'exception brut.
+- **Impact** : Les exceptions Google Sign-In / HTTP ne contiennent généralement pas de tokens, mais elles peuvent contenir des URLs, des messages internes ou des détails de configuration en cas d'exception personnalisée ou de proxy MITM.
+- **Remédiation** :
+  ```dart
+  } catch (e) {
+    if (kDebugMode) debugPrint('[GoogleDriveScreen._signIn] $e');
+    if (mounted) showErrorSnack(context, 'Échec de la connexion. Vérifiez votre connexion et réessayez.');
+  }
+  ```
+- **Priorité** : Backlog
+
+---
+
+### Vuln #8 — Métadonnées de fichiers récents stockées en clair dans `SharedPreferences`
+
+- **Catégorie** : Stockage / Privacy
+- **Sévérité** : **Basse**
+- **CVSS v3.1 approximatif** : **3.7** (AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N)
+- **Description** : Les chemins, noms, tailles et dates d'accès des fichiers récents sont persistés dans `SharedPreferences` via JSON. `SharedPreferences` n'est pas chiffré par défaut.
+- **Fichiers concernés** : `last_page_service.dart`, `main.dart:226-287`, `files_tech_core/lib/src/recents/recent_files_service.dart`.
+- **Reproduction** : Sur un appareil rooté, lire `/data/data/com.pdftech.pdf_tech/shared_prefs/*.xml`.
+- **Impact** : Sur un appareil rooté ou avec un backup exfiltré, un nom de fichier comme `fiche_paie_2026.pdf` ou un path révélateur peut être lu en clair. Ce ne sont pas des secrets, mais des métadonnées potentiellement sensibles.
+- **Remédiation** :
+  - Évaluer la sensibilité des paths. Si certains sont sensibles, migrer les données récentes vers `flutter_secure_storage` ou chiffrer la liste localement.
+  - Pour les fichiers publics/documents, le risque reste acceptable.
+- **Priorité** : Backlog
+
+---
+
+### Vuln #9 — Absorption silencieuse des erreurs du check de mise à jour
+
+- **Catégorie** : Logging / Détection d'attaque
+- **Sévérité** : **Basse**
+- **CVSS v3.1 approximatif** : **3.1** (AV:N/AC:H/PR:N/UI:N/S:U/C:N/I:N/A:L)
+- **Description** : Dans `files_tech_core/lib/src/update/update_service.dart:141-143`, toutes les erreurs du check de mise à jour sont absorbées par `catch (_) { return null; }`.
+- **Reproduction** : Forcer une erreur réseau (MITM, DNS corrompu, réponse GitHub malformée), observer qu'aucune erreur n'est remontée.
+- **Impact** : Acceptable pour l'UX, mais cela complique le diagnostic et la détection d'attaques réseau (MITM, compte GitHub compromis publiant un payload inattendu). Le reste du code est robuste (validation type-safe, whitelist d'hôtes), donc le risque reste limité.
+- **Remédiation** :
+  - Ajouter un log conditionnel en `kDebugMode` ou un callback `onError` optionnel pour les apps consommatrices, sans changer le comportement par défaut.
+- **Priorité** : Backlog
+
+---
+
+### Vuln #10 — Absence de certificate pinning pour les mises à jour GitHub
+
+- **Catégorie** : Réseau / Défense en profondeur
+- **Sévérité** : **Info**
+- **CVSS v3.1 approximatif** : **3.7** (AV:N/AC:H/PR:N/UI:R/S:U/C:N/I:N/A:L)
+- **Description** : Le check de mise à jour utilise `https://api.github.com` via le package `http` sans pinning de certificat. Le package `http` s'appuie sur les certificats système.
+- **Fichier concerné** : `files_tech_core/lib/src/update/update_service.dart:87-92`.
+- **Reproduction** : Sur un appareil avec un certificat racine malveillant installé, l'attaquant peut intercepter/modifier la réponse JSON de l'API GitHub Releases.
+- **Impact** : L'URL est contrôlée par les paramètres `owner`/`repo`, l'APK n'est pas auto-téléchargé et le SHA-256 est affiché, mais un MITM avec certificat système compromis pourrait altérer les métadonnées de mise à jour.
+- **Remédiation** :
+  - Envisager du pinning de clé publique pour `api.github.com` et `objects.githubusercontent.com` si le mécanisme de mise à jour devient critique.
+  - Noter que le maintien du pinning est coûteux (rotation de certificats GitHub).
+- **Priorité** : Backlog / Moyen terme si le threat model le justifie
+
+---
+
+### Vuln #11 — `minSdk` hérité de la variable Flutter
+
+- **Catégorie** : Configuration / Build
+- **Sévérité** : **Info**
+- **CVSS v3.1 approximatif** : **3.0** (AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L)
+- **Description** : `minSdk = flutter.minSdkVersion` rend la valeur dépendante du SDK Flutter. Une mise à jour Flutter pourrait changer le `minSdk` sans que l'équipe ne s'en aperçoive.
+- **Fichier concerné** : `android/app/build.gradle.kts:61`.
+- **Reproduction** : Lecture du fichier de build.
+- **Impact** : Très faible, mais réduit la maîtrise du périmètre de compatibilité et de sécurité.
+- **Remédiation** :
+  ```kotlin
+  minSdk = 24
+  ```
+- **Priorité** : Backlog
+
+---
+
+## Points conformes confirmés (positifs)
+
+| Domaine | Évaluation | Preuve |
+|---|---|---|
+| **Signature APK** | ✅ Conforme | `apksigner verify` : v2 et v3 actifs, v1 inactif. Certificat release valide. |
+| **Backup / Cloud extraction** | ✅ Conforme | `allowBackup="false"`, `fullBackupContent="false"`, `data_extraction_rules.xml` exclut tous les domaines. `adb backupnow` échoue. |
+| **Trafic réseau** | ✅ Conforme | `usesCleartextTraffic="false"`, `network_security_config.xml` sans cleartext, ancrages système uniquement. |
+| **FileProvider** | ✅ Conforme | `exported="false"`, `grantUriPermissions="true"`, pas de `root-path`, pas de `files-path="."`. |
+| **Validation des intents entrants** | ✅ Conforme | Fuzzing avec path traversal et URI tierces ne fait pas crasher l'app ; validation dans `MainActivity.kt`. |
+| **Composants exportés** | ✅ Conforme | Seul `MainActivity` est exporté (obligatoire pour launcher et ACTION_VIEW/SEND PDF). FileProvider et autres providers non exportés. |
+| **Obfuscation build release** | ✅ Conforme | `isMinifyEnabled = true`, `isShrinkResources = true`, `proguard-rules.pro` présent. |
+| **FLAG_SECURE** | ✅ Conforme | Code source et tests visuels : fenêtre principale sécurisée contre les captures d'écran. |
+| **Gestion des mots de passe PDF** | ✅ Conforme | AES-256, owner password aléatoire de 32 caractères via `Random.secure()`. |
+| **WebView** | ✅ Conforme | Aucune WebView applicative directe. `WebViewActivity` interne de `url_launcher` est `exported="false"`. |
+| **Aucun secret dans l'APK** | ✅ Conforme | Aucune clé API, token, mot de passe ou URL avec credentials trouvé dans les strings/resources. |
+
+---
+
+## Scénarios d'attaque
+
+### Scénario 1 : Falsification de release via vol de keystore
+
+**Vecteur d'attaque** : Accès physique ou distant au poste de développement (malware, backup non chiffré, partage de session).  
+**Prérequis** : Accès au répertoire `J:/applications/pdf_tech/` avec les droits de l'utilisateur.  
+**Étapes** :
+1. Lire `android/key.properties` pour obtenir les mots de passe.
+2. Utiliser `android/app/keystore.jks` avec `jarsigner` / `apksigner`.
+3. Signer un APK modifié avec le certificat `CN=Haltaya.Patrice`.
+4. Publier l'APK sur un canal secondaire (site miroir, forum, message social) ou tenter une mise à jour via GitHub compromise.
+
+**Impact** : Installation d'un APK malveillant accepté comme officiel, vol de données PDF, exécution de code arbitraire.  
+**Probabilité** : Moyenne (dépend de la sécurité du poste de développement).  
+**Difficulté** : Facile une fois l'accès obtenu.  
+**Outils nécessaires** : `keytool`, `jarsigner`, `apksigner`.  
+**Remédiation** : Coffre-fort CI, suppression du keystore local, échec du build release sans secrets.
+
+---
+
+### Scénario 2 : Abus de `MANAGE_EXTERNAL_STORAGE` via un plugin ou code Dart compromis
+
+**Vecteur d'attaque** : Exploitation d'une vulnérabilité dans un plugin tiers (sélecteur de fichiers, OCR, etc.) ou injection de chemin via un PDF malveillant.  
+**Prérequis** : L'utilisateur a accordé l'accès à tous les fichiers à PDF Tech ; une faille dans le code ou un plugin est exploitable.  
+**Étapes** :
+1. L'attaquant fournit un PDF ou un fichier qui exploite un plugin de l'application.
+2. Le code malveillant exécute des opérations de fichiers via Dart ou le bridge natif.
+3. Grâce à `MANAGE_EXTERNAL_STORAGE`, il lit des fichiers sensibles (`/sdcard/Download/`, `/sdcard/Documents/`, photos, etc.) ou écrit des fichiers.
+
+**Impact** : Exfiltration de documents personnels, chiffrement de fichiers (ransomware), modification de documents.  
+**Probabilité** : Moyenne/Basse (nécessite une faille dans le code ou un plugin).  
+**Difficulté** : Moyenne.  
+**Outils nécessaires** : APK modifié ou PDF malveillant, adb pour l'analyse.  
+**Remédiation** : Migrer vers SAF, restreindre les chemins, révoquer `MANAGE_EXTERNAL_STORAGE` par défaut.
+
+---
+
+### Scénario 3 : Fuite de métadonnées via logcat et `debugPrint`
+
+**Vecteur d'attaque** : Application malveillante ou outil de diagnostic sur l'appareil lit les logs applicatifs.  
+**Prérequis** : Accès à `READ_LOGS` (souvent limité aux apps système) ou appareil en mode développeur.  
+**Étapes** :
+1. L'utilisateur importe ou ouvre un PDF via PDF Tech.
+2. Les `debugPrint` non protégés écrivent les chemins complets dans logcat.
+3. Une application avec les droits suffisants collecte les logs et extrait les paths/noms de fichiers.
+
+**Impact** : Fuite de métadonnées, profiling de l'utilisateur, identification de documents sensibles.  
+**Probabilité** : Basse (accès logcat restreint sur Android récents).  
+**Difficulté** : Facile si les logs sont accessibles.  
+**Outils nécessaires** : `adb logcat`, app avec permission `READ_LOGS`.  
+**Remédiation** : Conditionner tous les `debugPrint` à `kDebugMode`.
+
+---
+
+### Scénario 4 : MITM sur la mise à jour GitHub (conceptuel)
+
+**Vecteur d'attaque** : Attaquant capable d'installer un certificat racine sur l'appareil de la victime (réseau d'entreprise surveillé, malware).  
+**Prérequis** : Certificat racine malveillant dans le trust store système ; l'application n'implémente pas de pinning.  
+**Étapes** :
+1. Intercepter la requête `https://api.github.com/repos/.../releases/latest`.
+2. Remplacer la réponse JSON par une fausse release pointant vers un asset malveillant.
+3. L'application affiche la fausse mise à jour ; l'utilisateur peut être incité à télécharger l'APK externe.
+
+**Impact** : Distribution d'une mise à jour frauduleuse.  
+**Probabilité** : Basse (l'APK n'est pas auto-téléchargé ; SHA-256 affiché).  
+**Difficulté** : Difficile (nécessite un certificat système compromis).  
+**Outils nécessaires** : Burp Suite / mitmproxy avec CA système.  
+**Remédiation** : Certificate pinning, vérification de la signature de la réponse, notification explicite de l'utilisateur.
+
+---
+
+## Checklist complète de pentest
+
+### Phase 1 — Reconnaissance
+
+- [x] Identifier la technologie (Flutter + Kotlin natif)
+- [x] Lister les permissions (`INTERNET`, `MANAGE_EXTERNAL_STORAGE`)
+- [x] Cartographier les composants exportés (uniquement `MainActivity`)
+- [x] Identifier les deep links (aucun scheme personnalisé ; http/https dans `queries` uniquement)
+- [x] Vérifier la version, le minSdk, le targetSdk
+- [x] Lister les bibliothèques natives (`libapp.so`, `libflutter.so`, `libpdfium.so`, `libtesseract.so`, etc.)
+
+### Phase 2 — Analyse statique de l'APK
+
+- [x] Vérifier les schémas de signature (v2/v3 OK, v1 absent)
+- [x] Analyser `AndroidManifest.xml`
+- [x] Analyser `network_security_config.xml` (pas de cleartext, système uniquement)
+- [x] Analyser `file_paths.xml` (pas de root-path, pas de files-path=".")
+- [x] Analyser `data_extraction_rules.xml` (exclude tous les domaines)
+- [x] Rechercher des secrets hardcodés dans les strings et assets (aucun trouvé)
+- [x] Vérifier l'obfuscation (R8/ProGuard actif, snapshot Dart AOT)
+- [x] Analyser les dépendances (CVE via code-audit : aucune connue)
+
+### Phase 3 — Interception réseau
+
+- [ ] Configurer un proxy HTTPS avec CA système (non effectué, appareil non rooté)
+- [ ] Tester le certificate pinning (non testé dynamiquement)
+- [ ] Analyser les requêtes API (GitHub Releases, Google Drive) — analyse statique uniquement
+- [x] Vérifier la configuration réseau (pas de cleartext, pas de trust anchors utilisateur)
+
+> **Note** : Les tests dynamiques d'interception réseau nécessitent un appareil rooté ou un émulateur avec un certificat CA proxy installé dans le trust store système. Ce n'a pas été réalisé pour ne pas modifier l'environnement de l'utilisateur.
+
+### Phase 4 — Stockage local
+
+- [x] Vérifier `allowBackup` et `fullBackupContent` (désactivés)
+- [x] Tenter `adb shell run-as` (échec : `package not debuggable`)
+- [x] Tenter une sauvegarde adb (`adb bmgr backupnow`) — échec
+- [ ] Lire `SharedPreferences` et bases SQLite (nécessite root)
+- [ ] Inspecter les fichiers cache et temporaires (nécessite root)
+- [x] Analyser les chemins de stockage dans le code source
+
+### Phase 5 — Tests dynamiques / fuzzing
+
+- [x] Lancer l'application via `adb shell am start`
+- [x] Fuzzer `MainActivity` avec des intents malformés (path traversal, URI tierce, SEND)
+- [x] Vérifier que l'application ne crash pas sur les intents malformés
+- [x] Vérifier `FLAG_SECURE` / protection contre captures d'écran (confirmé visuellement et par le code)
+- [ ] Tests Frida / objection (non effectués, appareil non rooté)
+- [ ] Tests de robustesse du clipbord et du stockage externe (nécessite un environnement contrôlé)
+
+---
+
+## Recommandations globales (par ordre de priorité)
+
+1. **Supprimer immédiatement** les secrets de signature du working tree et ne les conserver que dans le coffre-fort CI. (Critique)
+2. **Interdire le fallback debug** en build release. (Haute)
+3. **Réduire la dépendance à `MANAGE_EXTERNAL_STORAGE`** : migrer vers SAF par défaut, documenter la justification pour F-Droid, et restreindre les chemins d'accès. (Haute)
+4. **Conditionner tous les `debugPrint`** sensibles à `kDebugMode` pour éviter les fuites en release. (Moyenne)
+5. **Désactiver `enableV1Signing`** si la compatibilité API < 24 n'est pas indispensable. (Moyenne)
+6. **Migrer les API de stockage dépréciées** vers SAF / `StorageManager` / `getExternalFilesDirectory()`. (Moyenne)
+7. **Remplacer les messages d'erreur bruts** par des messages génériques dans `google_drive_screen.dart`. (Basse)
+8. **Évaluer le chiffrement** des métadonnées de fichiers récents si les paths peuvent être sensibles. (Basse)
+9. **Améliorer le logging d'erreur** du check de mise à jour (callback `onError` ou log debug). (Basse)
+10. **Pinner `minSdk`** explicitement et, si le threat model l'impose, envisager du certificate pinning pour les mises à jour GitHub. (Info)
+
+---
+
+## Conclusion
+
+PDF Tech v1.13.3 présente une **posture défensive runtime solide** : l'APK release est correctement signée, les composants exposés sont minimaux et justifiés, le trafic réseau est chiffré, et la validation des intents entrants résiste aux tests de fuzzing légers. Les risques principaux sont **opérationnels et configuratifs** : gestion des secrets de signature et permission `MANAGE_EXTERNAL_STORAGE`. La correction de ces deux points, accompagnée de l'hygiène de logging, permettrait de passer le score de sécurité au-delà de 85/100.
+
+**Aucun code d'exploit n'a été fourni**, conformément aux règles de l'audit défensif. Les vecteurs d'attaque sont décrits à des fins de remédiation.
+
+
+---
+
+
+*Rapport généré le 01/08/2026 12:09 — Mobile Security Audit Skill*

@@ -1,14 +1,14 @@
-import 'package:files_tech_core/files_tech_core.dart';
+import 'secure_update_service.dart';
 
 import '../core/app_info.dart';
 
-/// Instance partagée de [UpdateService] configurée pour PDF Tech.
+/// Instance partagee de [SecureUpdateService] configuree pour PDF Tech.
 ///
-/// La version est lue depuis [AppInfo.version] (source unique de vérité —
-/// alignée sur `pubspec.yaml`). Évite le drift constaté en audit
-/// incohérences v1.11.2 où la version était dupliquée à 3 endroits
+/// La version est lue depuis [AppInfo.version] (source unique de verite —
+/// alignee sur `pubspec.yaml`). Evite le drift constate en audit
+/// incoherences v1.11.2 ou la version etait dupliquee a 3 endroits
 /// (pubspec, about_screen, app_update).
-const appUpdateService = UpdateService(
+const appUpdateService = SecureUpdateService(
   owner: 'gitubpatrice',
   repo: 'PDF-TECH',
   currentVersion: AppInfo.version,

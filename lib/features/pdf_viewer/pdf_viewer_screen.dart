@@ -8,7 +8,7 @@ import 'package:pdf_tech/services/secure_window.dart';
 import 'package:pdf_tech/utils/atomic_write.dart';
 import 'package:pdf_tech/utils/snack_utils.dart';
 
-import 'services/last_page_service.dart';
+import 'services/secure_last_page_service.dart';
 import 'services/pdf_share_service.dart';
 import 'widgets/pdf_annotation_bar.dart';
 import 'widgets/pdf_document_viewer.dart';
@@ -28,7 +28,7 @@ class PdfViewerScreen extends StatefulWidget {
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
   final GlobalKey<SfPdfViewerState> _viewerKey = GlobalKey();
   late final PdfViewerController _controller;
-  late final LastPageService _lastPageService;
+  late final SecureLastPageService _lastPageService;
   late final PdfShareService _shareService;
 
   bool _showBars = true;
@@ -51,7 +51,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void initState() {
     super.initState();
     _controller = PdfViewerController();
-    _lastPageService = LastPageService();
+    _lastPageService = SecureLastPageService();
     _shareService = PdfShareService();
     _loadPrefs();
   }

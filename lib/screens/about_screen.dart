@@ -5,6 +5,7 @@ import 'package:files_tech_core/files_tech_core.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/app_info.dart';
 import '../services/app_update.dart';
+import '../services/secure_app_preferences.dart';
 import '../utils/snack_utils.dart';
 
 class AboutScreen extends StatefulWidget {
@@ -19,6 +20,29 @@ class _AboutScreenState extends State<AboutScreen> {
   static const _author = 'Patrice Haltaya';
 
   bool _checkingUpdate = false;
+  bool _fullStorageMode = false;
+  bool _loadingFullStorage = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFullStorageMode();
+  }
+
+  Future<void> _loadFullStorageMode() async {
+    final value = await SecureAppPreferences.getFullStorageMode();
+    if (!mounted) return;
+    setState(() {
+      _fullStorageMode = value;
+      _loadingFullStorage = false;
+    });
+  }
+
+  Future<void> _toggleFullStorageMode(bool value) async {
+    await SecureAppPreferences.setFullStorageMode(value);
+    if (!mounted) return;
+    setState(() => _fullStorageMode = value);
+  }
 
   static const _features = [
     (
@@ -262,6 +286,28 @@ class _AboutScreenState extends State<AboutScreen> {
           _sectionTitle(context, 'Confidentialité'),
           const SizedBox(height: 8),
           const _PrivacyCard(),
+          const SizedBox(height: 8),
+          Card(
+            child: SwitchListTile(
+              secondary: Icon(
+                _fullStorageMode ? Icons.folder_open : Icons.folder_outlined,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: const Text('Mode explorateur complet'),
+              subtitle: Text(
+                _fullStorageMode
+                    ? 'PDF Tech peut parcourir l\'ensemble du stockage externe. '
+                          'Desactivez cette option pour utiliser uniquement le '
+                          'selecteur de fichiers Android.'
+                    : 'Par defaut, PDF Tech utilise le selecteur de fichiers '
+                          'Android (SAF) sans acces global au stockage. Activez '
+                          'cette option pour parcourir tous les dossiers.',
+                style: const TextStyle(fontSize: 12),
+              ),
+              value: _fullStorageMode,
+              onChanged: _loadingFullStorage ? null : _toggleFullStorageMode,
+            ),
+          ),
 
           const SizedBox(height: 24),
 

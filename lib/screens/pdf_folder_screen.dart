@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/date_utils.dart';
@@ -98,8 +99,10 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                 found.add(sub);
               }
             }
-          } catch (_) {
-            /* dossier inaccessible : on ignore */
+          } catch (e) {
+            if (kDebugMode) {
+              debugPrint('[PdfFolderScreen] scan error: $e');
+            }
           }
         }
       }
@@ -231,9 +234,11 @@ class _PdfFolderScreenState extends State<PdfFolderScreen> {
                             return GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onTap: () {
-                                debugPrint(
-                                  '[PdfFolderScreen] tapped: ${f.path}',
-                                );
+                                if (kDebugMode) {
+                                  debugPrint(
+                                    '[PdfFolderScreen] tapped: ${f.path}',
+                                  );
+                                }
                                 final callback = widget.onPick;
                                 if (callback != null) {
                                   callback(f.path);

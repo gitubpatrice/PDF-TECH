@@ -1,5 +1,5 @@
 name: pdf_tech
-description: "Application de gestion de PDF - lecture, annotation, création, partage"
+description: "Application de gestion de PDF - lecture, annotation, creation, partage"
 publish_to: 'none'
 version: 1.13.3+11303
 
@@ -11,7 +11,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Code partagé Files Tech (RecentFiles, UpdateService, CloudShareRow, etc.)
+  # Code partage Files Tech (RecentFiles, UpdateService, CloudShareRow, etc.)
   files_tech_core:
     path: ../files_tech_core
 
@@ -30,10 +30,14 @@ dependencies:
   # Partage et email
   share_plus: ^10.0.3
 
-  # Stockage local (fichiers récents)
+  # Stockage local (fichiers recents) - conserve pour files_tech_core
   shared_preferences: ^2.3.2
 
-  # Signature électronique
+  # Stockage local chiffre des metadonnees sensibles (recents, pages, cache
+  # mise a jour, preferences). flutter_secure_storage utilise Keystore/Keychain.
+  flutter_secure_storage: ^9.2.2
+
+  # Signature electronique
   syncfusion_flutter_signaturepad: ^33.2.4
 
   # Google Drive
@@ -46,7 +50,7 @@ dependencies:
 
   # OCR - rendu de pages PDF en images via pdfrx/pdfium + reconnaissance de
   # texte via Tesseract (open source, pas de code Google). `image` encode les
-  # pixels bruts BGRA retournés par pdfrx_engine en PNG.
+  # pixels bruts BGRA retournes par pdfrx_engine en PNG.
   pdfrx: ^2.4.7
   pdfrx_engine: ^0.4.6
   image: ^4.1.3

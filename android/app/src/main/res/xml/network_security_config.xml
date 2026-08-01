@@ -5,9 +5,12 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
-    <domain-config>
+    <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="false">api.github.com</domain>
-        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="false">github.com</domain>
+        <domain includeSubdomains="false">objects.githubusercontent.com</domain>
+        <domain includeSubdomains="false">www.googleapis.com</domain>
+        <domain includeSubdomains="false">drive.googleapis.com</domain>
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

@@ -9,6 +9,7 @@ import '../../services/google_drive_service.dart';
 import '../../utils/saf_picker.dart';
 import '../../utils/snack_utils.dart';
 import 'package:files_tech_core/files_tech_core.dart';
+import '../../services/secure_recent_files_service.dart';
 import '../../features/pdf_viewer/pdf_viewer_screen.dart';
 
 class GoogleDriveScreen extends StatefulWidget {
@@ -20,7 +21,7 @@ class GoogleDriveScreen extends StatefulWidget {
 
 class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
   final _service = GoogleDriveService();
-  final _recents = RecentFilesService();
+  final _recents = const SecureRecentFilesService();
 
   bool _checkingAuth = true;
   bool _signedIn = false;

@@ -1,12 +1,15 @@
 import 'dart:async';
 
-import 'package:files_tech_core/files_tech_core.dart';
+import 'package:files_tech_core/files_tech_core.dart'
+    show RecentFile, PathUtils;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 
 import '../services/app_update.dart';
 import '../utils/date_utils.dart';
+import '../services/secure_recent_files_service.dart';
+import '../services/secure_update_service.dart';
 import '../services/share_service.dart';
 import '../widgets/pdf_picker_screen.dart';
 import 'about_screen.dart';
@@ -35,7 +38,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _recentFilesService = RecentFilesService();
+  final _recentFilesService = const SecureRecentFilesService();
   final _shareService = ShareService();
   List<RecentFile> _recentFiles = [];
   int _navIndex = 0;

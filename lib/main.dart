@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pdfrx/pdfrx.dart' show pdfrxFlutterInitialize;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/home_screen.dart';
 import 'services/pdf_tools_service.dart';
+import 'services/root_detection_service.dart';
+import 'services/secure_storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -223,12 +225,11 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
   }
 
   Future<void> _checkFirstLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final shown = prefs.getBool('first_launch_done') ?? false;
+    final shown = await SecureStorageService.readBool('first_launch_done');
     if (shown || !mounted) return;
-    // Flag écrit AVANT pour ne jamais redemander, même si l'utilisateur
+    // Flag ecrit AVANT pour ne jamais redemander, meme si l'utilisateur
     // tue l'app pendant un dialog.
-    await prefs.setBool('first_launch_done', true);
+    await SecureStorageService.writeBool('first_launch_done', true);
     if (!mounted) return;
 
     // Context du Navigator (et non celui de _PdfTechAppState, au-dessus du
@@ -236,9 +237,9 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
     final navContext = _navigatorKey.currentContext;
     if (navContext == null || !navContext.mounted) return;
 
-    // P0 v1.13.2 — Dialog de bienvenue simplifié : plus de demande de
-    // MANAGE_EXTERNAL_STORAGE. L'utilisateur sélectionne explicitement ses
-    // PDFs/dossiers via le Storage Access Framework à la demande.
+    // P0 v1.13.2+ — Dialog de bienvenue simplifie : plus de demande de
+    // MANAGE_EXTERNAL_STORAGE. L'utilisateur selectionne explicitement ses
+    // PDFs/dossiers via le Storage Access Framework a la demande.
     await showDialog(
       context: navContext,
       barrierDismissible: false,
@@ -250,9 +251,9 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
         ),
         title: const Text('Bienvenue dans PDF Tech'),
         content: const Text(
-          'Ouvrez, modifiez et partagez vos PDFs en toute confidentialité.\n\n'
-          'Sélectionnez simplement les fichiers ou dossiers que vous souhaitez '
-          'utiliser ; aucun accès global à vos fichiers n\'est requis.',
+          'Ouvrez, modifiez et partagez vos PDFs en toute confidentialite.\n\n'
+          'Selectionnez simplement les fichiers ou dossiers que vous souhaitez '
+          'utiliser ; aucun acces global a vos fichiers n\'est requis.',
           style: TextStyle(fontSize: 13),
         ),
         actions: [
@@ -263,15 +264,47 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
         ],
       ),
     );
-    // Ex-étape 2 « Autoriser les mises à jour » retirée : l'app ne s'auto-
+    // Ex-etape 2 « Autoriser les mises a jour » retiree : l'app ne s'auto-
     // installe pas d'APK (UpdateService = check-only, « pas d'auto-download »),
-    // et sans REQUEST_INSTALL_PACKAGES le toggle système « sources inconnues »
-    // est grisé → cul-de-sac pour l'utilisateur.
+    // et sans REQUEST_INSTALL_PACKAGES le toggle systeme « sources inconnues »
+    // est grise -> cul-de-sac pour l'utilisateur.
+
+    if (!mounted) return;
+    await _showRootWarningIfNeeded();
+  }
+
+  Future<void> _showRootWarningIfNeeded() async {
+    final navContext = _navigatorKey.currentContext;
+    if (navContext == null || !navContext.mounted) return;
+    try {
+      final rooted = await RootDetectionService.isRooted();
+      if (!rooted || !navContext.mounted) return;
+      await showDialog(
+        context: navContext,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.security, color: Colors.orange),
+          title: const Text('Appareil modifie detecte'),
+          content: const Text(
+            'Cet appareil semble etre root ou jailbreak. PDF Tech continue de '
+            'fonctionner, mais la confidentialite de vos documents peut etre '
+            'reduite sur un systeme modifie.',
+            style: TextStyle(fontSize: 13),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('J\'ai compris'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (kDebugMode) debugPrint('[main] root detection error: $e');
+    }
   }
 
   Future<void> _loadTheme() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('theme_mode');
+    final saved = await SecureStorageService.readString('theme_mode');
     if (saved != null && mounted) {
       setState(
         () => _themeMode = ThemeMode.values.firstWhere(
@@ -284,8 +317,7 @@ class _PdfTechAppState extends State<PdfTechApp> with WidgetsBindingObserver {
 
   Future<void> _setTheme(ThemeMode mode) async {
     setState(() => _themeMode = mode);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('theme_mode', mode.name);
+    await SecureStorageService.writeString('theme_mode', mode.name);
   }
 
   @override

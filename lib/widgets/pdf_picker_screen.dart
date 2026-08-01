@@ -4,12 +4,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../screens/folder_browser_screen.dart';
 import '../screens/pdf_folder_screen.dart';
 import '../utils/snack_utils.dart';
 import '../utils/storage_permission_service.dart';
+import '../services/secure_app_preferences.dart';
+import '../../services/secure_recent_files_service.dart';
 
 /// Picker PDF custom avec deux onglets :
 /// - **Récents** : liste des PDFs récemment ouverts
@@ -60,7 +61,7 @@ class PdfPickerScreen extends StatefulWidget {
 class _PdfPickerScreenState extends State<PdfPickerScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
-  final _recentService = RecentFilesService();
+  final _recentService = const SecureRecentFilesService();
   List<RecentFile> _recents = [];
   bool _loading = true;
   final List<String> _selected = [];
@@ -117,15 +118,27 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     });
   }
 
-  /// Ouvre le picker de PDFs. Avec [MANAGE_EXTERNAL_STORAGE], on scanne
-  /// directement `/sdcard/Download` dans notre propre UI (pas de dépendance au
-  /// DocumentsUI potentiellement bugué de l’émulateur). Sinon on fallback sur
-  /// `file_picker` SAF.
+  /// Ouvre le picker de PDFs.
+  ///
+  /// P0 v1.13.4+ — mode securise par defaut : si l'utilisateur n'a pas active
+  /// le "mode explorateur complet" dans les parametres, on utilise le picker
+  /// SAF natif (file_picker) sans jamais demander MANAGE_EXTERNAL_STORAGE.
+  /// L'acces complet au stockage est donc optionnel et explicite.
   Future<void> _pickFiles() async {
     if (kDebugMode) {
       debugPrint(
         '[PdfPickerScreen] _pickFiles() invoked (multi=${widget.multi})',
       );
+    }
+
+    final fullMode = await SecureAppPreferences.getFullStorageMode();
+    if (!mounted) return;
+    if (!fullMode) {
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] full storage disabled -> SAF picker');
+      }
+      await _pickWithFilePicker();
+      return;
     }
 
     final hasStorage = await StoragePermissionService.requestWithDialog(
@@ -136,7 +149,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     }
     if (!mounted) return;
     if (!hasStorage) {
-      // L’utilisateur refuse la permission globale : on propose le picker SAF.
+      // L'utilisateur refuse la permission globale : on propose le picker SAF.
       if (kDebugMode) {
         debugPrint('[PdfPickerScreen] falling back to file_picker SAF');
       }
@@ -144,14 +157,14 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       return;
     }
 
-    // Scan direct de Download quand la permission globale est accordée.
+    // Scan direct de Download quand la permission globale est accordee.
     final downloadDir = await _downloadDirectory();
     if (kDebugMode) {
       debugPrint('[PdfPickerScreen] download dir: $downloadDir');
     }
     if (!mounted) return;
     if (downloadDir == null) {
-      showErrorSnack(context, 'Impossible d’accéder au dossier Download');
+      showErrorSnack(context, 'Impossible d\'accéder au dossier Download');
       return;
     }
     if (kDebugMode) {
@@ -219,11 +232,25 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     }
   }
 
-  /// Ouvre l’explorateur de dossiers intégré puis navigue dans le dossier
-  /// choisi pour y sélectionner un PDF.
+  /// Ouvre l'explorateur de dossiers integre puis navigue dans le dossier
+  /// choisi pour y selectionner un PDF.
+  ///
+  /// P0 v1.13.4+ — mode securise par defaut : l'explorateur complet n'est
+  /// accessible que si l'utilisateur a explicitement active l'option dans les
+  /// parametres. Sinon on utilise le picker de dossier SAF natif.
   Future<void> _pickAndBrowseFolder() async {
     if (kDebugMode) {
       debugPrint('[PdfPickerScreen] _pickAndBrowseFolder() invoked');
+    }
+
+    final fullMode = await SecureAppPreferences.getFullStorageMode();
+    if (!mounted) return;
+    if (!fullMode) {
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] full storage disabled -> SAF folder');
+      }
+      await _pickFolderWithSaf();
+      return;
     }
 
     final hasStorage = await StoragePermissionService.requestWithDialog(
@@ -234,7 +261,7 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     }
     if (!mounted) return;
     if (!hasStorage) {
-      // L’utilisateur refuse la permission globale : on propose le picker SAF.
+      // L'utilisateur refuse la permission globale : on propose le picker SAF.
       await _pickFolderWithSaf();
       return;
     }
@@ -299,15 +326,15 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     }
   }
 
-  /// Retourne la racine du stockage externe (`/sdcard` ou équivalent).
+  /// Retourne la racine du stockage externe (`/sdcard` ou equivalent).
+  ///
+  /// P0 v1.13.4+ — ne passe plus par [getExternalStorageDirectory] (API
+  /// depreciee API 29). Avec MANAGE_EXTERNAL_STORAGE, le chemin absolu
+  /// /sdcard est suffisant ; on verifie juste son existence.
   Future<String?> _externalRootDirectory() async {
     try {
-      final extDir = await getExternalStorageDirectory();
-      if (extDir == null) return null;
-      final root = Directory(extDir.parent.parent.parent.parent.path);
+      final root = Directory('/sdcard');
       if (await root.exists()) return root.path;
-      final fallback = Directory('/sdcard');
-      if (await fallback.exists()) return fallback.path;
       return null;
     } catch (e) {
       if (kDebugMode) {
@@ -317,18 +344,11 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
     }
   }
 
-  /// Retourne le chemin de `/sdcard/Download` ou équivalent externe.
+  /// Retourne le chemin de `/sdcard/Download` ou equivalent externe.
   Future<String?> _downloadDirectory() async {
     try {
-      final extDir = await getExternalStorageDirectory();
-      if (extDir == null) return null;
-      final download = Directory(
-        '${extDir.parent.parent.parent.parent.path}/Download',
-      );
+      final download = Directory('/sdcard/Download');
       if (await download.exists()) return download.path;
-      // Fallback : /sdcard/Download
-      final fallback = Directory('/sdcard/Download');
-      if (await fallback.exists()) return fallback.path;
       return null;
     } catch (e) {
       if (kDebugMode) {

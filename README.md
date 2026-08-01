@@ -47,21 +47,22 @@ Version actuelle : **1.13.3**.
 
 ### Explorateur de fichiers intégré
 
-Depuis la version 1.13.x, le picker PDF utilise un **explorateur de dossiers intégré** :
+Depuis la version 1.13.x, le picker PDF propose un **explorateur de dossiers intégré** :
 
-- **Choisir un PDF** : scan direct du dossier `Download` (et d’un niveau de sous-dossiers).
-- **Choisir un dossier** : navigation dans le stockage externe avec une grille de dossiers colorés.
-- **Fallback SAF** : si la permission `MANAGE_EXTERNAL_STORAGE` est refusée, l'application bascule automatiquement sur le picker système Android.
+- **Mode sécurisé par défaut** : utilisation du sélecteur système Android (SAF) sans accès global au stockage.
+- **Mode explorateur complet** (optionnel) : scan direct du dossier `Download` et navigation dans le stockage externe via une grille de dossiers colorés. Nécessite l'activation explicite dans les paramètres et la permission `MANAGE_EXTERNAL_STORAGE`.
 
 ### Sécurité
 
+- **Chiffrement des métadonnées** : fichiers récents, dernières pages lues, cache de mise à jour et préférences stockés dans `FlutterSecureStorage` (Keychain/Keystore).
+- **Permission d'accès stockage optionnelle** : `MANAGE_EXTERNAL_STORAGE` n'est demandée que si l'utilisateur active explicitement le « mode explorateur complet » dans les paramètres. Par défaut, l'application utilise le sélecteur système Android (SAF).
 - **Anti path-traversal** : `canonicalFile` + liste blanche `allowedRoots` côté Kotlin pour tout accès `file://`.
 - **Magic-bytes + cap 200 Mo** : validation du type réel des fichiers ouverts (sniffing en-tête, pas seulement extension).
 - **FileProvider restrictif** : `file_paths.xml` limité aux dossiers nécessaires, `grantUriPermissions` ciblé.
-- **Build release durci** : keystore dédié via `key.properties`, signing v2/v3, R8 + shrinking + obfuscation.
+- **Build release durci** : keystore dédié via variables d'environnement `PDFTECH_*`, signing v2/v3 (v1 désactivée), R8 + shrinking + obfuscation.
 - **Network Security Config strict** : `usesCleartextTraffic="false"`, NSC ne whiteliste que les domaines GitHub et Google nécessaires.
 - **Pas de backup ADB** : `allowBackup="false"`, `dataExtractionRules` vide.
-- **RASP léger** : avertissement à l'utilisateur si root / debug actif.
+- **RASP léger** : avertissement à l'utilisateur si un système rooté est détecté (détection native Kotlin, non bloquante).
 
 Politique de signalement : voir [SECURITY.md](./SECURITY.md). Vérification SHA-256 publiée pour chaque APK release.
 
@@ -70,7 +71,7 @@ Politique de signalement : voir [SECURITY.md](./SECURITY.md). Vérification SHA-
 | Permission | Justification |
 | --- | --- |
 | `INTERNET` | Vérification de mise à jour via API GitHub Releases publique (HTTPS, anonyme). Activée également si l'utilisateur choisit Google Drive (optionnel). |
-| `MANAGE_EXTERNAL_STORAGE` | Permettre à l'utilisateur de parcourir et d'ouvrir des PDFs hors sandbox de l'app (Téléchargements, Documents, WhatsApp Documents, etc.). Sans cette permission, le picker retombe sur le SAF système. |
+| `MANAGE_EXTERNAL_STORAGE` (optionnelle) | Permettre à l'utilisateur de parcourir et d'ouvrir des PDFs hors sandbox de l'app (Téléchargements, Documents, WhatsApp Documents, etc.). **Désactivée par défaut** : le picker utilise le SAF Android. L'accès complet s'active explicitement dans les paramètres. |
 
 `READ_MEDIA_IMAGES` n'est **pas** demandée : la sélection d'images (outil Images → PDF) passe par le SAF / `file_picker` qui octroie l'accès via URI éphémère.
 
@@ -95,19 +96,20 @@ git clone https://github.com/gitubpatrice/files_tech_core.git
 git clone https://github.com/gitubpatrice/PDF-TECH.git pdf_tech
 cd pdf_tech
 flutter pub get
+flutter build apk --debug
+```
+
+Pour produire un APK release signé, définir les variables d'environnement de signature (le fichier `android/key.properties` n'est plus utilisé et ne doit jamais être versionné) :
+
+```bash
+export PDFTECH_KEY_ALIAS="..."
+export PDFTECH_KEY_PASSWORD="..."
+export PDFTECH_STORE_FILE="/chemin/absolu/vers/keystore.jks"
+export PDFTECH_STORE_PASSWORD="..."
 flutter build apk --release
 ```
 
-Pour produire un APK signé release, créer `android/key.properties` :
-
-```properties
-storePassword=…
-keyPassword=…
-keyAlias=…
-storeFile=/chemin/absolu/vers/keystore.jks
-```
-
-Sans ce fichier, `flutter build apk --release` retombe sur la signature debug (build local de test uniquement).
+Sans ces variables, `flutter build apk --release` échoue explicitement pour éviter qu'un APK debug ne soit livré par erreur.
 
 ---
 
@@ -151,21 +153,22 @@ Current version : **1.13.3**.
 
 ### Built-in file browser
 
-From version 1.13.x, the PDF picker uses a **built-in folder browser**:
+From version 1.13.x, the PDF picker provides a **built-in folder browser**:
 
-- **Choose a PDF** : direct scan of the `Download` folder (plus one level of sub-folders).
-- **Choose a folder** : browse external storage with a colored folder grid.
-- **SAF fallback** : if `MANAGE_EXTERNAL_STORAGE` permission is denied, the app automatically falls back to the Android system picker.
+- **Secure default mode** : uses the Android system picker (SAF) without global storage access.
+- **Full browser mode** (optional) : direct scan of the `Download` folder and browsing of external storage with a colored folder grid. Requires explicit activation in settings and the `MANAGE_EXTERNAL_STORAGE` permission.
 
 ### Security
 
+- **Encrypted metadata** : recent files, last read pages, update cache and preferences are stored in `FlutterSecureStorage` (Keychain/Keystore).
+- **Optional storage permission** : `MANAGE_EXTERNAL_STORAGE` is only requested if the user explicitly enables the "full file browser mode" in settings. By default, the app uses the Android system picker (SAF).
 - **Anti path-traversal** : `canonicalFile` + `allowedRoots` whitelist on the Kotlin side for every `file://` access.
 - **Magic-bytes + 200 MB cap** : real file-type validation (header sniffing, not just extension).
 - **Restrictive FileProvider** : `file_paths.xml` limited to required folders, targeted `grantUriPermissions`.
-- **Hardened release build** : dedicated keystore via `key.properties`, signing v2/v3, R8 + shrinking + obfuscation.
+- **Hardened release build** : dedicated keystore via `PDFTECH_*` environment variables, signing v2/v3 (v1 disabled), R8 + shrinking + obfuscation.
 - **Strict Network Security Config** : `usesCleartextTraffic="false"`, NSC only whitelists required GitHub and Google domains.
 - **No ADB backup** : `allowBackup="false"`, empty `dataExtractionRules`.
-- **Light RASP** : warning shown if root or debug mode is detected.
+- **Light RASP** : warning shown if a rooted system is detected (native Kotlin detection, non-blocking).
 
 Disclosure policy: see [SECURITY.md](./SECURITY.md). SHA-256 checksum is published for every release APK.
 
@@ -174,7 +177,7 @@ Disclosure policy: see [SECURITY.md](./SECURITY.md). SHA-256 checksum is publish
 | Permission | Justification |
 | --- | --- |
 | `INTERNET` | Update check via public GitHub Releases API (HTTPS, anonymous). Also used if the user chooses Google Drive (optional). |
-| `MANAGE_EXTERNAL_STORAGE` | Let the user browse and open PDFs outside the app sandbox (Downloads, Documents, WhatsApp Documents, etc.). If denied, the picker falls back to the Android SAF. |
+| `MANAGE_EXTERNAL_STORAGE` (optional) | Let the user browse and open PDFs outside the app sandbox (Downloads, Documents, WhatsApp Documents, etc.). **Disabled by default**: the picker uses the Android SAF. Full access is explicitly enabled in settings. |
 
 `READ_MEDIA_IMAGES` is **not requested**: image selection (Images → PDF tool) uses SAF / `file_picker` which grants access through a temporary URI.
 
@@ -199,19 +202,20 @@ git clone https://github.com/gitubpatrice/files_tech_core.git
 git clone https://github.com/gitubpatrice/PDF-TECH.git pdf_tech
 cd pdf_tech
 flutter pub get
+flutter build apk --debug
+```
+
+To produce a signed release APK, set the signing environment variables (the `android/key.properties` file is no longer used and must never be committed):
+
+```bash
+export PDFTECH_KEY_ALIAS="..."
+export PDFTECH_KEY_PASSWORD="..."
+export PDFTECH_STORE_FILE="/absolute/path/to/keystore.jks"
+export PDFTECH_STORE_PASSWORD="..."
 flutter build apk --release
 ```
 
-To produce a signed release APK, create `android/key.properties`:
-
-```properties
-storePassword=…
-keyPassword=…
-keyAlias=…
-storeFile=/absolute/path/to/keystore.jks
-```
-
-Without this file, `flutter build apk --release` falls back to debug signing (local test build only).
+Without these variables, `flutter build apk --release` fails explicitly to prevent a debug APK from being shipped by mistake.
 
 ---
 

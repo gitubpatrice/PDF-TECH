@@ -4,7 +4,7 @@ import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Environment
+import android.os.Build
 import android.os.StatFs
 import android.provider.OpenableColumns
 import android.view.WindowManager
@@ -66,7 +66,7 @@ class MainActivity : FlutterActivity() {
         // app cloud). On garde uniquement les racines légitimement
         // accessibles à PDF Tech.
         listOfNotNull(
-            Environment.getExternalStorageDirectory().canonicalFile,
+            File("/sdcard").canonicalFile,
             filesDir.canonicalFile,
             cacheDir.canonicalFile,
             getExternalFilesDir(null)?.canonicalFile,
@@ -211,13 +211,26 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 if (call.method == "getStorageInfo") {
                     try {
-                        val stat = StatFs(Environment.getExternalStorageDirectory().path)
+                        val statPath = getExternalFilesDir(null)?.path
+                            ?: filesDir.path
+                        val stat = StatFs(statPath)
                         val total = stat.blockCountLong * stat.blockSizeLong
                         val free  = stat.availableBlocksLong * stat.blockSizeLong
                         result.success(mapOf("total" to total, "free" to free))
                     } catch (e: Exception) {
                         result.error("STORAGE_ERROR", e.message, null)
                     }
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // R1 v1.13.4+ — Detection root/jailbreak native (avertissement non
+        // bloquant). Evite une dependance externe incompatible avec AGP 8+.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.pdftech.pdf_tech/root")
+            .setMethodCallHandler { call, result ->
+                if (call.method == "isRooted") {
+                    result.success(isDeviceRooted())
                 } else {
                     result.notImplemented()
                 }
@@ -366,5 +379,50 @@ class MainActivity : FlutterActivity() {
         name = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
         if (name.isBlank() || name == ".pdf") name = "document.pdf"
         return name
+    }
+
+    /// R1 v1.13.4+ — Detection root simple et defensive (avertissement non
+    /// bloquant). Verifie plusieurs signes classiques sans dependance externe.
+    private fun isDeviceRooted(): Boolean {
+        // Build tags test-keys
+        if (Build.TAGS != null && Build.TAGS.contains("test-keys")) return true
+
+        // Superuser packages / binaires connus
+        val knownPaths = listOf(
+            "/system/app/Superuser.apk",
+            "/sbin/su",
+            "/system/bin/su",
+            "/system/xbin/su",
+            "/data/local/xbin/su",
+            "/data/local/bin/su",
+            "/system/sd/xbin/su",
+            "/system/bin/failsafe/su",
+            "/data/adb/magisk/busybox",
+        )
+        if (knownPaths.any { File(it).exists() }) return true
+
+        // Packages Android de gestion root connus
+        val rootPackages = listOf(
+            "com.koushikdutta.superuser",
+            "com.thirdparty.superuser",
+            "de.robv.android.xposed.installer",
+            "com.saurik.substrate",
+            "com.koushikdutta.rommanager",
+            "com.koushikdutta.rommanager.license",
+            "com.dimonvideo.luckypatcher",
+            "com.chelpus.lackypatch",
+            "com.ramdroid.appquarantine",
+            "com.ramdroid.appquarantinepro",
+        )
+        return rootPackages.any { isPackageInstalled(it) }
+    }
+
+    private fun isPackageInstalled(pkgName: String): Boolean {
+        return try {
+            packageManager.getPackageInfo(pkgName, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
     }
 }
