@@ -60,7 +60,9 @@ class SafPicker {
     // Nettoie le nom de fichier pour éviter les chemins traversaux.
     final safeName = _sanitizeFileName(name);
     if (safeName.isEmpty) {
-      debugPrint('[SafPicker] empty or invalid file name: $name');
+      if (kDebugMode) {
+        debugPrint('[SafPicker] empty or invalid file name: $name');
+      }
       return null;
     }
 
@@ -73,12 +75,16 @@ class SafPicker {
       final destPath = p.join(destDir.path, safeName);
       final bytes = await file.readAsBytes();
       await File(destPath).writeAsBytes(bytes, flush: true);
-      debugPrint(
-        '[SafPicker] copied SAF file to: $destPath (${bytes.length} bytes)',
-      );
+      if (kDebugMode) {
+        debugPrint(
+          '[SafPicker] copied SAF file to: $destPath (${bytes.length} bytes)',
+        );
+      }
       return destPath;
     } catch (e, st) {
-      debugPrint('[SafPicker] failed to persist ${file.path}: $e\n$st');
+      if (kDebugMode) {
+        debugPrint('[SafPicker] failed to persist ${file.path}: $e\n$st');
+      }
       return null;
     }
   }

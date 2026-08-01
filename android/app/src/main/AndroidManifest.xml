@@ -3,11 +3,14 @@
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- P0 v1.13.4 — MANAGE_EXTERNAL_STORAGE réactivé. L'app est un
-         gestionnaire/lecteur de PDFs : l'utilisateur a besoin d'ouvrir des
-         documents répartis sur tout le stockage externe (Download, Documents,
-         WhatsApp Documents, etc.) sans avoir à naviguer dans un picker SAF
-         système par fichier. La permission n'est pas destinée au Play Store. -->
+    <!-- P0 v1.13.4+ — MANAGE_EXTERNAL_STORAGE : PDF Tech est un gestionnaire
+         de documents PDF. La permission est requise pour permettre à
+         l'utilisateur de parcourir de manière fluide l'ensemble de son
+         stockage externe (Download, Documents, dossiers de messageries…)
+         et d'ouvrir des PDFs sans avoir à lancer un picker système par
+         fichier. Cette fonctionnalité est optionnelle : l'application reste
+         utilisable via le Storage Access Framework (SAF) si la permission est
+         refusée. La permission n'est pas destinée au Play Store. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 

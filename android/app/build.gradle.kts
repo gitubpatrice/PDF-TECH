@@ -1,21 +1,14 @@
-import java.util.Properties
-import java.io.FileInputStream
-
 plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Credentials keystore : variables d'environnement (CI / poste sécurisé)
-// avec fallback sur android/key.properties (gitignoré).
-val keyPropertiesFile = rootProject.file("key.properties")
-val keyProperties = Properties()
-if (keyPropertiesFile.exists()) {
-    keyProperties.load(FileInputStream(keyPropertiesFile))
-}
-fun keyProp(envName: String, propName: String): String? =
-    System.getenv(envName) ?: keyProperties[propName] as String?
+// Credentials keystore : UNIQUEMENT via variables d'environnement (CI / poste
+// sécurisé). Le fichier key.properties et le keystore ne doivent JAMAIS être
+// versionnés. Ils sont stockés hors dépôt, par exemple dans
+// J:/applications/_backups/pdf_tech_keystore/.
+fun env(name: String): String? = System.getenv(name)
 
 android {
     // v1.12.5 (S1) — `com.pdftech.pdf_tech` est le package HISTORIQUE pré-
@@ -40,25 +33,33 @@ android {
 
     signingConfigs {
         create("release") {
-            val alias  = keyProp("PDFTECH_KEY_ALIAS",     "keyAlias")
-            val kPass  = keyProp("PDFTECH_KEY_PASSWORD",  "keyPassword")
-            val sFile  = keyProp("PDFTECH_STORE_FILE",    "storeFile")
-            val sPass  = keyProp("PDFTECH_STORE_PASSWORD","storePassword")
-            if (alias != null && kPass != null && sFile != null && sPass != null) {
-                keyAlias      = alias
-                keyPassword   = kPass
-                storeFile     = file(sFile)
-                storePassword = sPass
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
+            val alias  = env("PDFTECH_KEY_ALIAS")
+            val kPass  = env("PDFTECH_KEY_PASSWORD")
+            val sFile  = env("PDFTECH_STORE_FILE")
+            val sPass  = env("PDFTECH_STORE_PASSWORD")
+            if (alias == null || kPass == null || sFile == null || sPass == null) {
+                throw GradleException(
+                    "Release signing credentials missing. " +
+                    "Set PDFTECH_KEY_ALIAS, PDFTECH_KEY_PASSWORD, " +
+                    "PDFTECH_STORE_FILE and PDFTECH_STORE_PASSWORD " +
+                    "environment variables (or use a secure CI secret store)."
+                )
             }
+            keyAlias      = alias
+            keyPassword   = kPass
+            storeFile     = file(sFile)
+            storePassword = sPass
+            // v1 désactivée (audit OWASP M5/M8 — attaque Janus).
+            enableV1Signing = false
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
     defaultConfig {
         applicationId = "com.pdftech.pdf_tech"
-        minSdk = flutter.minSdkVersion
+        // Pinné explicitement (coherence cross-app, reproductibilité CI).
+        minSdk = 24
         // Pinné explicitement à 35 (cohérence avec compileSdk = 36) au lieu
         // de suivre `flutter.targetSdkVersion` qui peut diverger selon le SDK.
         targetSdk = 35
@@ -99,13 +100,10 @@ android {
 
     buildTypes {
         release {
-            // Fallback debug si pas de credentials release dispo (CI sans secrets)
-            signingConfig = if (keyPropertiesFile.exists() ||
-                System.getenv("PDFTECH_STORE_PASSWORD") != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Pas de fallback debug : un build release sans credentials valides
+            // doit échouer explicitement (audit — empêche une signature debug
+            // de fuiter en production).
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

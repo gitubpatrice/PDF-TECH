@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:path_provider/path_provider.dart';
@@ -121,31 +122,41 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   /// DocumentsUI potentiellement bugué de l’émulateur). Sinon on fallback sur
   /// `file_picker` SAF.
   Future<void> _pickFiles() async {
-    debugPrint(
-      '[PdfPickerScreen] _pickFiles() invoked (multi=${widget.multi})',
-    );
+    if (kDebugMode) {
+      debugPrint(
+        '[PdfPickerScreen] _pickFiles() invoked (multi=${widget.multi})',
+      );
+    }
 
     final hasStorage = await StoragePermissionService.requestWithDialog(
       context,
     );
-    debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    }
     if (!mounted) return;
     if (!hasStorage) {
       // L’utilisateur refuse la permission globale : on propose le picker SAF.
-      debugPrint('[PdfPickerScreen] falling back to file_picker SAF');
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] falling back to file_picker SAF');
+      }
       await _pickWithFilePicker();
       return;
     }
 
     // Scan direct de Download quand la permission globale est accordée.
     final downloadDir = await _downloadDirectory();
-    debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] download dir: $downloadDir');
+    }
     if (!mounted) return;
     if (downloadDir == null) {
       showErrorSnack(context, 'Impossible d’accéder au dossier Download');
       return;
     }
-    debugPrint('[PdfPickerScreen] opening PdfFolderScreen for Download');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] opening PdfFolderScreen for Download');
+    }
     if (!mounted) return;
     final picked = await Navigator.push<String>(
       context,
@@ -153,7 +164,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
         builder: (_) => PdfFolderScreen(path: downloadDir, title: 'Download'),
       ),
     );
-    debugPrint('[PdfPickerScreen] PdfFolderScreen returned: $picked');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] PdfFolderScreen returned: $picked');
+    }
     if (!mounted) return;
     if (picked != null && picked.toLowerCase().endsWith('.pdf')) {
       if (widget.multi) {
@@ -187,7 +200,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
             .toList();
       }
     } catch (e, st) {
-      debugPrint('[PdfPickerScreen] file_picker error: $e\n$st');
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] file_picker error: $e\n$st');
+      }
     }
 
     if (!mounted) return;
@@ -207,12 +222,16 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
   /// Ouvre l’explorateur de dossiers intégré puis navigue dans le dossier
   /// choisi pour y sélectionner un PDF.
   Future<void> _pickAndBrowseFolder() async {
-    debugPrint('[PdfPickerScreen] _pickAndBrowseFolder() invoked');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] _pickAndBrowseFolder() invoked');
+    }
 
     final hasStorage = await StoragePermissionService.requestWithDialog(
       context,
     );
-    debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] storage permission granted: $hasStorage');
+    }
     if (!mounted) return;
     if (!hasStorage) {
       // L’utilisateur refuse la permission globale : on propose le picker SAF.
@@ -237,7 +256,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
         ),
       ),
     );
-    debugPrint('[PdfPickerScreen] folder browser returned: $picked');
+    if (kDebugMode) {
+      debugPrint('[PdfPickerScreen] folder browser returned: $picked');
+    }
     if (!mounted) return;
     if (picked != null && picked.toLowerCase().endsWith('.pdf')) {
       if (widget.multi) {
@@ -289,7 +310,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       if (await fallback.exists()) return fallback.path;
       return null;
     } catch (e) {
-      debugPrint('[PdfPickerScreen] _externalRootDirectory error: $e');
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] _externalRootDirectory error: $e');
+      }
       return null;
     }
   }
@@ -308,7 +331,9 @@ class _PdfPickerScreenState extends State<PdfPickerScreen>
       if (await fallback.exists()) return fallback.path;
       return null;
     } catch (e) {
-      debugPrint('[PdfPickerScreen] _downloadDirectory error: $e');
+      if (kDebugMode) {
+        debugPrint('[PdfPickerScreen] _downloadDirectory error: $e');
+      }
       return null;
     }
   }

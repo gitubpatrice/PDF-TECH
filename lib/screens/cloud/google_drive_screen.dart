@@ -84,9 +84,10 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       });
       await _loadFiles();
     } catch (e) {
+      if (kDebugMode) debugPrint('[GoogleDriveScreen._signIn] $e');
       if (!mounted) return;
       setState(() => _checkingAuth = false);
-      showErrorSnack(context, 'connexion : $e');
+      showErrorSnack(context, 'Erreur de connexion a Google Drive');
     }
   }
 
@@ -109,8 +110,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       final files = await _service.listPdfFiles();
       if (mounted) setState(() => _files = files);
     } catch (e) {
+      if (kDebugMode) debugPrint('[GoogleDriveScreen._loadFiles] $e');
       if (!mounted) return;
-      showErrorSnack(context, 'chargement : $e');
+      showErrorSnack(context, 'Erreur de chargement des fichiers Drive');
     } finally {
       if (mounted) setState(() => _loadingFiles = false);
     }
@@ -131,8 +133,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
       showInfoSnack(context, 'Fichier envoyé sur Google Drive');
       await _loadFiles();
     } catch (e) {
+      if (kDebugMode) debugPrint('[GoogleDriveScreen._upload] $e');
       if (!mounted) return;
-      showErrorSnack(context, 'upload : $e');
+      showErrorSnack(context, 'Erreur d\'envoi sur Google Drive');
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -160,8 +163,9 @@ class _GoogleDriveScreenState extends State<GoogleDriveScreen> {
         ),
       );
     } catch (e) {
+      if (kDebugMode) debugPrint('[GoogleDriveScreen._download] $e');
       if (!mounted) return;
-      showErrorSnack(context, 'téléchargement : $e');
+      showErrorSnack(context, 'Erreur de telechargement depuis Google Drive');
     } finally {
       if (mounted) setState(() => _downloadingId = null);
     }
