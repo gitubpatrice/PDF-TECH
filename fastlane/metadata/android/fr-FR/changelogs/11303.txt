@@ -1,0 +1,9 @@
+v1.13.3 — Explorateur de fichiers complet & version corrigée
+
+L'explorateur intégré affiche maintenant tous les fichiers du téléphone (images, vidéos, audio, documents, archives…) avec des icônes colorées par type. Seuls les PDFs restent sélectionnables.
+
+Correction de la version affichée dans l'application (1.13.3).
+
+Le bouton "Vérifier les mises à jour" ouvre directement la page GitHub Releases latest pour télécharger la dernière APK.
+
+100 % local.

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:files_tech_core/files_tech_core.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../core/app_info.dart';
 import '../services/app_update.dart';
 import '../utils/snack_utils.dart';
@@ -53,7 +54,7 @@ class _AboutScreenState extends State<AboutScreen> {
     (
       icon: Icons.document_scanner_outlined,
       label: 'OCR',
-      desc: 'Extraire le texte (natif + ML Kit pour scannés)',
+      desc: 'Extraire le texte avec Tesseract (hors ligne)',
     ),
     (
       icon: Icons.draw,
@@ -71,6 +72,13 @@ class _AboutScreenState extends State<AboutScreen> {
       desc: 'Stockage, reprendre, actions rapides, favoris, récents',
     ),
   ];
+
+  Future<void> _openDownloadPage() async {
+    final uri = Uri.parse('${AppInfo.githubUrl}/releases/latest');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 
   Future<void> _checkUpdate() async {
     setState(() => _checkingUpdate = true);
@@ -157,8 +165,11 @@ class _AboutScreenState extends State<AboutScreen> {
                 child: const Text('Plus tard'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('OK'),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _openDownloadPage();
+                },
+                child: const Text('Télécharger'),
               ),
             ],
           );

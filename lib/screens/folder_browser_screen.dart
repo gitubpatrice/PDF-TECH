@@ -2,8 +2,12 @@ import 'dart:io';
 import 'package:files_tech_core/files_tech_core.dart';
 import 'package:flutter/material.dart';
 
-/// Explorateur de dossiers intégré. Nécessite [MANAGE_EXTERNAL_STORAGE]
+/// Explorateur de fichiers intégré. Nécessite [MANAGE_EXTERNAL_STORAGE]
 /// (ou un path déjà accessible) pour parcourir le stockage externe.
+///
+/// Affiche tous les dossiers et fichiers du téléphone comme un explorateur
+/// classique. Seuls les fichiers PDF sont sélectionnables quand [pickFile]
+/// est true.
 ///
 /// Retourne via `Navigator.pop` :
 /// - `String` (path du fichier PDF choisi) si [pickFile] est true
@@ -46,10 +50,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
         });
         return;
       }
-      final entries = await dir
-          .list(followLinks: false)
-          .where((e) => e is Directory || _isPdf(e))
-          .toList();
+      final entries = await dir.list(followLinks: false).toList();
       entries.sort((a, b) {
         final aDir = a is Directory;
         final bDir = b is Directory;
@@ -76,6 +77,192 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
   bool _isPdf(FileSystemEntity e) =>
       e is File && e.path.toLowerCase().endsWith('.pdf');
 
+  void _onFileTap(FileSystemEntity e) {
+    if (e is! File) return;
+    if (_isPdf(e)) {
+      _selectFile(e.path);
+    } else if (widget.pickFile) {
+      // L'utilisateur cherche un PDF : on ignore les autres fichiers.
+      return;
+    }
+    // En mode sélection de dossier, un fichier ne déclenche rien.
+  }
+
+  IconData _fileIcon(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.pdf')) return Icons.picture_as_pdf_rounded;
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp') ||
+        lower.endsWith('.bmp')) {
+      return Icons.image_rounded;
+    }
+    if (lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mov')) {
+      return Icons.video_file_rounded;
+    }
+    if (lower.endsWith('.mp3') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg')) {
+      return Icons.audio_file_rounded;
+    }
+    if (lower.endsWith('.doc') ||
+        lower.endsWith('.docx') ||
+        lower.endsWith('.txt') ||
+        lower.endsWith('.rtf') ||
+        lower.endsWith('.odt')) {
+      return Icons.description_rounded;
+    }
+    if (lower.endsWith('.xls') ||
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.ods')) {
+      return Icons.table_chart_rounded;
+    }
+    if (lower.endsWith('.ppt') ||
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.odp')) {
+      return Icons.slideshow_rounded;
+    }
+    if (lower.endsWith('.zip') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz')) {
+      return Icons.folder_zip_rounded;
+    }
+    if (lower.endsWith('.apk')) return Icons.android_rounded;
+    if (lower.endsWith('.html') ||
+        lower.endsWith('.htm') ||
+        lower.endsWith('.css') ||
+        lower.endsWith('.js')) {
+      return Icons.code_rounded;
+    }
+    return Icons.insert_drive_file_rounded;
+  }
+
+  Color _fileColor(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.pdf')) return const Color(0xFFC62828);
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp')) {
+      return const Color(0xFFFB8C00);
+    }
+    if (lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mov')) {
+      return const Color(0xFFE53935);
+    }
+    if (lower.endsWith('.mp3') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg')) {
+      return const Color(0xFF8E24AA);
+    }
+    if (lower.endsWith('.doc') ||
+        lower.endsWith('.docx') ||
+        lower.endsWith('.txt') ||
+        lower.endsWith('.rtf') ||
+        lower.endsWith('.odt')) {
+      return const Color(0xFF1565C0);
+    }
+    if (lower.endsWith('.xls') ||
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.ods')) {
+      return const Color(0xFF2E7D32);
+    }
+    if (lower.endsWith('.ppt') ||
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.odp')) {
+      return const Color(0xFFE65100);
+    }
+    if (lower.endsWith('.zip') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz')) {
+      return const Color(0xFF795548);
+    }
+    if (lower.endsWith('.apk')) return const Color(0xFF3DDC84);
+    if (lower.endsWith('.html') ||
+        lower.endsWith('.htm') ||
+        lower.endsWith('.css') ||
+        lower.endsWith('.js')) {
+      return const Color(0xFF039BE5);
+    }
+    return const Color(0xFF607D8B);
+  }
+
+  String _fileLabel(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'PDF';
+    if (lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.gif') ||
+        lower.endsWith('.webp')) {
+      return 'Image';
+    }
+    if (lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mov')) {
+      return 'Vidéo';
+    }
+    if (lower.endsWith('.mp3') ||
+        lower.endsWith('.wav') ||
+        lower.endsWith('.flac') ||
+        lower.endsWith('.aac') ||
+        lower.endsWith('.ogg')) {
+      return 'Audio';
+    }
+    if (lower.endsWith('.doc') ||
+        lower.endsWith('.docx') ||
+        lower.endsWith('.txt') ||
+        lower.endsWith('.rtf') ||
+        lower.endsWith('.odt')) {
+      return 'Document';
+    }
+    if (lower.endsWith('.xls') ||
+        lower.endsWith('.xlsx') ||
+        lower.endsWith('.csv') ||
+        lower.endsWith('.ods')) {
+      return 'Tableur';
+    }
+    if (lower.endsWith('.ppt') ||
+        lower.endsWith('.pptx') ||
+        lower.endsWith('.odp')) {
+      return 'Présentation';
+    }
+    if (lower.endsWith('.zip') ||
+        lower.endsWith('.rar') ||
+        lower.endsWith('.7z') ||
+        lower.endsWith('.tar') ||
+        lower.endsWith('.gz')) {
+      return 'Archive';
+    }
+    if (lower.endsWith('.apk')) return 'APK';
+    if (lower.endsWith('.html') ||
+        lower.endsWith('.htm') ||
+        lower.endsWith('.css') ||
+        lower.endsWith('.js')) {
+      return 'Code';
+    }
+    return 'Fichier';
+  }
+
   Future<void> _enter(String path) async {
     final result = await Navigator.push<String>(
       context,
@@ -98,21 +285,26 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final lower = name.toLowerCase();
     if (lower.contains('download')) return Icons.download_rounded;
     if (lower.contains('document')) return Icons.description_rounded;
-    if (lower.contains('music') || lower.contains('audio'))
+    if (lower.contains('music') || lower.contains('audio')) {
       return Icons.music_note_rounded;
-    if (lower.contains('video') || lower.contains('movie'))
+    }
+    if (lower.contains('video') || lower.contains('movie')) {
       return Icons.movie_rounded;
+    }
     if (lower.contains('image') ||
         lower.contains('picture') ||
-        lower.contains('photo'))
+        lower.contains('photo')) {
       return Icons.photo_rounded;
-    if (lower.contains('dcim') || lower.contains('camera'))
+    }
+    if (lower.contains('dcim') || lower.contains('camera')) {
       return Icons.camera_alt_rounded;
+    }
     if (lower.contains('whatsapp')) return Icons.chat_rounded;
     if (lower.contains('telegram')) return Icons.telegram_rounded;
     if (lower.contains('android')) return Icons.android_rounded;
-    if (lower.contains('sync') || lower.contains('cloud'))
+    if (lower.contains('sync') || lower.contains('cloud')) {
       return Icons.cloud_rounded;
+    }
     return Icons.folder_rounded;
   }
 
@@ -120,21 +312,26 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
     final lower = name.toLowerCase();
     if (lower.contains('download')) return const Color(0xFF43A047);
     if (lower.contains('document')) return const Color(0xFF1565C0);
-    if (lower.contains('music') || lower.contains('audio'))
+    if (lower.contains('music') || lower.contains('audio')) {
       return const Color(0xFF8E24AA);
-    if (lower.contains('video') || lower.contains('movie'))
+    }
+    if (lower.contains('video') || lower.contains('movie')) {
       return const Color(0xFFE53935);
+    }
     if (lower.contains('image') ||
         lower.contains('picture') ||
-        lower.contains('photo'))
+        lower.contains('photo')) {
       return const Color(0xFFFB8C00);
-    if (lower.contains('dcim') || lower.contains('camera'))
+    }
+    if (lower.contains('dcim') || lower.contains('camera')) {
       return const Color(0xFF00897B);
+    }
     if (lower.contains('whatsapp')) return const Color(0xFF25D366);
     if (lower.contains('telegram')) return const Color(0xFF29B6F6);
     if (lower.contains('android')) return const Color(0xFF3DDC84);
-    if (lower.contains('sync') || lower.contains('cloud'))
+    if (lower.contains('sync') || lower.contains('cloud')) {
       return const Color(0xFF039BE5);
+    }
     return const Color(0xFFFFB300);
   }
 
@@ -191,7 +388,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Aucun dossier ou PDF ici',
+                    'Aucun fichier ici',
                     style: TextStyle(color: cs.onSurfaceVariant),
                   ),
                 ],
@@ -208,11 +405,7 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
                 final name = PathUtils.fileName(e.path);
                 final folderColor = _folderColor(name);
                 return GestureDetector(
-                  onTap: () => isDir
-                      ? _enter(e.path)
-                      : widget.pickFile
-                      ? _selectFile(e.path)
-                      : null,
+                  onTap: () => isDir ? _enter(e.path) : _onFileTap(e),
                   child: Card(
                     elevation: 0,
                     margin: EdgeInsets.zero,
@@ -227,40 +420,36 @@ class _FolderBrowserScreenState extends State<FolderBrowserScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(
-                            width: 32,
-                            height: 32,
+                            width: 48,
+                            height: 48,
                             child: Center(
                               child: Icon(
-                                isDir
-                                    ? _folderIcon(name)
-                                    : Icons.picture_as_pdf_rounded,
-                                color: isDir
-                                    ? folderColor
-                                    : const Color(0xFFC62828),
-                                size: 24,
+                                isDir ? _folderIcon(name) : _fileIcon(name),
+                                color: isDir ? folderColor : _fileColor(name),
+                                size: 36,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
                             child: Text(
                               name,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                                 height: 1.2,
                               ),
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
-                            isDir ? 'Dossier' : 'PDF',
+                            isDir ? 'Dossier' : _fileLabel(name),
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 11,
                               color: cs.onSurfaceVariant,
                             ),
                           ),

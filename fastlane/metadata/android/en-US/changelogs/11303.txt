@@ -1,0 +1,9 @@
+v1.13.3 — Full file explorer & version fix
+
+The built-in file browser now shows all phone files (images, videos, audio, documents, archives…) with color-coded type icons. Only PDFs remain selectable.
+
+Fixed the version displayed inside the app (1.13.3).
+
+The "Check for updates" button now opens the GitHub Releases latest page directly to download the latest APK.
+
+100% local.
