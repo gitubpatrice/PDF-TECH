@@ -7,26 +7,26 @@ on:
 
 jobs:
   build-and-release:
-    name: Build signed APK + GitHub Release
+    name: Build signed APKs + GitHub Release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: write
 
     steps:
       - name: Checkout app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: pdf_tech
 
       - name: Checkout files_tech_core (path dependency)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gitubpatrice/files_tech_core
           path: files_tech_core
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -39,7 +39,7 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Decode keystore
         env:
@@ -52,9 +52,17 @@ jobs:
         working-directory: pdf_tech
         run: flutter pub get
 
-      # build.gradle.kts de PDF Tech accepte les env vars PDFTECH_* en
-      # fallback sur key.properties. Plus propre que d'écrire un fichier.
-      - name: Build APK release (signed)
+      # build.gradle.kts accepte les env vars PDFTECH_* (fallback key.properties).
+      - name: Build APK release splits (signed)
+        working-directory: pdf_tech
+        env:
+          PDFTECH_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          PDFTECH_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          PDFTECH_STORE_FILE: keystore.jks
+          PDFTECH_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: flutter build apk --release --split-per-abi
+
+      - name: Build APK release universal (signed)
         working-directory: pdf_tech
         env:
           PDFTECH_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -63,42 +71,66 @@ jobs:
           PDFTECH_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: flutter build apk --release
 
-      - name: Rename + SHA256
+      - name: Rename APKs + SHA256
         id: sha
         run: |
-          SRC=pdf_tech/build/app/outputs/flutter-apk/app-release.apk
-          DEST=pdf_tech-v${{ steps.version.outputs.VERSION }}.apk
-          cp "$SRC" "$DEST"
-          SHA=$(sha256sum "$DEST" | awk '{print $1}')
-          echo "SHA256=$SHA" >> $GITHUB_OUTPUT
-          echo "APK_PATH=$DEST" >> $GITHUB_OUTPUT
+          VERSION=${{ steps.version.outputs.VERSION }}
+          OUT=pdf_tech/build/app/outputs/flutter-apk
+          mkdir -p release-assets
+
+          # Splits ABI
+          cp "$OUT/app-armeabi-v7a-release.apk" "release-assets/pdf-tech-armeabi-v7a-${VERSION}.apk"
+          cp "$OUT/app-arm64-v8a-release.apk" "release-assets/pdf-tech-arm64-v8a-${VERSION}.apk"
+          cp "$OUT/app-x86_64-release.apk" "release-assets/pdf-tech-x86_64-${VERSION}.apk"
+
+          # Universal
+          cp "$OUT/app-release.apk" "release-assets/pdf-tech-universel-${VERSION}.apk"
+
+          # Table SHA-256 pour la release note
+          {
+            echo "sha256_table<<EOF"
+            echo "| APK | SHA-256 |"
+            echo "|-----|---------|"
+            for f in release-assets/*.apk; do
+              name=$(basename "$f")
+              hash=$(sha256sum "$f" | awk '{print $1}')
+              echo "| \`$name\` | \`$hash\` |"
+            done
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          name: PDF Tech ${{ steps.version.outputs.VERSION }}
           generate_release_notes: true
           body: |
-            ## Vérification d'intégrité
+            ## PDF Tech ${{ steps.version.outputs.VERSION }}
 
-            **APK arm64-v8a** : `${{ steps.sha.outputs.APK_PATH }}`
+            ### Français
+            - Build release signé avec les 4 variants ABI.
+            - Voir le changelog complet ci-dessous.
 
-            **SHA-256** :
-            ```
-            ${{ steps.sha.outputs.SHA256 }}
-            ```
+            ### English
+            - Signed release build with 4 ABI variants.
+            - See full changelog below.
 
-            Vérifiez avec :
-            ```
-            sha256sum pdf_tech-v${{ steps.version.outputs.VERSION }}.apk
+            ## Vérification d'intégrité / Integrity verification
+
+            ${{ steps.sha.outputs.sha256_table }}
+
+            Vérifiez avec / Verify with :
+            ```bash
+            sha256sum pdf-tech-*.apk
             ```
 
             ---
-
-            🤖 Build automatique via GitHub Actions (commit `${{ github.sha }}`)
-          files: ${{ steps.sha.outputs.APK_PATH }}
+            🤖 Build automatique via GitHub Actions (commit `${{ github.sha }}`).
+          files: release-assets/*.apk
 
       - name: Cleanup
         if: always()
-        run: rm -f pdf_tech/android/app/keystore.jks
+        run: |
+          rm -f pdf_tech/android/app/keystore.jks
+          rm -rf release-assets
