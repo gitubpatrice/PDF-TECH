@@ -98,8 +98,7 @@ android {
             // doit echouer explicitement (audit — empeche une signature debug
             // de fuiter en production).
             val isReleaseBuild = project.gradle.startParameter.taskNames.any {
-                it.contains("Release", ignoreCase = true) ||
-                it.contains("release", ignoreCase = true)
+                it.endsWith("Release", ignoreCase = true)
             }
             if (isReleaseBuild) {
                 val alias  = env("PDFTECH_KEY_ALIAS")
