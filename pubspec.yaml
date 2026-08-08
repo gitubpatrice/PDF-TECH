@@ -12,8 +12,16 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   # Code partage Files Tech (RecentFiles, UpdateService, CloudShareRow, etc.)
+  # Dépendance git et non chemin relatif : `path: ../files_tech_core` ne résout que dans
+  # l'arborescence de développement. Hors de celle-ci — un clone du dépôt, la CI, le buildserver
+  # F-Droid — `pub get` échoue sur « could not find package files_tech_core ». L'application était
+  # donc incompilable par quiconque n'a pas les dépôts frères côte à côte, ce qui contredit le fait
+  # de publier les sources. Épinglé à un commit pour rester reproductible ; pass_tech procède ainsi
+  # depuis sa v2.6.0.
   files_tech_core:
-    path: ../files_tech_core
+    git:
+      url: https://github.com/gitubpatrice/files_tech_core.git
+      ref: 4a69aa89a7a7bf6791a03692ca2dbdbb7e66efae
 
   # PDF - visualisation et manipulation
   syncfusion_flutter_pdfviewer: ^33.2.4
