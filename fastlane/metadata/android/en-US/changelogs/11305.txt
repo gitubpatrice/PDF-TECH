@@ -1,0 +1,11 @@
+v1.13.5 — The app builds from its own sources
+
+No functional change.
+
+PDF Tech depended on an internal package by relative path, which only
+resolves where the sibling repositories sit side by side. Anywhere else
+— a plain clone, a CI run, a buildserver — resolution failed and the app
+could not be built.
+
+The package is now pulled from GitHub, pinned to an exact commit so the
+result stays reproducible.

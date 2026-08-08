@@ -1,0 +1,11 @@
+v1.13.5 — L'application se compile depuis ses sources
+
+Aucun changement fonctionnel.
+
+PDF Tech dépendait d'un paquet interne par chemin relatif, ce qui ne
+résout que là où les dépôts voisins sont côte à côte. Ailleurs — un
+simple clone, une intégration continue, un serveur de build — la
+résolution échouait et l'application était incompilable.
+
+Le paquet est désormais tiré depuis GitHub, épinglé à un commit précis
+pour que le résultat reste reproductible.
