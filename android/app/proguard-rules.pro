@@ -1,8 +1,8 @@
-# ML Kit - script Latin uniquement, ignorer les autres scripts optionnels
--dontwarn com.google.mlkit.vision.text.chinese.**
--dontwarn com.google.mlkit.vision.text.devanagari.**
--dontwarn com.google.mlkit.vision.text.japanese.**
--dontwarn com.google.mlkit.vision.text.korean.**
+# Tesseract (flutter_tesseract_ocr) : aucune regle necessaire ici. TessBaseAPI declare des
+# methodes natives, et proguard-android-optimize.txt applique deja
+# `-keepclasseswithmembernames class * { native <methods>; }`, ce qui preserve le nom de la classe
+# indispensable a la resolution JNI. Verifie sur l'APK v1.13.5 publie et minifie :
+# Lcom/googlecode/tesseract/android/TessBaseAPI; y figure sous son nom complet.
 
 # Flutter / Dart
 -keep class io.flutter.** { *; }
@@ -14,8 +14,6 @@
 -keep class com.it_nomads.fluttersecurestorage.** { *; }
 -keep class com.mr.flutter.plugin.filepicker.** { *; }
 -keep class dev.fluttercommunity.plus.share.** { *; }
--keep class com.google.mlkit.** { *; }
--dontwarn com.google.mlkit.**
 
 # Syncfusion (utilise reflection sur certains types PDF)
 -keep class com.syncfusion.** { *; }

@@ -88,7 +88,7 @@ See [SECURITY.md](./SECURITY.md) for the vulnerability disclosure policy.
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `INTERNET`                                  | Update check via the public GitHub Releases API. Also used if the user opts in to Google Drive (optional). No other server-side network use. |
 | `MANAGE_EXTERNAL_STORAGE`                   | Allow the user to browse and open PDFs **anywhere on the device** — including locations that are outside the app sandbox and outside the Storage Access Framework's per-file scope: `Download/`, `Documents/`, WhatsApp / Telegram document folders, and the global "Find all my PDFs" recursive scan. |
-| ML Kit Latin text recognition (bundled)     | Run OCR on PDF pages from files chosen by the user. Local ML Kit model (no external transmission).   |
+| Tesseract OCR (bundled)                     | Run OCR on PDF pages from files chosen by the user. Engine and trained data (`fra`, `eng`) are bundled in the APK and run entirely on-device. No Google component is involved in OCR. |
 
 `READ_MEDIA_IMAGES` is **not** requested. Image selection for the Images → PDF feature uses the Storage Access Framework (`file_picker`), which grants access via a temporary URI without a runtime permission.
 

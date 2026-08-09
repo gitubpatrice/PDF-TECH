@@ -81,7 +81,7 @@ Voir [SECURITY.md](./SECURITY.md) pour la politique de signalement.
 | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `INTERNET`                                  | Vérification de mises à jour via l'API GitHub Releases publique. Également utilisée si l'utilisateur active Google Drive (optionnel). Pas d'autre usage réseau. |
 | `MANAGE_EXTERNAL_STORAGE`                   | Permettre à l'utilisateur de parcourir et ouvrir des PDFs **n'importe où sur l'appareil** — y compris dans les emplacements hors du sandbox de l'app et hors de la portée fichier-par-fichier du Storage Access Framework : `Download/`, `Documents/`, dossiers de documents WhatsApp / Telegram, et le scan récursif global "Trouver mes PDFs". |
-| ML Kit Latin (groupé)                       | OCR sur les pages PDF, à partir de fichiers choisis par l'utilisateur. Modèle local.                |
+| Tesseract OCR (embarqué)                    | OCR sur les pages PDF, à partir de fichiers choisis par l'utilisateur. Moteur et données d'entraînement (`fra`, `eng`) embarqués dans l'APK, exécution entièrement locale. Aucun composant Google n'intervient dans l'OCR. |
 
 `READ_MEDIA_IMAGES` n'est **pas** demandée. La sélection d'images (outil Images → PDF) passe par le Storage Access Framework (`file_picker`) qui octroie l'accès via une URI éphémère, sans permission runtime.
 

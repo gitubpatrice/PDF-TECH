@@ -58,11 +58,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- Bundled ML Kit OCR model (évite le téléchargement au premier lancement) -->
-        <meta-data
-            android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr" />
-
         <!-- FileProvider : permet de partager les PDFs générés vers d'autres apps
              (kDrive, Google Drive, Proton Drive…) via content:// URI sécurisé -->
         <provider

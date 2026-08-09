@@ -31,7 +31,7 @@ PDF Tech: 23 complete tools to manage your PDFs, **100% locally**, no telemetry,
 • Header / footer
 • Metadata (title, author, subject, keywords)
 • Compare two PDFs side by side
-• Multipage OCR (on-device ML Kit, Latin)
+• Multipage OCR (on-device Tesseract, French + English)
 • Fill a form and flatten it
 
 <b>Optional cloud — Google Drive</b>
@@ -42,7 +42,7 @@ PDF Tech: 23 complete tools to manage your PDFs, **100% locally**, no telemetry,
 • No telemetry, no tracker, no advertising
 • `MANAGE_EXTERNAL_STORAGE` justified for global PDF scan (no READ_MEDIA_IMAGES)
 • `INTERNET` only for GitHub Releases update check + optional Google Drive
-• ML Kit OCR model bundled locally (zero network)
+• Tesseract OCR data bundled in the APK (zero network, no Google component)
 • Strict `data_extraction_rules` (cloud-backup OFF, device-transfer OFF)
 
 <b>Open source Apache 2.0</b>
