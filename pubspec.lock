@@ -245,8 +245,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "4a69aa89a7a7bf6791a03692ca2dbdbb7e66efae"
-      resolved-ref: "4a69aa89a7a7bf6791a03692ca2dbdbb7e66efae"
+      ref: "9d6734474aaa7dfa2c1dd726d0dab1a349ebdd0e"
+      resolved-ref: "9d6734474aaa7dfa2c1dd726d0dab1a349ebdd0e"
       url: "https://github.com/gitubpatrice/files_tech_core.git"
     source: git
     version: "0.3.4"
