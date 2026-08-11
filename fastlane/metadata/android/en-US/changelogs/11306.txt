@@ -1,0 +1,9 @@
+v1.13.6 — Update check
+
+Four defects, in the only code of the app that reaches the network.
+
+A version could be offered even though it was OLDER than the installed one.
+
+A Wi-Fi captive portal — a "200" carrying an HTML page — made the check count as done: no further check for twelve hours.
+
+The response was unbounded, and redirects were followed without revalidating the host on the other end.

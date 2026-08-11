@@ -1,0 +1,9 @@
+v1.13.6 — Vérification de mise à jour
+
+Quatre défauts, sur le seul code de l'application qui sorte sur le réseau.
+
+Une version pouvait être proposée alors qu'elle était plus ANCIENNE que celle installée.
+
+Un portail captif Wi-Fi — un « 200 » accompagné d'une page HTML — faisait passer la vérification pour faite : plus aucun contrôle pendant douze heures.
+
+La réponse n'était bornée par rien, et les redirections étaient suivies sans revalider le serveur d'en face.
