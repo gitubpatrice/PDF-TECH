@@ -1,4 +1,4 @@
-PDF Tech : 23 outils complets pour gérer vos PDFs, **100 % localement**, sans télémétrie ni publicité.
+PDF Tech : 23 outils complets pour gérer vos PDFs, <b>100 % localement</b>, sans télémétrie ni publicité.
 
 <b>Lecture &amp; navigation</b>
 • Lecteur Syncfusion : zoom, recherche, signets, mode nuit, reprise de page
@@ -35,15 +35,15 @@ PDF Tech : 23 outils complets pour gérer vos PDFs, **100 % localement**, sans t
 • Remplir un formulaire et l'aplatir
 
 <b>Cloud optionnel — Google Drive</b>
-• OAuth 2.0 scope minimal `drive.file` (révocable)
+• OAuth 2.0 scope minimal <code>drive.file</code> (révocable)
 • Aucun upload silencieux : action utilisateur obligatoire
 
 <b>Confidentialité radicale</b>
 • Aucune télémétrie, aucun tracker, aucune publicité
-• `MANAGE_EXTERNAL_STORAGE` justifiée pour le scan global de PDFs (pas de READ_MEDIA_IMAGES)
-• `INTERNET` uniquement pour vérification updates GitHub Releases + Google Drive optionnel
+• <code>MANAGE_EXTERNAL_STORAGE</code> justifiée pour le scan global de PDFs (pas de READ_MEDIA_IMAGES)
+• <code>INTERNET</code> uniquement pour vérification updates GitHub Releases + Google Drive optionnel
 • Données OCR Tesseract embarquées dans l'APK (zéro réseau, zéro composant Google)
-• Mode `data_extraction_rules` strict (cloud-backup OFF, device-transfer OFF)
+• Mode <code>data_extraction_rules</code> strict (cloud-backup OFF, device-transfer OFF)
 
 <b>Open source Apache 2.0</b>
 Code intégral et vérifiable : https://github.com/gitubpatrice/PDF-TECH
