@@ -1,6 +1,6 @@
 # Politique de confidentialité — PDF Tech
 
-**Version du document** : 7 mai 2026 · 🇬🇧 [English version](https://github.com/gitubpatrice/PDF-TECH/blob/main/PRIVACY.md)
+**Version du document** : 26 octobre 2026 · 🇬🇧 [English version](https://github.com/gitubpatrice/PDF-TECH/blob/main/PRIVACY.md)
 **App** : PDF Tech
 **Site officiel** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -105,3 +105,5 @@ Cette politique peut être mise à jour lors de l'évolution de l'application. L
 ## 12. Contact
 
 📧 **contact@files-tech.com**
+
+Un e-mail que l'utilisateur choisit d'écrire au développeur sert uniquement à lui répondre ; il est gardé le temps de l'échange, puis effacé. L'utilisateur peut en demander l'accès ou l'effacement à la même adresse, et saisir la CNIL (www.cnil.fr) s'il estime que ses droits ne sont pas respectés.

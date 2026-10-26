@@ -1,6 +1,6 @@
 # Terms of Use — PDF Tech
 
-**Document version** : 7 May 2026 · 🇫🇷 [Version française](https://github.com/gitubpatrice/PDF-TECH/blob/main/TERMS.fr.md)
+**Document version** : 26 October 2026 · 🇫🇷 [Version française](https://github.com/gitubpatrice/PDF-TECH/blob/main/TERMS.fr.md)
 **App** : PDF Tech
 **Website** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -53,7 +53,7 @@ The application is provided "as is". The developer makes best efforts to provide
 
 ## 9. Limitation of liability
 
-To the extent permitted by law, the developer cannot be held liable for data loss, handling errors, indirect damages, loss of operations, loss of opportunity, technical incompatibilities, problems related to third-party services or consequences of non-compliant use.
+The app is provided free of charge, by a private individual. To the extent permitted by law, the developer is not liable for indirect damage, nor for data loss caused by using functions designed to change a file for good (saving annotations or a filled-in form into the document) or by forgetting the password of a protected PDF (Apache 2.0 license, section 8). This limit applies neither to gross negligence or wilful misconduct, nor to damage the law forbids excluding.
 
 ## 10. Third-party services
 

@@ -1,6 +1,6 @@
 # Privacy Policy — PDF Tech
 
-**Document version** : 7 May 2026 · 🇫🇷 [Version française](https://github.com/gitubpatrice/PDF-TECH/blob/main/PRIVACY.fr.md)
+**Document version** : 26 October 2026 · 🇫🇷 [Version française](https://github.com/gitubpatrice/PDF-TECH/blob/main/PRIVACY.fr.md)
 **App** : PDF Tech
 **Website** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -114,3 +114,5 @@ This policy may be updated as the application evolves. The date at the top of th
 For any question regarding privacy, security or data:
 
 📧 **contact@files-tech.com**
+
+An e-mail the user chooses to write to the developer is used only to reply to them; it is kept for the time of the exchange, then erased. The user can ask for access to it or its erasure at the same address, and complain to the CNIL, the French data protection authority (www.cnil.fr), if they think their rights are not respected.
