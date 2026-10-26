@@ -1,6 +1,6 @@
 # Conditions d'utilisation — PDF Tech
 
-**Version du document** : 7 mai 2026 · 🇬🇧 [English version](https://github.com/gitubpatrice/PDF-TECH/blob/main/TERMS.md)
+**Version du document** : 26 octobre 2026 · 🇬🇧 [English version](https://github.com/gitubpatrice/PDF-TECH/blob/main/TERMS.md)
 **App** : PDF Tech
 **Site officiel** : https://www.files-tech.com
 **Contact** : contact@files-tech.com
@@ -53,7 +53,7 @@ L'application est fournie en l'état. Le développeur fait ses meilleurs efforts
 
 ## 9. Limitation de responsabilité
 
-Dans les limites autorisées par la loi, le développeur ne peut être tenu responsable des pertes de données, erreurs de manipulation, dommages indirects, pertes d'exploitation, pertes de chance, incompatibilités techniques, problèmes liés à des services tiers ou conséquences d'une utilisation non conforme.
+L'application est fournie gratuitement, par un particulier. Dans la mesure permise par la loi, le développeur n'est pas responsable des dommages indirects, ni des pertes de données dues à l'usage de fonctions conçues pour modifier un fichier sans retour (enregistrer des annotations ou un formulaire rempli dans le document) ou à l'oubli du mot de passe d'un PDF protégé (licence Apache 2.0, section 8). Cette limite ne s'applique ni en cas de faute lourde ou dolosive, ni aux dommages que la loi interdit d'exclure.
 
 ## 10. Services tiers
 
