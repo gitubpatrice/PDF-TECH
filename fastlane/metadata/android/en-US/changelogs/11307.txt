@@ -1,0 +1,5 @@
+v1.13.7 — Selected text stays in the app
+
+The selection toolbar no longer offers the text actions of other installed apps, Translate included: each one received the selected text of a document. Cut, Copy, Paste and Select all remain.
+
+Terms and privacy policy clarified: what the publisher answers for, and what happens to an e-mail sent to them.

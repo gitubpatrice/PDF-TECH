@@ -1,0 +1,5 @@
+v1.13.7 — Le texte sélectionné reste dans l'application
+
+La barre de sélection ne propose plus les actions de texte des autres applications installées, Traduire compris : chacune recevait le texte sélectionné d'un document. Restent Couper, Copier, Coller, Tout sélectionner.
+
+Conditions et politique de confidentialité précisées : ce dont l'éditeur répond, et le sort d'un e-mail qui lui est envoyé.
