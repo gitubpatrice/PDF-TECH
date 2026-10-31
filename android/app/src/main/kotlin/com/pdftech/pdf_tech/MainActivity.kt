@@ -11,6 +11,7 @@ import android.view.WindowManager
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.systemchannels.ProcessTextChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
@@ -96,6 +97,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        sansActionsDeTexteDesAutresApps(flutterEngine)
 
         // Réception des PDFs entrants (ACTION_VIEW / ACTION_SEND).
         // `getInitialPdf` est tiré par Dart au démarrage (cold start) ;
@@ -260,6 +262,32 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    /// Aucune action de texte d'une autre application dans la barre de sélection (2026-10-31).
+    ///
+    /// Flutter remplit cette barre avec les applications qui déclarent `ACTION_PROCESS_TEXT`,
+    /// demandées au système par le `ProcessTextPlugin` du moteur — n'importe laquelle peut en
+    /// déclarer une, sous n'importe quel nom, et un toucher lui remet le texte sélectionné (un
+    /// résultat d'OCR, un champ). La visibilité des paquets ne suffit pas à les écarter : avant
+    /// Android 11 elle n'existe pas, et ensuite elle se donne par application ENTIÈRE — les
+    /// `<queries>` du manifeste (`SEND` PDF, `VIEW` https, `SENDTO` mailto) rendent visibles
+    /// navigateurs, messageries et lecteurs PDF, avec toutes leurs actions. Ce gestionnaire, posé
+    /// après celui du moteur, n'en propose aucune, sur toutes les versions. Perdu : la lecture à
+    /// voix haute depuis la barre (elle reste joignable par son raccourci d'accessibilité).
+    private fun sansActionsDeTexteDesAutresApps(flutterEngine: FlutterEngine) {
+        flutterEngine.processTextChannel.setMethodHandler(
+            object : ProcessTextChannel.ProcessTextMethodHandler {
+                override fun queryTextActions(): Map<String, String> = emptyMap()
+
+                override fun processTextAction(
+                    id: String,
+                    text: String,
+                    readOnly: Boolean,
+                    result: MethodChannel.Result,
+                ) = result.success(null)
+            },
+        )
     }
 
     /// App déjà vivante (singleTop) : un nouvel « Ouvrir avec » arrive ici.

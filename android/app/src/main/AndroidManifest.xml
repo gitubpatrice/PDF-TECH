@@ -76,10 +76,14 @@
         <package android:name="com.infomaniak.drive" />
         <package android:name="me.proton.android.drive" />
         <package android:name="com.google.android.apps.docs" />
-        <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT"/>
-            <data android:mimeType="text/plain"/>
-        </intent>
+        <!-- Plus de <queries> pour ACTION_PROCESS_TEXT (2026-10-31). Héritée du modèle Flutter,
+             elle rendait VISIBLE toute application qui déclare une action de texte — n'importe
+             laquelle peut le faire, sous n'importe quel nom — et Flutter ajoute chacune d'elles à
+             la barre de sélection de tout champ et de tout SelectableText (résultat d'un OCR
+             compris) : un toucher lui remettait le texte sélectionné. Aucun code de l'application
+             ne s'en sert. Les autres <queries> ci-dessous rendent encore visibles certaines
+             applications entières : la barre est fermée à toutes par
+             MainActivity.sansActionsDeTexteDesAutresApps. -->
         <intent>
             <action android:name="android.intent.action.SEND"/>
             <data android:mimeType="application/pdf"/>
