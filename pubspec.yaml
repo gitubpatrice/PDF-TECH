@@ -43,7 +43,7 @@ dependencies:
 
   # Stockage local chiffre des metadonnees sensibles (recents, pages, cache
   # mise a jour, preferences). flutter_secure_storage utilise Keystore/Keychain.
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.3.4
 
   # Signature electronique
   syncfusion_flutter_signaturepad: ^33.2.4
