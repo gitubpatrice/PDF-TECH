@@ -61,7 +61,7 @@ dependencies:
   # pixels bruts BGRA retournes par pdfrx_engine en PNG.
   pdfrx: ^2.4.7
   pdfrx_engine: ^0.4.6
-  image: ^4.1.3
+  image: ^4.12.0
   flutter_tesseract_ocr: ^0.4.31
 
   # Liens externes (mailto / https)
