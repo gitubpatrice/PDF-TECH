@@ -25,7 +25,7 @@ dependencies:
 
   # PDF - visualisation et manipulation
   syncfusion_flutter_pdfviewer: ^33.2.4
-  syncfusion_flutter_pdf: ^33.2.4
+  syncfusion_flutter_pdf: ^33.2.15
 
   # Gestion des fichiers
   file_picker: ^11.0.0
